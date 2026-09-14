@@ -20,7 +20,9 @@ export default function LoginPage() {
       await login(id, password);
       nav(loc.state?.from && loc.state.from !== '/login' ? loc.state.from : '/seasons', { replace: true });
     } catch (err) {
-      setError(err.status === 403 || err.status === 401 ? new Error('Невірний id або пароль') : err);
+      // Xano на невірний пароль відповідає «Invalid Credentials.» зі статусом 500, не 401
+      const invalid = /invalid credentials/i.test(err.message || '') || err.status === 401 || err.status === 403;
+      setError(invalid ? new Error('Невірний id або пароль') : err);
     } finally {
       setBusy(false);
     }
