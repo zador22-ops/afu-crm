@@ -1,16 +1,58 @@
-# React + Vite
+# CRM АФУ
 
-This template provides a minimal setup to get React working in Vite with HMR and some Oxlint rules.
+Вебзастосунок для роботи з базою Xano Асоціації футзалу України: сезони,
+турніри (ліги й кубки), клуби, склади, штаб, особи. Хостинг — Vercel.
+Бекенд — той самий Xano, що в застосунках «Футзал AFU» і «ADMIN АФУ».
 
-Currently, two official plugins are available:
+Модель даних і всі рішення: `afu-futzal/docs/proposals/crm-model.md`.
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+## Поділ з ADMIN АФУ
 
-## React Compiler
+| Що | Де ведеться |
+|---|---|
+| сезони, змагання, турніри, тури, клуби, склади, штаб, особи | **CRM** |
+| заявка на матч, онлайн, протокол, рапорт делегата | **ADMIN АФУ** |
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+ADMIN живе в Draftbit і його не перезібрати, тому в Xano діє правило **«тільки
+додаємо»**: CRM має власну API-групу `crm` (`api:6HPZ3cxp`), а групу `Default`
+не змінює. Нові колонки таблиць ADMIN не читає і не пише.
 
-## Expanding the Oxlint configuration
+## Запуск
 
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and Oxlint's TypeScript related rules in your project.
+```bash
+npm install
+npm run dev
+```
+
+Вхід той самий, що в ADMIN: числовий `id` користувача таблиці `Users` і пароль
+(`api:97fj3W2I/auth/login`). Токен зберігається в `localStorage`.
+
+## Ендпоінти Xano
+
+Логіка ендпоінтів групи `crm` лежить у `xano/crm/*.xs` (XanoScript) і є
+джерелом правди. Синхронізація з Xano — через Metadata API:
+
+```bash
+node xano/deploy.mjs           # усі файли: створити нові, оновити змінені
+node xano/deploy.mjs --check   # лише показати, що змінилось би
+node xano/deploy.mjs roster    # файли, у назві яких є «roster»
+```
+
+Токен Metadata API береться з Keychain macOS (`security find-generic-password
+-a afu -s xano-metadata`), у репозиторій не потрапляє. Створений так ендпоінт
+одразу живий, без публікації в інтерфейсі Xano.
+
+Ідентифікація ендпоінта — пара (шлях, метод) з першого рядка файла. Файл
+називаємо за шляхом: `tournaments-id-participants.post.xs` ↔
+`POST tournaments/{leagues_id}/participants`.
+
+## Права
+
+Поки що перевикористовуються права ADMIN (`Check access rights`): 10 — турніри й
+тури, 5 — клуби, склад, штаб, 6 — особи. Роль «Адмін» має всі. Окремий
+конструктор ролей із доступом до екранів — наступний етап, за описом від Андрія.
+
+## Деплой
+
+Vercel читає `vercel.json` (SPA-переписування на `index.html`). Команда збірки
+`npm run build`, каталог `dist`.
