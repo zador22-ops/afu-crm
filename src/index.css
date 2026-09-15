@@ -629,3 +629,15 @@ input[type='radio'] {
     overflow-x: auto;
   }
 }
+
+.logo-empty {
+  display: inline-block;
+  border-radius: 6px;
+  background: var(--bg);
+  border: 1px dashed var(--border);
+}
+.img-logo.small {
+  width: 56px;
+  height: 56px;
+  padding: 4px;
+}
