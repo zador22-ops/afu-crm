@@ -18,7 +18,7 @@ query "clubs/{teaminfo_id}" verb=GET {
 
     db.query "Tournament participants" {
       where = $db.Tournament_participants.teaminfo_id == $input.teaminfo_id
-      sort = {tournament_participants.leagues_id: "desc"}
+      sort = {Tournament_participants.leagues_id: "desc"}
       return = {type: "list"}
       addon = [
         {

@@ -11,13 +11,13 @@ query tournaments verb=GET {
       if ($input.season_id > 0) {
         db.query Leagues {
           where = $db.Leagues.season_id == $input.season_id
-          sort = {leagues.id: "desc"}
+          sort = {Leagues.id: "desc"}
           return = {type: "list"}
         } as $items
       }
       else {
         db.query Leagues {
-          sort = {leagues.id: "desc"}
+          sort = {Leagues.id: "desc"}
           return = {type: "list"}
         } as $items
       }

@@ -9,7 +9,7 @@ query "tournaments/{leagues_id}/participants" verb=GET {
   stack {
     db.query "Tournament participants" {
       where = $db.Tournament_participants.leagues_id == $input.leagues_id
-      sort = {tournament_participants.id: "asc"}
+      sort = {Tournament_participants.id: "asc"}
       return = {type: "list"}
       addon = [
         {

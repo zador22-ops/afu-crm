@@ -11,8 +11,8 @@ query "clubs/{teaminfo_id}/staff" verb=GET {
     db.query "Administration of teams" {
       where = $db.Administration_of_teams.teaminfo_id == $input.teaminfo_id
       sort = {
-        administration_of_teams.Relevance_of_the_record: "desc"
-        administration_of_teams.positions_id           : "asc"
+        Administration_of_teams.Relevance_of_the_record: "desc"
+        Administration_of_teams.positions_id           : "asc"
       }
       return = {type: "list"}
       addon = [

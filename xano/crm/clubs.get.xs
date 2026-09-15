@@ -10,7 +10,7 @@ query clubs verb=GET {
     conditional {
       if ($input.archived) {
         db.query TeamInfo {
-          sort = {teaminfo.TeamName: "asc"}
+          sort = {TeamInfo.TeamName: "asc"}
           return = {type: "list"}
           addon = [
             {
@@ -25,7 +25,7 @@ query clubs verb=GET {
       else {
         db.query TeamInfo {
           where = $db.TeamInfo.Relevance == true
-          sort = {teaminfo.TeamName: "asc"}
+          sort = {TeamInfo.TeamName: "asc"}
           return = {type: "list"}
           addon = [
             {

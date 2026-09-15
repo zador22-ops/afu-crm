@@ -7,11 +7,11 @@ query positions verb=GET {
 
   stack {
     db.query Positions {
-      sort = {positions.id: "asc"}
+      sort = {Positions.id: "asc"}
       return = {type: "list"}
     } as $positions
     db.query Venues {
-      sort = {venues.City: "asc"}
+      sort = {Venues.City: "asc"}
       return = {type: "list"}
     } as $venues
   }

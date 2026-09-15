@@ -10,8 +10,8 @@ query "tournaments/{leagues_id}/tours" verb=GET {
     db.query Tours {
       where = $db.Tours.leagues_id == $input.leagues_id
       sort = {
-        tours.league_stage_id: "asc"
-        tours.id             : "asc"
+        Tours.league_stage_id: "asc"
+        Tours.id             : "asc"
       }
       return = {type: "list"}
       addon = [

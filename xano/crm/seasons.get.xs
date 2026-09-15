@@ -7,7 +7,7 @@ query seasons verb=GET {
 
   stack {
     db.query Season {
-      sort = {season.id: "desc"}
+      sort = {Season.id: "desc"}
       return = {type: "list"}
     } as $seasons
   }
