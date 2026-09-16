@@ -641,3 +641,25 @@ input[type='radio'] {
   height: 56px;
   padding: 4px;
 }
+
+/* Підтвердження видалення: те саме тло, що в помилки, бо дія так само незворотна */
+.danger-box {
+  background: var(--danger-soft);
+  border: 1px solid #f1c3be;
+  border-radius: 8px;
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.danger-box ul {
+  margin: 6px 0 0;
+  padding-left: 18px;
+}
+.danger-box .form-actions {
+  margin-top: 2px;
+}
+/* Розсуває «Видалити» вліво від решти кнопок форми */
+.spacer {
+  flex: 1;
+}

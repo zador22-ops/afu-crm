@@ -58,6 +58,14 @@ export default function TournamentMatches({ tid, participants }) {
     },
   });
 
+  const remove = useMutation({
+    mutationFn: ({ id, force }) => crm.del(`/matches/${id}${force ? '?force=true' : ''}`),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['matches', tid] });
+      setEditing(null);
+    },
+  });
+
   const команди = useMemo(
     () =>
       (participants || [])
@@ -123,13 +131,29 @@ export default function TournamentMatches({ tid, participants }) {
         </table>
       )}
       {editing && (
-        <MatchForm item={editing} tid={tid} tours={tours.data || []} команди={команди} onClose={() => setEditing(null)} onSave={save} />
+        <MatchForm
+          item={editing}
+          tid={tid}
+          tours={tours.data || []}
+          команди={команди}
+          onClose={() => setEditing(null)}
+          onSave={save}
+          onDelete={remove}
+        />
       )}
     </section>
   );
 }
 
-function MatchForm({ item, tid, tours, команди, onClose, onSave }) {
+function MatchForm({ item, tid, tours, команди, onClose, onSave, onDelete }) {
+  const [confirming, setConfirming] = useState(false);
+  // Залежності читаємо лише коли людина натиснула «Видалити»: до того це зайвий
+  // запит на кожне відкриття картки.
+  const deps = useQuery({
+    queryKey: ['match-deps', item.id],
+    queryFn: () => crm.get(`/matches/${item.id}/deps`),
+    enabled: confirming && !!item.id,
+  });
   const venues = useQuery({ queryKey: ['venues'], queryFn: () => crm.get('/venues') });
   const judges = useQuery({ queryKey: ['judges', false], queryFn: () => crm.get('/judges') });
   const delegates = useQuery({ queryKey: ['delegates'], queryFn: () => crm.get('/delegates') });
@@ -314,12 +338,56 @@ function MatchForm({ item, tid, tours, команди, onClose, onSave }) {
         <Field label="Відео" hint="ID запису, як його зберігає ADMIN">
           <input value={values.VideoID} onChange={set('VideoID')} />
         </Field>
+        {confirming && (
+          <div className="danger-box">
+            <div className="strong">Видалити матч назавжди?</div>
+            {deps.isPending && <div className="muted small-text">Рахую, що зникне разом із ним…</div>}
+            {deps.data && deps.data.total === 0 && (
+              <div className="muted small-text">До матчу нічого не привʼязано — зникне лише сам матч.</div>
+            )}
+            {deps.data && deps.data.total > 0 && (
+              <div className="small-text">
+                Разом із матчем зникнуть, і відновити їх не можна:
+                <ul>
+                  {deps.data.table_rows > 0 && <li>рядків турнірної таблиці: {deps.data.table_rows}</li>}
+                  {deps.data.events > 0 && <li>подій протоколу: {deps.data.events}</li>}
+                  {deps.data.squad > 0 && <li>гравців у заявці: {deps.data.squad}</li>}
+                  {deps.data.staff_squad > 0 && <li>штабу в заявці: {deps.data.staff_squad}</li>}
+                  {deps.data.staff_cards > 0 && <li>карток штабу: {deps.data.staff_cards}</li>}
+                  {deps.data.organization > 0 && <li>пунктів організації матчу: {deps.data.organization}</li>}
+                  {deps.data.violations > 0 && <li>порушень: {deps.data.violations}</li>}
+                  {deps.data.injuries > 0 && <li>травм: {deps.data.injuries}</li>}
+                </ul>
+              </div>
+            )}
+            <ErrorBox error={onDelete.error} />
+            <div className="form-actions">
+              <button type="button" className="btn" onClick={() => setConfirming(false)}>
+                Ні, лишити
+              </button>
+              <button
+                type="button"
+                className="btn danger"
+                disabled={onDelete.isPending || deps.isPending}
+                onClick={() => onDelete.mutate({ id: item.id, force: (deps.data?.total ?? 0) > 0 })}
+              >
+                Так, видалити
+              </button>
+            </div>
+          </div>
+        )}
         <ErrorBox error={onSave.error} />
         <div className="form-actions">
+          {item.id && !confirming && (
+            <button type="button" className="btn danger ghost" onClick={() => setConfirming(true)}>
+              Видалити матч
+            </button>
+          )}
+          <span className="spacer" />
           <button type="button" className="btn" onClick={onClose}>
             Скасувати
           </button>
-          <button className="btn primary" disabled={onSave.isPending}>
+          <button className="btn primary" disabled={onSave.isPending || confirming}>
             Зберегти
           </button>
         </div>
