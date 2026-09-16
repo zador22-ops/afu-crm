@@ -28,6 +28,14 @@ query "matches/{match_id}" verb=DELETE {
       error = "Матч не знайдено"
     }
 
+    // Рішення Андрія 16.09: зіграний матч із CRM не видаляється взагалі.
+    // Протокол на кілька десятків рядків не відновлюється нізвідки, а
+    // помилковий клік цілком можливий. Виправляти зіграні матчі — в ADMIN.
+    precondition ($was.match_status_id == 1 || $was.match_status_id == 2) {
+      error_type = "badrequest"
+      error = "Видалити можна лише запланований або перенесений матч. Зіграний правиться в ADMIN"
+    }
+
     db.query Table {
       where = $db.Table.match_id == $input.match_id
       return = {type: "list"}

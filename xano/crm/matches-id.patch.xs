@@ -52,6 +52,21 @@ query "matches/{match_id}" verb=PATCH {
       error = "Статус «Онлайн» і «Зіграний» поки ставляться в ADMIN: від них залежать рядки турнірної таблиці"
     }
 
+    // Перенесення в інший турнір безпечне лише поки матч не має рядків
+    // турнірної таблиці: `Table` тримає власний `leagues_id`, і рядки
+    // лишилися б у старому турнірі — обидві таблиці порахувались би
+    // неправильно, причому мовчки. Рядки зʼявляються не лише від статусу:
+    // гол через старий POST /statistic створює їх навіть у запланованого
+    // матчу (admin-app.md 8.1), тому перевіряємо самі рядки, а не статус.
+    db.query Table {
+      where = $db.Table.match_id == $input.match_id
+      return = {type: "count"}
+    } as $table_rows
+    precondition ($input.leagues_id == null || $table_rows == 0) {
+      error_type = "badrequest"
+      error = "Матч має рядки турнірної таблиці — перенести його в інший турнір не можна"
+    }
+
     util.get_raw_input {
       encoding = "json"
       exclude_middleware = false

@@ -15,8 +15,9 @@ import { Empty, ErrorBox, Field, Modal, useForm } from '../components/ui.jsx';
  * Турнірна таблиця мовчки розійшлася б із результатами. Ведення рахунку —
  * черга 2 ТЗ (`docs/proposals/crm-admin-parity.md` у репозиторії AFU).
  *
- * Зіграні матчі тут видно повністю, з рахунком; недоступне лише редагування
- * рахунку й переведення статусу.
+ * Зіграні матчі тут видно повністю, з рахунком; недоступні рахунок, статус і
+ * видалення (рішення Андрія 16.09). Перенести зіграний матч в інший турнір теж
+ * не можна: `Table` тримає власний `leagues_id`, і рядки лишились би в старому.
  */
 
 const дата = (ts) => {
@@ -211,8 +212,8 @@ function MatchForm({ item, tid, tours, команди, onClose, onSave, onDelete
       <form onSubmit={submit} className="form">
         {fixed && (
           <div className="muted small-text">
-            Матч має статус «{item._status?.Status}». Рахунок і статус редагуються в ADMIN — від них залежать рядки турнірної
-            таблиці. Решту полів тут змінювати можна.
+            Матч має статус «{item._status?.Status}». Рахунок, статус і видалення — в ADMIN: від них залежать рядки турнірної
+            таблиці, а протокол не відновлюється. Решту полів тут змінювати можна.
           </div>
         )}
         <div className="row2">
@@ -378,7 +379,7 @@ function MatchForm({ item, tid, tours, команди, onClose, onSave, onDelete
         )}
         <ErrorBox error={onSave.error} />
         <div className="form-actions">
-          {item.id && !confirming && (
+          {item.id && !fixed && !confirming && (
             <button type="button" className="btn danger ghost" onClick={() => setConfirming(true)}>
               Видалити матч
             </button>
