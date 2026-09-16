@@ -76,6 +76,13 @@ query "matches/{match_id}" verb=PATCH {
       field_value = $input.match_id
       data = `$input|pick:($raw|keys)|unset:"match_id"`
     } as $match
+
+    // Правка теж може змінити рядки таблиці: повернення статусу в
+    // «Запланований» має їх прибрати, зміна туру — перенести в інший етап.
+    // Без цього виклику рядки лишились би від попереднього стану.
+    function.run "CRM table recalc" {
+      input = {match_id: $input.match_id}
+    } as $recalc
   }
 
   response = $match

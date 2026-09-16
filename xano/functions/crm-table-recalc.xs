@@ -28,7 +28,7 @@ function "CRM table recalc" {
     db.get Match {
       field_name = "id"
       field_value = $input.match_id
-      output = ["id", "team1_id", "team2_id", "leagues_id", "tours_id", "match_status_id"]
+      output = ["id", "team1_id", "team2_id", "leagues_id", "tours_id", "match_status_id", "Result_team1", "Result_team2"]
     } as $match
 
     db.get Tours {
@@ -61,6 +61,14 @@ function "CRM table recalc" {
       return = {type: "count"}
     } as $goals2
 
+    // Скільки взагалі подій-голів у матчі. Нуль означає технічний результат
+    // (неявка, знята команда): рахунок у такому матчі вводиться руками й подій
+    // не має. Без цієї перевірки перерахунок «з подій» обнулив би його.
+    db.query Statistic {
+      where = $db.Statistic.match_id == $input.match_id && $db.Statistic.types_of_match_events_id == 1
+      return = {type: "count"}
+    } as $goal_events
+
     db.query Table {
       where = $db.Table.match_id == $input.match_id && $db.Table.teaminfo_id == $match.team1_id
       sort = {Table.id: "asc"}
@@ -80,9 +88,15 @@ function "CRM table recalc" {
         const ids = (x) => (Array.isArray(x) ? x.map((r) => r.id) : []);
         const a = ids($var.rows1);
         const b = ids($var.rows2);
-        const g1 = Number($var.goals1) || 0;
-        const g2 = Number($var.goals2) || 0;
+        // Є події — рахунок рахується з них; немає жодної — матч технічний,
+        // і джерелом лишається те, що введено в картці матчу.
+        const зПодій = Number($var.goal_events) > 0;
+        const g1 = зПодій ? Number($var.goals1) || 0 : Number($var.match.Result_team1) || 0;
+        const g2 = зПодій ? Number($var.goals2) || 0 : Number($var.match.Result_team2) || 0;
         return {
+          goals1: g1,
+          goals2: g2,
+          from_events: зПодій,
           keep1: a[0] || 0,
           keep2: b[0] || 0,
           // Зайві рядки тієї ж пари матч+команда — це дублі гонки в старій логіці
@@ -108,8 +122,8 @@ function "CRM table recalc" {
               field_value = $c.keep1
               data = {
                 Games          : 1
-                Goals_scored   : $goals1
-                Conceded_goals : $goals2
+                Goals_scored   : $c.goals1
+                Conceded_goals : $c.goals2
                 Goal_difference: $c.diff1
                 Points         : $c.points1
                 leagues_id     : $match.leagues_id
@@ -124,8 +138,8 @@ function "CRM table recalc" {
                 teaminfo_id    : $match.team1_id
                 match_id       : $input.match_id
                 Games          : 1
-                Goals_scored   : $goals1
-                Conceded_goals : $goals2
+                Goals_scored   : $c.goals1
+                Conceded_goals : $c.goals2
                 Goal_difference: $c.diff1
                 Points         : $c.points1
                 leagues_id     : $match.leagues_id
@@ -142,8 +156,8 @@ function "CRM table recalc" {
               field_value = $c.keep2
               data = {
                 Games          : 1
-                Goals_scored   : $goals2
-                Conceded_goals : $goals1
+                Goals_scored   : $c.goals2
+                Conceded_goals : $c.goals1
                 Goal_difference: $c.diff2
                 Points         : $c.points2
                 leagues_id     : $match.leagues_id
@@ -158,8 +172,8 @@ function "CRM table recalc" {
                 teaminfo_id    : $match.team2_id
                 match_id       : $input.match_id
                 Games          : 1
-                Goals_scored   : $goals2
-                Conceded_goals : $goals1
+                Goals_scored   : $c.goals2
+                Conceded_goals : $c.goals1
                 Goal_difference: $c.diff2
                 Points         : $c.points2
                 leagues_id     : $match.leagues_id
@@ -195,13 +209,14 @@ function "CRM table recalc" {
     db.edit Match {
       field_name = "id"
       field_value = $input.match_id
-      data = {Result_team1: $goals1, Result_team2: $goals2}
+      data = {Result_team1: $c.goals1, Result_team2: $c.goals2}
     } as $saved
   }
 
   response = {
-    goals1  : $goals1
-    goals2  : $goals2
+    goals1  : $c.goals1
+    goals2  : $c.goals2
+    from_events: $c.from_events
     points1 : $c.points1
     points2 : $c.points2
     in_table: $c.should
