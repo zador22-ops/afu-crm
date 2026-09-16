@@ -61,6 +61,10 @@ export default function MatchPage() {
   });
   const delEvent = useMutation({ mutationFn: (eid) => crm.del(`/events/${eid}`), onSuccess: оновити });
   const saveResult = useMutation({ mutationFn: (body) => crm.post(`/matches/${mid}/result`, body), onSuccess: оновити });
+  // Сповіщення про хід матчу: гол і картка летять самі при записі події, а
+  // кінець тайму й початок другого треба натиснути — у базі це окремі рядки
+  // «finish first half» і «start second half», інших вона не знає.
+  const notify = useMutation({ mutationFn: (type_of_event) => crm.post(`/matches/${mid}/notify`, { type_of_event }) });
 
   const склад = useMemo(() => {
     const за = {};
@@ -119,6 +123,29 @@ export default function MatchPage() {
       <section className="card-form">
         <h3>Хід матчу</h3>
         <ResultForm match={m} onSave={saveResult} подій={events.data?.length ?? 0} />
+        <div className="section-bar">
+          <span className="muted">
+            {Number(m.match_status_id) === 3
+              ? 'Сповіщення підуть уболівальникам, які стежать за матчем, гравцем або однією з команд'
+              : 'Сповіщення доступні лише в матчі зі статусом «Онлайн»'}
+          </span>
+          <button
+            className="btn"
+            disabled={Number(m.match_status_id) !== 3 || notify.isPending}
+            onClick={() => notify.mutate('finish first half')}
+          >
+            Кінець 1-го тайму
+          </button>
+          <button
+            className="btn"
+            disabled={Number(m.match_status_id) !== 3 || notify.isPending}
+            onClick={() => notify.mutate('start second half')}
+          >
+            Початок 2-го тайму
+          </button>
+          {notify.isSuccess && <span className="muted small-text">надіслано</span>}
+        </div>
+        <ErrorBox error={notify.error} />
       </section>
 
       <section>

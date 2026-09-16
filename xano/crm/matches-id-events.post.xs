@@ -12,6 +12,11 @@ query "matches/{match_id}/events" verb=POST {
     int asustent_team_id?
     int judges_id?
     text reason? filters=trim
+    // Сповіщення вболівальникам. За замовчуванням шлемо лише в живому матчі
+    // (статус «Онлайн»), а не при кожному записі, як робить старий
+    // POST /statistic #62: пізніше дописаний чи виправлений гол не має
+    // будити телефони через тиждень після матчу.
+    bool notify?=true
   }
 
   stack {
@@ -76,7 +81,24 @@ query "matches/{match_id}/events" verb=POST {
     function.run "CRM table recalc" {
       input = {match_id: $input.match_id}
     } as $recalc
+
+    // Та сама функція, яку кличе ADMIN із #62 — щоб текст сповіщення в обох
+    // системах був однаковий. Відрізняється лише умова відправки.
+    conditional {
+      if ($input.notify && $match.match_status_id == 3) {
+        function.run PushNotificationsMatchEvents {
+          input = {
+            match_id                : $input.match_id
+            team_id                 : $input.team_id
+            types_of_match_events_id: $input.types_of_match_events_id
+            types_of_cards_id       : $input.types_of_cards_id
+            types_of_goals_id       : $input.types_of_goals_id
+            minute                  : $input.minute
+          }
+        } as $push
+      }
+    }
   }
 
-  response = {event: $event, table: $recalc}
+  response = {event: $event, table: $recalc, notified: $input.notify && $match.match_status_id == 3}
 }
