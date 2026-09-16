@@ -2,7 +2,8 @@ import { useMemo, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { crm } from '../api/client.js';
-import { Empty, ErrorBox, Field, Modal, PageHeader, Toggle, personName, toInt, useForm } from '../components/ui.jsx';
+import { Empty, ErrorBox, Field, Modal, PageHeader, Tabs, Toggle, personName, toInt, useForm } from '../components/ui.jsx';
+import MatchSquad from './MatchSquad.jsx';
 
 /**
  * Протокол матчу: події, рахунок, статус, фоли, хвилини перерв.
@@ -41,6 +42,7 @@ export default function MatchPage() {
     enabled: !!m?.team2_id,
   });
 
+  const [tab, setTab] = useState('protocol');
   const [adding, setAdding] = useState(null);
   const оновити = () => {
     qc.invalidateQueries({ queryKey: ['events', mid] });
@@ -97,6 +99,17 @@ export default function MatchPage() {
         }
       />
 
+      <Tabs
+        value={tab}
+        onChange={setTab}
+        tabs={[
+          { key: 'protocol', label: 'Протокол', count: events.data?.length },
+          { key: 'squad', label: 'Заявка' },
+        ]}
+      />
+      {tab === 'squad' && <MatchSquad match={m} />}
+      {tab === 'protocol' && (
+      <>
       <section className="card-form">
         <h3>Хід матчу</h3>
         <ResultForm match={m} onSave={saveResult} подій={events.data?.length ?? 0} />
@@ -153,6 +166,8 @@ export default function MatchPage() {
         )}
       </section>
 
+      </>
+      )}
       {adding && (
         <EventForm
           match={m}

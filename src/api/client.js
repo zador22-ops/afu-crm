@@ -82,6 +82,7 @@ export const crm = {
   get: (path, query) => request('crm', path, { query }),
   post: (path, body) => request('crm', path, { method: 'POST', body }),
   patch: (path, body) => request('crm', path, { method: 'PATCH', body }),
+  put: (path, body) => request('crm', path, { method: 'PUT', body }),
   del: (path) => request('crm', path, { method: 'DELETE' }),
   upload: (path, form) => request('crm', path, { method: 'POST', form }),
 };
