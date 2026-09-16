@@ -4,6 +4,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { crm } from '../api/client.js';
 import { Empty, ErrorBox, Field, Modal, PageHeader, Tabs, Toggle, personName, toInt, useForm } from '../components/ui.jsx';
 import MatchSquad from './MatchSquad.jsx';
+import MatchOrganization from './MatchOrganization.jsx';
 
 /**
  * Протокол матчу: події, рахунок, статус, фоли, хвилини перерв.
@@ -105,9 +106,11 @@ export default function MatchPage() {
         tabs={[
           { key: 'protocol', label: 'Протокол', count: events.data?.length },
           { key: 'squad', label: 'Заявка' },
+          { key: 'org', label: 'Організація' },
         ]}
       />
       {tab === 'squad' && <MatchSquad match={m} />}
+      {tab === 'org' && <MatchOrganization matchId={mid} />}
       {tab === 'protocol' && (
       <>
       <section className="card-form">

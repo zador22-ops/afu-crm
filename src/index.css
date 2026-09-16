@@ -670,3 +670,10 @@ input[type='radio'] {
   font-weight: 700;
   letter-spacing: 1px;
 }
+
+/* Фото пункту організації матчу */
+.photo-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+}
