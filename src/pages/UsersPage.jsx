@@ -34,13 +34,13 @@ export default function UsersPage() {
           { key: 'roles', label: 'Ролі' },
         ]}
       />
-      {tab === 'users' && <Люди />}
-      {tab === 'roles' && <Ролі />}
+      {tab === 'users' && <UsersList />}
+      {tab === 'roles' && <RolesEditor />}
     </div>
   );
 }
 
-function Люди() {
+function UsersList() {
   const qc = useQueryClient();
   const { user } = useAuth();
   const [archived, setArchived] = useState(false);
@@ -191,7 +191,7 @@ function PasswordForm({ item, onClose, onSave }) {
   );
 }
 
-function Ролі() {
+function RolesEditor() {
   const qc = useQueryClient();
   const { user } = useAuth();
   const roles = useQuery({ queryKey: ['roles'], queryFn: () => crm.get('/roles') });
