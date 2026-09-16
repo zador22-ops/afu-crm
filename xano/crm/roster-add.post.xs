@@ -75,11 +75,11 @@ query "roster/add" verb=POST {
     } as $plan
 
     precondition ($plan.same == false) {
-      error_type = "input"
+      error_type = "badrequest"
       error = "Гравець уже в чинному складі цього клубу"
     }
     precondition ($plan.conflict == null) {
-      error_type = "input"
+      error_type = "badrequest"
       error = "У гравця є чинна заявка в іншому клубі з датою не раніше за нову. Спершу закрийте її."
     }
 

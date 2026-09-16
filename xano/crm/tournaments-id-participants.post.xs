@@ -41,7 +41,7 @@ query "tournaments/{leagues_id}/participants" verb=POST {
       return = {type: "count"}
     } as $dup
     precondition ($dup == 0) {
-      error_type = "input"
+      error_type = "badrequest"
       error = "Клуб уже серед учасників цього турніру"
     }
 

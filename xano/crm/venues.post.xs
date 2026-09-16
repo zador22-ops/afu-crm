@@ -15,7 +15,7 @@ query venues verb=POST {
       error = "Доступ заборонено"
     }
     precondition ($input.City != "") {
-      error_type = "input"
+      error_type = "badrequest"
       error = "Назва арени порожня"
     }
 

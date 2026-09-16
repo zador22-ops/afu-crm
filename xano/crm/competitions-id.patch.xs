@@ -19,7 +19,7 @@ query "competitions/{league_id}" verb=PATCH {
       error = "Доступ заборонено"
     }
     precondition ($input.type == null || $input.type == "ліга" || $input.type == "кубок") {
-      error_type = "input"
+      error_type = "badrequest"
       error = "Тип має бути «ліга» або «кубок»"
     }
 

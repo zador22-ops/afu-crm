@@ -18,11 +18,11 @@ query competitions verb=POST {
       error = "Доступ заборонено"
     }
     precondition ($input.name != "") {
-      error_type = "input"
+      error_type = "badrequest"
       error = "Назва змагання порожня"
     }
     precondition ($input.type == "ліга" || $input.type == "кубок") {
-      error_type = "input"
+      error_type = "badrequest"
       error = "Тип має бути «ліга» або «кубок»"
     }
 

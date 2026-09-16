@@ -44,7 +44,7 @@ query "matches/{match_id}" verb=PATCH {
     // не редагується взагалі — інакше таблиця розійдеться з результатами.
     // Решту полів зіграного матчу правити можна: вони на таблицю не впливають.
     precondition ($input.match_status_id == null || $input.match_status_id == 1 || $input.match_status_id == 2) {
-      error_type = "input"
+      error_type = "badrequest"
       error = "Статус «Онлайн» і «Зіграний» поки ставляться в ADMIN: від них залежать рядки турнірної таблиці"
     }
 

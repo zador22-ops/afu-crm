@@ -16,7 +16,7 @@ query "venues/{venues_id}" verb=PATCH {
       error = "Доступ заборонено"
     }
     precondition ($input.City != "") {
-      error_type = "input"
+      error_type = "badrequest"
       error = "Назва арени порожня"
     }
 

@@ -17,7 +17,7 @@ query "clubs/{teaminfo_id}/image" verb=POST {
       error = "Доступ заборонено"
     }
     precondition ($input.kind == "logo" || $input.kind == "photo") {
-      error_type = "input"
+      error_type = "badrequest"
       error = "kind має бути logo або photo"
     }
 

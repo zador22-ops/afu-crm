@@ -18,7 +18,7 @@ query "tournaments/{leagues_id}/tours/generate" verb=POST {
       error = "Доступ заборонено"
     }
     precondition ($input.league_stage_id == 1 || $input.league_stage_id == 2) {
-      error_type = "input"
+      error_type = "badrequest"
       error = "Етап має бути 1 (таблиця) або 2 (сітка)"
     }
 

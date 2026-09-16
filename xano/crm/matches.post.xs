@@ -30,7 +30,7 @@ query matches verb=POST {
       error = "Доступ заборонено"
     }
     precondition ($input.team1_id != $input.team2_id) {
-      error_type = "input"
+      error_type = "badrequest"
       error = "Команда не може грати сама з собою"
     }
 
@@ -41,7 +41,7 @@ query matches verb=POST {
     // таблиці не з'явиться взагалі й турнірна таблиця мовчки розійдеться з
     // результатами. Ведення рахунку — черга 2 ТЗ (docs/proposals/crm-admin-parity.md).
     precondition ($input.match_status_id == 1 || $input.match_status_id == 2) {
-      error_type = "input"
+      error_type = "badrequest"
       error = "З CRM створюється лише запланований або перенесений матч. Рахунок і статус «Зіграний» поки ведуться в ADMIN"
     }
 

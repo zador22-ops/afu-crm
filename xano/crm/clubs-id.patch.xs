@@ -30,7 +30,7 @@ query "clubs/{teaminfo_id}" verb=PATCH {
       error = "Доступ заборонено"
     }
     precondition ($input.parent_teaminfo_id != $input.teaminfo_id) {
-      error_type = "input"
+      error_type = "badrequest"
       error = "Клуб не може бути материнським для самого себе"
     }
 

@@ -41,7 +41,7 @@ query "staff/add" verb=POST {
       return = {type: "count"}
     } as $dup
     precondition ($dup == 0) {
-      error_type = "input"
+      error_type = "badrequest"
       error = "Ця особа вже на цій посаді в цьому клубі"
     }
 

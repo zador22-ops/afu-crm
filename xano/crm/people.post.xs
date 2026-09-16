@@ -21,7 +21,7 @@ query people verb=POST {
       error = "Доступ заборонено"
     }
     precondition ($input.prizvushche != "" && $input.Name != "") {
-      error_type = "input"
+      error_type = "badrequest"
       error = "Прізвище та ім'я обов'язкові"
     }
 

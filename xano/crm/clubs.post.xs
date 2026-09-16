@@ -29,7 +29,7 @@ query clubs verb=POST {
       error = "Доступ заборонено"
     }
     precondition ($input.TeamName != "") {
-      error_type = "input"
+      error_type = "badrequest"
       error = "Назва клубу порожня"
     }
 

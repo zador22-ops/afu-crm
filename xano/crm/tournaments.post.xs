@@ -21,7 +21,7 @@ query tournaments verb=POST {
       error = "Доступ заборонено"
     }
     precondition ($input.League != "") {
-      error_type = "input"
+      error_type = "badrequest"
       error = "Назва турніру порожня"
     }
 
@@ -30,7 +30,7 @@ query tournaments verb=POST {
       field_value = $input.season_id
     } as $season
     precondition ($season != null) {
-      error_type = "input"
+      error_type = "badrequest"
       error = "Сезон не знайдено"
     }
     db.get league {
@@ -38,7 +38,7 @@ query tournaments verb=POST {
       field_value = $input.league_id
     } as $competition
     precondition ($competition != null) {
-      error_type = "input"
+      error_type = "badrequest"
       error = "Змагання не знайдено"
     }
 

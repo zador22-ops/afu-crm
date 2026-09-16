@@ -20,7 +20,7 @@ query "tours/{tours_id}" verb=DELETE {
       return = {type: "count"}
     } as $matches
     precondition ($matches == 0) {
-      error_type = "input"
+      error_type = "badrequest"
       error = "У турі є матчі, видалити не можна"
     }
     db.query Bracket {
@@ -28,7 +28,7 @@ query "tours/{tours_id}" verb=DELETE {
       return = {type: "count"}
     } as $pairs
     precondition ($pairs == 0) {
-      error_type = "input"
+      error_type = "badrequest"
       error = "На тур посилається сітка, видалити не можна"
     }
 

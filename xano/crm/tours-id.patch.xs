@@ -16,7 +16,7 @@ query "tours/{tours_id}" verb=PATCH {
       error = "Доступ заборонено"
     }
     precondition ($input.TourName != "") {
-      error_type = "input"
+      error_type = "badrequest"
       error = "Назва туру порожня"
     }
 
