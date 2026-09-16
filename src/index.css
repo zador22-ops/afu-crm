@@ -677,3 +677,94 @@ input[type='radio'] {
   align-items: center;
   gap: 2px;
 }
+
+/* Рапорт делегата: на екрані — як аркуш, у друку — сам документ і нічого більше */
+.report {
+  background: #fff;
+  color: #111;
+  max-width: 760px;
+  padding: 28px 32px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  position: relative;
+  font-family: system-ui, sans-serif;
+}
+.report h1 {
+  font-size: 40px;
+  margin: 12px 0 0;
+}
+.report h2 {
+  font-size: 20px;
+  margin: 0;
+}
+.report .report-league {
+  font-size: 26px;
+  margin-top: 10px;
+  max-width: 420px;
+}
+.report-logo {
+  position: absolute;
+  top: 16px;
+  right: 28px;
+  width: 92px;
+}
+.report-contacts {
+  font-size: 11px;
+  color: #444;
+}
+.report-score {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 28px;
+  margin: 18px 0;
+}
+.report-score img {
+  width: 120px;
+  object-fit: contain;
+}
+.report-score span {
+  font-size: 54px;
+  font-weight: 700;
+}
+.report p {
+  font-size: 15px;
+  margin: 6px 0;
+}
+.report-list {
+  font-size: 12px;
+  line-height: 1.7;
+  margin-top: 14px;
+}
+.report-extra {
+  margin-top: 20px;
+}
+.report-photo img {
+  width: 95%;
+  margin-top: 6px;
+}
+
+@media print {
+  body * {
+    visibility: hidden;
+  }
+  .report,
+  .report * {
+    visibility: visible;
+  }
+  .report {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 100%;
+    max-width: none;
+    border: 0;
+    padding: 0;
+  }
+  .report-extra {
+    page-break-before: always;
+  }
+  .no-print {
+    display: none !important;
+  }
+}

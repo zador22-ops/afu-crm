@@ -5,6 +5,7 @@ import { crm } from '../api/client.js';
 import { Empty, ErrorBox, Field, Modal, PageHeader, Tabs, Toggle, personName, toInt, useForm } from '../components/ui.jsx';
 import MatchSquad from './MatchSquad.jsx';
 import MatchOrganization from './MatchOrganization.jsx';
+import MatchReport from './MatchReport.jsx';
 
 /**
  * Протокол матчу: події, рахунок, статус, фоли, хвилини перерв.
@@ -107,10 +108,12 @@ export default function MatchPage() {
           { key: 'protocol', label: 'Протокол', count: events.data?.length },
           { key: 'squad', label: 'Заявка' },
           { key: 'org', label: 'Організація' },
+          { key: 'report', label: 'Рапорт' },
         ]}
       />
       {tab === 'squad' && <MatchSquad match={m} />}
       {tab === 'org' && <MatchOrganization matchId={mid} />}
+      {tab === 'report' && <MatchReport match={m} />}
       {tab === 'protocol' && (
       <>
       <section className="card-form">
