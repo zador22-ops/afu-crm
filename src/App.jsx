@@ -10,6 +10,7 @@ import ClubPage from './pages/ClubPage.jsx';
 import PeoplePage from './pages/PeoplePage.jsx';
 import JudgesPage from './pages/JudgesPage.jsx';
 import VenuesPage from './pages/VenuesPage.jsx';
+import MatchPage from './pages/MatchPage.jsx';
 
 const NAV = [
   { to: '/seasons', label: 'Сезони' },
@@ -78,6 +79,7 @@ export default function App() {
         <Route path="/people" element={<PeoplePage />} />
         <Route path="/judges" element={<JudgesPage />} />
         <Route path="/venues" element={<VenuesPage />} />
+        <Route path="/matches/:id" element={<MatchPage />} />
         <Route path="*" element={<div className="page">Сторінку не знайдено</div>} />
       </Routes>
     </Shell>

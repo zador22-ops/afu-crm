@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react';
+import { Link } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { crm } from '../api/client.js';
 import { Empty, ErrorBox, Field, Modal, useForm } from '../components/ui.jsx';
@@ -122,6 +123,9 @@ export default function TournamentMatches({ tid, participants }) {
                 <td className="muted">{аренаЗа[m.venues_id] || '—'}</td>
                 <td>{m._status?.Status || '—'}</td>
                 <td className="row-actions">
+                  <Link className="btn small" to={`/matches/${m.id}`}>
+                    Протокол
+                  </Link>
                   <button className="btn small" onClick={() => setEditing(m)}>
                     Редагувати
                   </button>

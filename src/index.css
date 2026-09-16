@@ -663,3 +663,10 @@ input[type='radio'] {
 .spacer {
   flex: 1;
 }
+
+/* Рахунок у шапці протоколу */
+.score-big {
+  font-size: 26px;
+  font-weight: 700;
+  letter-spacing: 1px;
+}
