@@ -11,6 +11,7 @@ import PeoplePage from './pages/PeoplePage.jsx';
 import JudgesPage from './pages/JudgesPage.jsx';
 import VenuesPage from './pages/VenuesPage.jsx';
 import MatchPage from './pages/MatchPage.jsx';
+import UsersPage from './pages/UsersPage.jsx';
 
 const NAV = [
   { to: '/seasons', label: 'Сезони' },
@@ -19,6 +20,7 @@ const NAV = [
   { to: '/people', label: 'Особи' },
   { to: '/judges', label: 'Судді' },
   { to: '/venues', label: 'Арени' },
+  { to: '/users', label: 'Користувачі' },
 ];
 
 function Shell({ children }) {
@@ -80,6 +82,7 @@ export default function App() {
         <Route path="/judges" element={<JudgesPage />} />
         <Route path="/venues" element={<VenuesPage />} />
         <Route path="/matches/:id" element={<MatchPage />} />
+        <Route path="/users" element={<UsersPage />} />
         <Route path="*" element={<div className="page">Сторінку не знайдено</div>} />
       </Routes>
     </Shell>

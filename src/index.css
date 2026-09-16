@@ -768,3 +768,31 @@ input[type='radio'] {
     display: none !important;
   }
 }
+
+/* Права ролі: видно одразу, що ввімкнено, а що ні */
+.rights-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 6px 0 4px;
+}
+.right {
+  font-size: 12px;
+  padding: 3px 8px;
+  border-radius: 12px;
+  border: 1px solid var(--border);
+}
+.right.on {
+  background: var(--accent-soft, #e8f0ff);
+  border-color: var(--accent, #3b6cf0);
+  color: var(--accent, #3b6cf0);
+}
+.right.off {
+  color: var(--muted);
+  opacity: 0.6;
+}
+.rights-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 4px 12px;
+}
