@@ -3,6 +3,7 @@ import { Link, useParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { crm } from '../api/client.js';
 import { Empty, ErrorBox, Field, Modal, PageHeader, Tabs, Toggle, useForm } from '../components/ui.jsx';
+import TournamentMatches from './TournamentMatches.jsx';
 
 const ЕТАПИ = { 1: 'Основна таблиця', 2: 'Плей-оф / сітка' };
 
@@ -15,6 +16,7 @@ export default function TournamentPage() {
   const seasons = useQuery({ queryKey: ['seasons'], queryFn: () => crm.get('/seasons') });
   const participants = useQuery({ queryKey: ['participants', tid], queryFn: () => crm.get(`/tournaments/${tid}/participants`) });
   const tours = useQuery({ queryKey: ['tours', tid], queryFn: () => crm.get(`/tournaments/${tid}/tours`) });
+  const matches = useQuery({ queryKey: ['matches', tid, ''], queryFn: () => crm.get('/matches', { leagues_id: tid }) });
 
   const t = tournaments.data?.find((x) => x.id === tid);
   const season = seasons.data?.find((s) => s.id === t?.season_id);
@@ -36,10 +38,12 @@ export default function TournamentPage() {
         tabs={[
           { key: 'participants', label: 'Учасники', count: participants.data?.length },
           { key: 'tours', label: 'Тури', count: tours.data?.length },
+          { key: 'matches', label: 'Матчі', count: matches.data?.length },
         ]}
       />
       {tab === 'participants' && <Participants tid={tid} query={participants} />}
       {tab === 'tours' && <Tours tid={tid} query={tours} />}
+      {tab === 'matches' && <TournamentMatches tid={tid} participants={participants.data} />}
     </div>
   );
 }
