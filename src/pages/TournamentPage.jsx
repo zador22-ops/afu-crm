@@ -4,6 +4,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { crm } from '../api/client.js';
 import { Empty, ErrorBox, Field, Modal, PageHeader, Tabs, Toggle, useForm } from '../components/ui.jsx';
 import TournamentMatches from './TournamentMatches.jsx';
+import TournamentBracket from './TournamentBracket.jsx';
 
 const ЕТАПИ = { 1: 'Основна таблиця', 2: 'Плей-оф / сітка' };
 
@@ -39,11 +40,13 @@ export default function TournamentPage() {
           { key: 'participants', label: 'Учасники', count: participants.data?.length },
           { key: 'tours', label: 'Тури', count: tours.data?.length },
           { key: 'matches', label: 'Матчі', count: matches.data?.length },
+          { key: 'bracket', label: 'Сітка' },
         ]}
       />
       {tab === 'participants' && <Participants tid={tid} query={participants} />}
       {tab === 'tours' && <Tours tid={tid} query={tours} />}
       {tab === 'matches' && <TournamentMatches tid={tid} participants={participants.data} />}
+      {tab === 'bracket' && <TournamentBracket tid={tid} participants={participants.data} />}
     </div>
   );
 }
