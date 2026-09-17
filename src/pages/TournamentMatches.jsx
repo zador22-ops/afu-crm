@@ -115,16 +115,18 @@ export default function TournamentMatches({ tid, participants }) {
                 <td>{дата(m.TimeOfMatch)}</td>
                 <td className="muted">{m._tour?.TourName || '—'}</td>
                 <td>
-                  <span className="strong">{m._team1?.TeamName || '—'}</span>
-                  <span className="muted"> — </span>
-                  <span className="strong">{m._team2?.TeamName || '—'}</span>
+                  <Link to={`/matches/${m.id}`} className="match-link">
+                    <span className="strong">{m._team1?.TeamName || '—'}</span>
+                    <span className="muted"> — </span>
+                    <span className="strong">{m._team2?.TeamName || '—'}</span>
+                  </Link>
                 </td>
                 <td>{зафіксований(m) ? `${m.Result_team1 ?? 0} : ${m.Result_team2 ?? 0}` : '—'}</td>
                 <td className="muted">{аренаЗа[m.venues_id] || '—'}</td>
                 <td>{m._status?.Status || '—'}</td>
                 <td className="row-actions">
-                  <Link className="btn small" to={`/matches/${m.id}`}>
-                    Протокол
+                  <Link className="btn small primary" to={`/matches/${m.id}`}>
+                    Керувати матчем
                   </Link>
                   <button className="btn small" onClick={() => setEditing(m)}>
                     Редагувати

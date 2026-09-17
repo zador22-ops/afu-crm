@@ -31,6 +31,9 @@ export default function MatchPage() {
   const match = useQuery({ queryKey: ['match', mid], queryFn: () => crm.get(`/matches/${mid}`) });
   const events = useQuery({ queryKey: ['events', mid], queryFn: () => crm.get(`/matches/${mid}/events`) });
   const dicts = useQuery({ queryKey: ['event-dicts'], queryFn: () => crm.get('/event-dicts') });
+  // Для шапки: без дати й арени сторінка керування матчем не дає зрозуміти,
+  // що це за гра, — у турі таких пар може бути вісім.
+  const venues = useQuery({ queryKey: ['venues'], queryFn: () => crm.get('/venues') });
   const m = match.data;
 
   const roster1 = useQuery({
@@ -97,7 +100,14 @@ export default function MatchPage() {
             {m._team1?.TeamName} <span className="muted">—</span> {m._team2?.TeamName}
           </span>
         }
-        subtitle={`${m._tour?.TourName || ''} · ${m._status?.Status || ''}`}
+        subtitle={[
+          m.TimeOfMatch ? new Date(m.TimeOfMatch).toLocaleString('uk-UA', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : null,
+          m._tour?.TourName,
+          (venues.data || []).find((v) => v.id === m.venues_id)?.City,
+          m._status?.Status,
+        ]
+          .filter(Boolean)
+          .join(' · ')}
         actions={
           <span className="score-big">
             {m.Result_team1 ?? 0} : {m.Result_team2 ?? 0}

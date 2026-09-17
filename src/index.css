@@ -840,3 +840,12 @@ input[type='radio'] {
   object-fit: cover;
   background: var(--bg);
 }
+
+/* Пара команд у списку — вхід у керування матчем */
+.match-link {
+  color: inherit;
+  text-decoration: none;
+}
+.match-link:hover .strong {
+  text-decoration: underline;
+}

@@ -12,10 +12,12 @@ import JudgesPage from './pages/JudgesPage.jsx';
 import VenuesPage from './pages/VenuesPage.jsx';
 import MatchPage from './pages/MatchPage.jsx';
 import UsersPage from './pages/UsersPage.jsx';
+import CalendarPage from './pages/CalendarPage.jsx';
 import SettingsPage from './pages/SettingsPage.jsx';
 
 const NAV = [
   { to: '/seasons', label: 'Сезони' },
+  { to: '/calendar', label: 'Календар' },
   { to: '/competitions', label: 'Змагання' },
   { to: '/clubs', label: 'Клуби' },
   { to: '/people', label: 'Особи' },
@@ -75,6 +77,7 @@ export default function App() {
         <Route path="/" element={<Navigate to="/seasons" replace />} />
         <Route path="/login" element={<Navigate to="/seasons" replace />} />
         <Route path="/seasons" element={<SeasonsPage />} />
+        <Route path="/calendar" element={<CalendarPage />} />
         <Route path="/seasons/:id" element={<SeasonPage />} />
         <Route path="/tournaments/:id" element={<TournamentPage />} />
         <Route path="/competitions" element={<CompetitionsPage />} />
