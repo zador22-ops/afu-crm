@@ -47,21 +47,46 @@ export default function MatchPage() {
     enabled: !!m?.team2_id,
   });
 
+  const staffCards = useQuery({ queryKey: ['staff-cards', mid], queryFn: () => crm.get(`/matches/${mid}/staff-cards`) });
+  const staff1 = useQuery({
+    queryKey: ['staff', m?.team1_id],
+    queryFn: () => crm.get(`/clubs/${m.team1_id}/staff`),
+    enabled: !!m?.team1_id,
+  });
+  const staff2 = useQuery({
+    queryKey: ['staff', m?.team2_id],
+    queryFn: () => crm.get(`/clubs/${m.team2_id}/staff`),
+    enabled: !!m?.team2_id,
+  });
+
   const [tab, setTab] = useState('protocol');
+  const [cardEditing, setCardEditing] = useState(null);
   const [adding, setAdding] = useState(null);
   const оновити = () => {
     qc.invalidateQueries({ queryKey: ['events', mid] });
+    qc.invalidateQueries({ queryKey: ['staff-cards', mid] });
     qc.invalidateQueries({ queryKey: ['match', mid] });
     qc.invalidateQueries({ queryKey: ['matches'] });
   };
 
-  const addEvent = useMutation({
-    mutationFn: (body) => crm.post(`/matches/${mid}/events`, body),
+  // Одна мутація на створення й правку: ADMIN уміє редагувати подію
+  // (StatisticEDIT), і без цього виправити хвилину чи тип гола можна було б
+  // тільки знявши подію й завівши наново — а зняття гола перераховує таблицю.
+  const saveEvent = useMutation({
+    mutationFn: (v) => (v.id ? crm.patch(`/events/${v.id}`, v.body) : crm.post(`/matches/${mid}/events`, v.body)),
     onSuccess: () => {
       оновити();
       setAdding(null);
     },
   });
+  const saveCard = useMutation({
+    mutationFn: (v) => (v.id ? crm.patch(`/staff-cards/${v.id}`, v.body) : crm.post(`/matches/${mid}/staff-cards`, v.body)),
+    onSuccess: () => {
+      оновити();
+      setCardEditing(null);
+    },
+  });
+  const delCard = useMutation({ mutationFn: (cid) => crm.del(`/staff-cards/${cid}`), onSuccess: оновити });
   const delEvent = useMutation({ mutationFn: (eid) => crm.del(`/events/${eid}`), onSuccess: оновити });
   const saveResult = useMutation({ mutationFn: (body) => crm.post(`/matches/${mid}/result`, body), onSuccess: оновити });
   // Сповіщення про хід матчу: гол і картка летять самі при записі події, а
@@ -198,6 +223,9 @@ export default function MatchPage() {
                     {e.reason ? ` · ${e.reason}` : ''}
                   </td>
                   <td className="row-actions">
+                    <button className="btn small" onClick={() => setAdding(e)}>
+                      Змінити
+                    </button>
                     <button className="btn small danger ghost" onClick={() => delEvent.mutate(e.id)} disabled={delEvent.isPending}>
                       Зняти
                     </button>
@@ -209,7 +237,60 @@ export default function MatchPage() {
         )}
       </section>
 
+      <section>
+        <div className="section-bar">
+          <h3>Картки штабу</h3>
+          <span className="muted">
+            Тренери й адміністратори — окремо від гравців: на рахунок і таблицю такі картки не впливають
+          </span>
+          <button
+            className="btn primary"
+            onClick={() => setCardEditing({})}
+            disabled={!dicts.data || (!staff1.data?.length && !staff2.data?.length)}
+          >
+            Додати картку
+          </button>
+        </div>
+        <ErrorBox error={staffCards.error || delCard.error} />
+        {staffCards.data?.length === 0 && <Empty>Карток штабу немає</Empty>}
+        {staffCards.data?.length > 0 && (
+          <table className="table compact">
+            <tbody>
+              {staffCards.data.map((c) => (
+                <tr key={c.id}>
+                  <td>{c.minute ?? '—'}</td>
+                  <td className="muted">
+                    {c._staff?.teaminfo_id === m.team1_id ? m._team1?.TeamName : m._team2?.TeamName}
+                  </td>
+                  <td className="strong">{personName(c._staff?._people) || `особа ${c._staff?.people_id}`}</td>
+                  <td className="muted">{c._staff?._position?.Position || ''}</td>
+                  <td>{c._card?.Type || '—'}</td>
+                  <td className="row-actions">
+                    <button className="btn small" onClick={() => setCardEditing(c)}>
+                      Змінити
+                    </button>
+                    <button className="btn small danger ghost" onClick={() => delCard.mutate(c.id)} disabled={delCard.isPending}>
+                      Зняти
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+      </section>
       </>
+      )}
+      {cardEditing && (
+        <StaffCardForm
+          match={m}
+          dicts={dicts.data}
+          staff1={staff1.data || []}
+          staff2={staff2.data || []}
+          item={cardEditing.id ? cardEditing : null}
+          onClose={() => setCardEditing(null)}
+          onSave={saveCard}
+        />
       )}
       {adding && (
         <EventForm
@@ -217,8 +298,9 @@ export default function MatchPage() {
           dicts={dicts.data}
           roster1={roster1.data || []}
           roster2={roster2.data || []}
+          item={adding?.id ? adding : null}
           onClose={() => setAdding(null)}
-          onSave={addEvent}
+          onSave={saveEvent}
         />
       )}
       {зіграний && events.data?.length === 0 && (
@@ -329,16 +411,16 @@ function ResultForm({ match, onSave, подій }) {
   );
 }
 
-function EventForm({ match, dicts, roster1, roster2, onClose, onSave }) {
+function EventForm({ match, dicts, roster1, roster2, item, onClose, onSave }) {
   const { values, set } = useForm({
-    сторона: String(match.team1_id),
-    types_of_match_events_id: ГОЛ,
-    team_id: '',
-    minute: '',
-    types_of_goals_id: 1,
-    types_of_cards_id: 2,
-    asustent_team_id: '',
-    reason: '',
+    сторона: String(item?._team?.teaminfo_id || match.team1_id),
+    types_of_match_events_id: item?.types_of_match_events_id ?? ГОЛ,
+    team_id: item?.team_id ?? '',
+    minute: item?.minute ?? '',
+    types_of_goals_id: item?.types_of_goals_id || 1,
+    types_of_cards_id: item?.types_of_cards_id || 2,
+    asustent_team_id: item?.asustent_team_id || '',
+    reason: item?.reason || '',
   });
   const свої = String(values.сторона) === String(match.team1_id) ? roster1 : roster2;
   const активні = свої.filter((r) => r.Relevance_of_the_record);
@@ -359,13 +441,13 @@ function EventForm({ match, dicts, roster1, roster2, onClose, onSave }) {
       body.types_of_cards_id = Number(values.types_of_cards_id);
       if (values.reason.trim()) body.reason = values.reason.trim();
     }
-    onSave.mutate(body);
+    onSave.mutate({ id: item?.id, body });
   };
 
   const підпис = (r) => `${r.Number ? `${r.Number}. ` : ''}${personName(r._people) || `гравець ${r.player_id}`}`;
 
   return (
-    <Modal title="Подія матчу" onClose={onClose}>
+    <Modal title={item ? 'Змінити подію' : 'Подія матчу'} onClose={onClose}>
       <form className="form" onSubmit={submit}>
         <div className="row2">
           <Field label="Команда">
@@ -451,7 +533,101 @@ function EventForm({ match, dicts, roster1, roster2, onClose, onSave }) {
             Скасувати
           </button>
           <button className="btn primary" disabled={onSave.isPending}>
-            Додати
+            {item ? 'Зберегти' : 'Додати'}
+          </button>
+        </div>
+      </form>
+    </Modal>
+  );
+}
+
+/**
+ * Картка тренерові або адміністратору. Окремо від подій гравців, бо в базі це
+ * інша таблиця й на рахунок вона не впливає.
+ *
+ * Сповіщення при додаванні йде тією ж функцією, що й для гравців, але з
+ * міткою `minute: 1001` — за нею вона шукає людину в штабі, а не у складі.
+ * Мітку ставить сервер, тут її немає й бути не повинно.
+ */
+function StaffCardForm({ match, dicts, staff1, staff2, item, onClose, onSave }) {
+  const { values, set } = useForm({
+    сторона: String(item?._staff?.teaminfo_id || match.team1_id),
+    administration_of_teams_id: item?.administration_of_teams_id ?? '',
+    types_of_cards_id: item?.types_of_cards_id || 2,
+    minute: item?.minute ?? '',
+  });
+  const свої = String(values.сторона) === String(match.team1_id) ? staff1 : staff2;
+  const активні = свої.filter((s) => s.Relevance_of_the_record !== false);
+
+  const submit = (e) => {
+    e.preventDefault();
+    const body = {
+      types_of_cards_id: Number(values.types_of_cards_id),
+      minute: toInt(values.minute) ?? 0,
+    };
+    // Людину при правці не міняємо: картка вже привʼязана, а зміна особи —
+    // це інша картка. Інакше в протоколі тихо підміниться, кому її показали.
+    if (!item) body.administration_of_teams_id = Number(values.administration_of_teams_id);
+    onSave.mutate({ id: item?.id, body });
+  };
+
+  return (
+    <Modal title={item ? 'Змінити картку штабу' : 'Картка штабу'} onClose={onClose}>
+      <form className="form" onSubmit={submit}>
+        {!item && (
+          <>
+            <Field label="Команда">
+              <select
+                value={values.сторона}
+                onChange={(e) => {
+                  set('сторона')(e);
+                  set('administration_of_teams_id')({ target: { value: '' } });
+                }}
+              >
+                <option value={match.team1_id}>{match._team1?.TeamName}</option>
+                <option value={match.team2_id}>{match._team2?.TeamName}</option>
+              </select>
+            </Field>
+            <Field label="Хто">
+              <select value={values.administration_of_teams_id} onChange={set('administration_of_teams_id')} required>
+                <option value="">—</option>
+                {активні.map((s) => (
+                  <option key={s.id} value={s.id}>
+                    {personName(s._people) || `особа ${s.people_id}`}
+                    {s._positions?.Position ? ` · ${s._positions.Position}` : ''}
+                  </option>
+                ))}
+              </select>
+            </Field>
+          </>
+        )}
+        {item && (
+          <div className="muted small-text">
+            {personName(item._staff?._people)} · {item._staff?._position?.Position || ''} — кому показано картку, тут не
+            змінюється
+          </div>
+        )}
+        <div className="row2">
+          <Field label="Картка">
+            <select value={values.types_of_cards_id} onChange={set('types_of_cards_id')}>
+              {(dicts?.cards || []).map((x) => (
+                <option key={x.id} value={x.id}>
+                  {x.Type}
+                </option>
+              ))}
+            </select>
+          </Field>
+          <Field label="Хвилина">
+            <input type="number" value={values.minute} onChange={set('minute')} />
+          </Field>
+        </div>
+        <ErrorBox error={onSave.error} />
+        <div className="form-actions">
+          <button type="button" className="btn" onClick={onClose}>
+            Скасувати
+          </button>
+          <button className="btn primary" disabled={onSave.isPending}>
+            {item ? 'Зберегти' : 'Додати'}
           </button>
         </div>
       </form>
