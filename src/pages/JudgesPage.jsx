@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { crm } from '../api/client.js';
 import { Empty, ErrorBox, Field, Modal, PageHeader, Toggle, fmtDate, useForm } from '../components/ui.jsx';
+import PhotoCropper from '../components/PhotoCropper.jsx';
 
 /**
  * Судді (таблиця `Judges`, 104 записи). Окремі від «Осіб»: у Xano це різні
@@ -112,6 +113,9 @@ function JudgeForm({ item, onClose, onSave }) {
     Relevance: item.id ? !!item.Relevance : true,
   });
   const [photo, setPhoto] = useState(null);
+  const чинне = item.photo?.url || null;
+  const [прев, setПрев] = useState(null);
+  const [кадруємо, setКадруємо] = useState(false);
   const submit = (e) => {
     e.preventDefault();
     const data = {
@@ -148,12 +152,35 @@ function JudgeForm({ item, onClose, onSave }) {
             <input value={values.City} onChange={set('City')} />
           </Field>
         </div>
-        <Field label="Фото" hint="У застосунку арбітр поки показується літерою; фото заливається тут">
+        <Field label="Фото" hint="Зберігається квадратом: у застосунку аватар круглий. Арбітр поки показується літерою, фото заливається наперед">
           <div className="club-cell">
-            {item.photo?.url && <img src={item.photo.url} alt="" className="img-logo small" />}
-            <input type="file" accept="image/*" onChange={(e) => setPhoto(e.target.files?.[0] || null)} />
+            {(прев || чинне) && <img src={прев || чинне} alt="" className="avatar-lg" />}
+            <input
+              type="file"
+              accept="image/*"
+              onChange={(e) => {
+                const f = e.target.files?.[0] || null;
+                setPhoto(f);
+                setПрев(f ? URL.createObjectURL(f) : null);
+              }}
+            />
+            <button type="button" className="btn small" disabled={!photo && !чинне} onClick={() => setКадруємо(true)}>
+              Кадрувати
+            </button>
           </div>
         </Field>
+        {кадруємо && (
+          <PhotoCropper
+            file={photo}
+            url={!photo ? чинне : undefined}
+            onClose={() => setКадруємо(false)}
+            onDone={(blob, urlПрев) => {
+              setPhoto(new File([blob], 'photo.jpg', { type: 'image/jpeg' }));
+              setПрев(urlПрев);
+              setКадруємо(false);
+            }}
+          />
+        )}
         {item.id && (
           <Toggle checked={values.Relevance} onChange={set('Relevance')} label="Активний (в архіві не пропонується при призначенні на матч)" />
         )}

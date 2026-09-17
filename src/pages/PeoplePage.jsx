@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { crm } from '../api/client.js';
+import PhotoCropper from '../components/PhotoCropper.jsx';
 import { Empty, ErrorBox, Field, Modal, PageHeader, fmtDate, personName, toInt, useForm } from '../components/ui.jsx';
 
 export default function PeoplePage() {
@@ -86,6 +87,7 @@ export function PersonForm({ person, onClose, onCreated }) {
   // показується.
   const чинне = person.photo_url || person.Photo?.url || null;
   const [прев, setПрев] = useState(null);
+  const [кадруємо, setКадруємо] = useState(false);
   const save = useMutation({
     mutationFn: async () => {
       const data = {
@@ -147,9 +149,12 @@ export function PersonForm({ person, onClose, onCreated }) {
         <Field label="Місто">
           <input value={values.City} onChange={set('City')} />
         </Field>
-        <Field label="Фото" hint={чинне ? 'Новий файл замінить це фото' : 'Фото ще немає'}>
+        <Field
+          label="Фото"
+          hint="Зберігається квадратом: у застосунку аватар круглий, і з квадрата він вирізається без сюрпризів"
+        >
           <div className="club-cell">
-            {(прев || чинне) && <img src={прев || чинне} alt="" className="img-logo small" />}
+            {(прев || чинне) && <img src={прев || чинне} alt="" className="avatar-lg" />}
             <input
               type="file"
               accept="image/*"
@@ -159,8 +164,30 @@ export function PersonForm({ person, onClose, onCreated }) {
                 setПрев(f ? URL.createObjectURL(f) : null);
               }}
             />
+            <button
+              type="button"
+              className="btn small"
+              disabled={!photo && !чинне}
+              onClick={() => setКадруємо(true)}
+            >
+              Кадрувати
+            </button>
           </div>
         </Field>
+        {кадруємо && (
+          <PhotoCropper
+            file={photo}
+            url={!photo ? чинне : undefined}
+            onClose={() => setКадруємо(false)}
+            onDone={(blob, urlПрев) => {
+              // Кадр стає тим файлом, який поїде на сервер: окремого поля для
+              // «оригіналу» немає, та й зберігати два зображення ні до чого.
+              setPhoto(new File([blob], 'photo.jpg', { type: 'image/jpeg' }));
+              setПрев(urlПрев);
+              setКадруємо(false);
+            }}
+          />
+        )}
         <ErrorBox error={save.error} />
         <div className="form-actions">
           <button type="button" className="btn" onClick={onClose}>

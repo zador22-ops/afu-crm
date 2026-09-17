@@ -796,3 +796,47 @@ input[type='radio'] {
   grid-template-columns: 1fr 1fr;
   gap: 4px 12px;
 }
+
+/* Кадрування фото */
+.cropper:focus {
+  outline: none;
+}
+.crop-window {
+  width: 320px;
+  height: 320px;
+  margin: 0 auto;
+  border-radius: 50%;
+  overflow: hidden;
+  position: relative;
+  background: var(--bg);
+  cursor: grab;
+  user-select: none;
+  box-shadow: 0 0 0 1px var(--border);
+}
+.crop-window:active {
+  cursor: grabbing;
+}
+.crop-window img {
+  position: absolute;
+  top: 0;
+  left: 0;
+  max-width: none;
+}
+.crop-zoom {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 10px 0 4px;
+}
+.crop-zoom input[type='range'] {
+  flex: 1;
+}
+
+/* Більший аватар у формі — щоб було видно, що саме кадруєш */
+.avatar-lg {
+  width: 72px;
+  height: 72px;
+  border-radius: 50%;
+  object-fit: cover;
+  background: var(--bg);
+}
