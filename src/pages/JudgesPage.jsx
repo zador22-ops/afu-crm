@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { crm } from '../api/client.js';
-import { Empty, ErrorBox, Field, Modal, PageHeader, Toggle, fmtDate, useForm } from '../components/ui.jsx';
+import { Avatar, Empty, ErrorBox, Field, Modal, PageHeader, Toggle, fmtDate, useForm } from '../components/ui.jsx';
 import PhotoCropper from '../components/PhotoCropper.jsx';
 
 /**
@@ -37,6 +37,14 @@ export default function JudgesPage() {
       }
       return saved;
     },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['judges'] });
+      setEditing(null);
+    },
+  });
+
+  const clearPhoto = useMutation({
+    mutationFn: (id) => crm.del(`/judges/${id}/photo`),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['judges'] });
       setEditing(null);
@@ -81,7 +89,7 @@ export default function JudgesPage() {
             {rows.map((j) => (
               <tr key={j.id}>
                 <td className="club-cell">
-                  {j.photo?.url ? <img src={j.photo.url} alt="" className="avatar" /> : <span className="avatar placeholder" />}
+                  <Avatar url={j.photo?.url} />
                   <span className="strong">{судде(j)}</span>
                   <span className="muted small-text">#{j.id}</span>
                 </td>
@@ -98,12 +106,12 @@ export default function JudgesPage() {
           </tbody>
         </table>
       )}
-      {editing && <JudgeForm item={editing} onClose={() => setEditing(null)} onSave={save} />}
+      {editing && <JudgeForm item={editing} onClose={() => setEditing(null)} onSave={save} onClearPhoto={clearPhoto} />}
     </div>
   );
 }
 
-function JudgeForm({ item, onClose, onSave }) {
+function JudgeForm({ item, onClose, onSave, onClearPhoto }) {
   const { values, set } = useForm({
     prizvushche: item.prizvushche || '',
     Name: item.Name || '',
@@ -154,7 +162,7 @@ function JudgeForm({ item, onClose, onSave }) {
         </div>
         <Field label="Фото" hint="Зберігається квадратом: у застосунку аватар круглий. Арбітр поки показується літерою, фото заливається наперед">
           <div className="club-cell">
-            {(прев || чинне) && <img src={прев || чинне} alt="" className="avatar-lg" />}
+            <Avatar url={прев || чинне} className="avatar-lg" />
             <input
               type="file"
               accept="image/*"
@@ -167,6 +175,16 @@ function JudgeForm({ item, onClose, onSave }) {
             <button type="button" className="btn small" disabled={!photo && !чинне} onClick={() => setКадруємо(true)}>
               Кадрувати
             </button>
+            {item.id && чинне && (
+              <button
+                type="button"
+                className="btn small danger ghost"
+                disabled={onClearPhoto?.isPending}
+                onClick={() => onClearPhoto.mutate(item.id)}
+              >
+                Прибрати фото
+              </button>
+            )}
           </div>
         </Field>
         {кадруємо && (

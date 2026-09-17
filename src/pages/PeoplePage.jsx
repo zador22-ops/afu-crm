@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { crm } from '../api/client.js';
 import PhotoCropper from '../components/PhotoCropper.jsx';
-import { Empty, ErrorBox, Field, Modal, PageHeader, fmtDate, personName, toInt, useForm } from '../components/ui.jsx';
+import { Avatar, Empty, ErrorBox, Field, Modal, PageHeader, fmtDate, personName, toInt, useForm } from '../components/ui.jsx';
 
 export default function PeoplePage() {
   const [q, setQ] = useState('');
@@ -49,7 +49,7 @@ export default function PeoplePage() {
             {people.data.map((p) => (
               <tr key={p.id}>
                 <td className="club-cell">
-                  {p.photo_url ? <img src={p.photo_url} alt="" className="avatar" /> : <span className="avatar placeholder" />}
+                  <Avatar url={p.photo_url} />
                   <span className="strong">{personName(p)}</span>
                   <span className="muted small-text">#{p.id}</span>
                 </td>
@@ -154,7 +154,7 @@ export function PersonForm({ person, onClose, onCreated }) {
           hint="Зберігається квадратом: у застосунку аватар круглий, і з квадрата він вирізається без сюрпризів"
         >
           <div className="club-cell">
-            {(прев || чинне) && <img src={прев || чинне} alt="" className="avatar-lg" />}
+            <Avatar url={прев || чинне} className="avatar-lg" />
             <input
               type="file"
               accept="image/*"

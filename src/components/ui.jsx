@@ -44,6 +44,19 @@ export function Field({ label, hint, children }) {
   );
 }
 
+/**
+ * Аватар, який не показує зламану картинку.
+ *
+ * Потрібен через реальний стан бази: 99 суддів зі 104 посилаються на один
+ * файл, якого у сховищі вже немає, і браузер малює на його місці значок
+ * «биття». Порожній кружечок чесніший: фото справді немає.
+ */
+export function Avatar({ url, className = 'avatar', alt = '' }) {
+  const [збій, setЗбій] = useState(false);
+  if (!url || збій) return <span className={`${className} placeholder`} />;
+  return <img src={url} alt={alt} className={className} onError={() => setЗбій(true)} />;
+}
+
 export function ErrorBox({ error }) {
   if (!error) return null;
   return <div className="error-box">{error.message || String(error)}</div>;
