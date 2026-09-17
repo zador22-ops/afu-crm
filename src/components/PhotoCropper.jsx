@@ -16,14 +16,22 @@ import { Modal } from './ui.jsx';
  * `crossOrigin` на теґу.
  *
  * Пропси:
- *   file    File    щойно вибраний файл, або
- *   url     string  адреса вже збереженого фото
- *   size    number  сторона квадрата на виході, за замовчуванням 600
- *   onDone  (Blob, string) => void   готовий кадр і його objectURL для прев'ю
+ *   file     File    щойно вибраний файл, або
+ *   url      string  адреса вже збереженого фото
+ *   size     number  сторона квадрата на виході, за замовчуванням 600
+ *   прозоро  bool    режим логотипа: PNG із прозорістю замість JPEG на білому,
+ *                    і зменшувати можна аж поки емблема не вміститься повністю
+ *   onDone   (Blob, string) => void  готовий кадр і його objectURL для прев'ю
+ *
+ * ДВА РЕЖИМИ, І РІЗНИЦЯ МІЖ НИМИ ПРИНЦИПОВА. Для фото людини кадр не може
+ * бути менший за вікно: порожні кути на портреті — це брак. Для логотипа все
+ * навпаки: емблема має вміщатися ЦІЛКОМ, а порожнє навколо неї лишається
+ * прозорим. Саме тому логотипи не можна зберігати як JPEG на білому — на
+ * темній поверхні застосунку вийшов би білий квадрат замість герба.
  */
 const ВІКНО = 320;
 
-export default function PhotoCropper({ file, url, size = 600, onClose, onDone }) {
+export default function PhotoCropper({ file, url, size = 600, прозоро = false, onClose, onDone }) {
   const [img, setImg] = useState(null);
   const [помилка, setПомилка] = useState(null);
   const [zoom, setZoom] = useState(1);
@@ -58,17 +66,23 @@ export default function PhotoCropper({ file, url, size = 600, onClose, onDone })
     };
   }, [file, url]);
 
-  // Масштаб, за якого зображення повністю закриває вікно: менше не дозволяємо,
-  // інакше в кадрі зʼявляться порожні кути.
-  const база = img ? Math.max(ВІКНО / img.naturalWidth, ВІКНО / img.naturalHeight) : 1;
+  // Для фото відлік від «закриває вікно», для логотипа — від «вміщається
+  // повністю». Далі зум тільки збільшує.
+  const база = img
+    ? (прозоро
+        ? Math.min(ВІКНО / img.naturalWidth, ВІКНО / img.naturalHeight)
+        : Math.max(ВІКНО / img.naturalWidth, ВІКНО / img.naturalHeight))
+    : 1;
   const s = база * zoom;
   const ширина = img ? img.naturalWidth * s : 0;
   const висота = img ? img.naturalHeight * s : 0;
 
+  // Коли зображення більше за вікно, зсув відʼємний (тягнемо всередині);
+  // коли менше — додатний (совгаємо в межах вікна). Одна формула на обидва.
   const обмежити = useCallback(
     (з) => ({
-      x: Math.min(0, Math.max(ВІКНО - ширина, з.x)),
-      y: Math.min(0, Math.max(ВІКНО - висота, з.y)),
+      x: Math.max(Math.min(0, ВІКНО - ширина), Math.min(Math.max(0, ВІКНО - ширина), з.x)),
+      y: Math.max(Math.min(0, ВІКНО - висота), Math.min(Math.max(0, ВІКНО - висота), з.y)),
     }),
     [ширина, висота]
   );
@@ -108,13 +122,17 @@ export default function PhotoCropper({ file, url, size = 600, onClose, onDone })
     c.width = size;
     c.height = size;
     const ctx = c.getContext('2d');
-    // Біле тло: JPEG не має прозорості, а PNG з прозорим фоном у круглому
-    // аватарі дає сірі кути на світлих поверхнях.
-    ctx.fillStyle = '#fff';
-    ctx.fillRect(0, 0, size, size);
+    if (!прозоро) {
+      // Фото: біле тло, бо JPEG прозорості не має, а порожні кути в аватарі
+      // виглядали б як дірки.
+      ctx.fillStyle = '#fff';
+      ctx.fillRect(0, 0, size, size);
+    }
     const k = size / ВІКНО;
     ctx.drawImage(img, зсув.x * k, зсув.y * k, ширина * k, висота * k);
-    const blob = await new Promise((r) => c.toBlob(r, 'image/jpeg', 0.92));
+    const blob = await new Promise((r) =>
+      прозоро ? c.toBlob(r, 'image/png') : c.toBlob(r, 'image/jpeg', 0.92)
+    );
     onDone(blob, URL.createObjectURL(blob));
   };
 
@@ -141,7 +159,10 @@ export default function PhotoCropper({ file, url, size = 600, onClose, onDone })
               style={{ width: ширина, height: висота, transform: `translate(${зсув.x}px, ${зсув.y}px)` }}
             />
           </div>
-          <p className="muted small-text">Тягніть, щоб посунути. Стрілками — точніше, з Shift — швидше</p>
+          <p className="muted small-text">
+            Тягніть, щоб посунути. Стрілками — точніше, з Shift — швидше
+            {прозоро ? '. Порожнє навколо емблеми лишиться прозорим' : ''}
+          </p>
           <div className="crop-zoom">
             <button type="button" className="btn small" onClick={() => setZoom((z) => Math.max(1, z - 0.1))}>
               −

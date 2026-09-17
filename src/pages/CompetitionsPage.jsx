@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { crm } from '../api/client.js';
 import { Empty, ErrorBox, Field, Modal, PageHeader, useForm } from '../components/ui.jsx';
+import PhotoCropper from '../components/PhotoCropper.jsx';
 
 export default function CompetitionsPage() {
   const qc = useQueryClient();
@@ -85,6 +86,9 @@ function CompetitionForm({ item, onClose, onSave }) {
     sort_order: item.sort_order ?? 0,
   });
   const [logo, setLogo] = useState(null);
+  const чинний = item.logo?.url || null;
+  const [прев, setПрев] = useState(null);
+  const [кадруємо, setКадруємо] = useState(false);
   const submit = (e) => {
     e.preventDefault();
     onSave.mutate({
@@ -115,10 +119,34 @@ function CompetitionForm({ item, onClose, onSave }) {
         </Field>
         <Field label="Логотип" hint="Один на змагання, спільний для всіх його сезонів. Застосунок читає його через звʼязок турніру зі змаганням">
           <div className="club-cell">
-            {item.logo?.url && <img src={item.logo.url} alt="" className="img-logo small" />}
-            <input type="file" accept="image/*" onChange={(e) => setLogo(e.target.files?.[0] || null)} />
+            {(прев || чинний) && <img src={прев || чинний} alt="" className="img-logo small" />}
+            <input
+              type="file"
+              accept="image/*"
+              onChange={(e) => {
+                const f = e.target.files?.[0] || null;
+                setLogo(f);
+                setПрев(f ? URL.createObjectURL(f) : null);
+              }}
+            />
+            <button type="button" className="btn small" disabled={!logo && !чинний} onClick={() => setКадруємо(true)}>
+              Кадрувати
+            </button>
           </div>
         </Field>
+        {кадруємо && (
+          <PhotoCropper
+            file={logo}
+            url={!logo ? чинний : undefined}
+            прозоро
+            onClose={() => setКадруємо(false)}
+            onDone={(blob, urlПрев) => {
+              setLogo(new File([blob], 'logo.png', { type: 'image/png' }));
+              setПрев(urlПрев);
+              setКадруємо(false);
+            }}
+          />
+        )}
         <ErrorBox error={onSave.error} />
         <div className="form-actions">
           <button type="button" className="btn" onClick={onClose}>

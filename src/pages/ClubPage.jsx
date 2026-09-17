@@ -4,6 +4,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { crm } from '../api/client.js';
 import { Empty, ErrorBox, Field, Modal, PageHeader, Tabs, Toggle, dayBefore, fmtDate, personName, toInt, today, useForm } from '../components/ui.jsx';
 import { PersonForm, PersonPicker } from './PeoplePage.jsx';
+import PhotoCropper from '../components/PhotoCropper.jsx';
 
 export default function ClubPage() {
   const { id } = useParams();
@@ -188,7 +189,13 @@ function Card({ data }) {
 
         <section className="card-col">
           <h3>Зображення</h3>
-          <ImageSlot label="Логотип" url={c.TeamLogo?.url} onFile={(file) => upload.mutate({ kind: 'logo', file })} busy={upload.isPending} />
+          <ImageSlot
+            label="Логотип"
+            url={c.TeamLogo?.url}
+            onFile={(file) => upload.mutate({ kind: 'logo', file })}
+            busy={upload.isPending}
+            кадрувати
+          />
           <ImageSlot label="Фото команди" url={c.TeamPhoto?.url} onFile={(file) => upload.mutate({ kind: 'photo', file })} busy={upload.isPending} wide />
           <ErrorBox error={upload.error} />
         </section>
@@ -221,15 +228,56 @@ const toForm = (c) => ({
   contact_email: c.contact_email || '',
 });
 
-function ImageSlot({ label, url, onFile, busy, wide }) {
+function ImageSlot({ label, url, onFile, busy, wide, кадрувати }) {
+  // Файл не відправляємо одразу: спершу показуємо кадр. Для широкого фото
+  // команди кадрування нема сенсу — квадрат зʼїв би половину шеренги.
+  const [файл, setФайл] = useState(null);
+  const [кадруємо, setКадруємо] = useState(false);
   return (
     <div className="image-slot">
       <div className="field-label">{label}</div>
       {url ? <img src={url} alt="" className={wide ? 'img-wide' : 'img-logo'} /> : <div className={`img-empty ${wide ? 'wide' : ''}`}>немає</div>}
-      <label className="btn small file-btn">
-        {busy ? 'Завантажуємо…' : url ? 'Замінити' : 'Завантажити'}
-        <input type="file" accept="image/*" hidden onChange={(e) => e.target.files?.[0] && onFile(e.target.files[0])} />
-      </label>
+      <div className="club-cell">
+        <label className="btn small file-btn">
+          {busy ? 'Завантажуємо…' : url ? 'Замінити' : 'Завантажити'}
+          <input
+            type="file"
+            accept="image/*"
+            hidden
+            onChange={(e) => {
+              const f = e.target.files?.[0];
+              if (!f) return;
+              if (кадрувати) {
+                setФайл(f);
+                setКадруємо(true);
+              } else {
+                onFile(f);
+              }
+            }}
+          />
+        </label>
+        {кадрувати && url && (
+          <button type="button" className="btn small" onClick={() => setКадруємо(true)} disabled={busy}>
+            Кадрувати
+          </button>
+        )}
+      </div>
+      {кадруємо && (
+        <PhotoCropper
+          file={файл}
+          url={!файл ? url : undefined}
+          прозоро
+          onClose={() => {
+            setКадруємо(false);
+            setФайл(null);
+          }}
+          onDone={(blob) => {
+            onFile(new File([blob], 'logo.png', { type: 'image/png' }));
+            setКадруємо(false);
+            setФайл(null);
+          }}
+        />
+      )}
     </div>
   );
 }
