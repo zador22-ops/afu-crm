@@ -81,6 +81,11 @@ export function PersonForm({ person, onClose, onCreated }) {
     City: person.City || '',
   });
   const [photo, setPhoto] = useState(null);
+  // Прев'ю: або вже завантажене фото, або щойно вибраний файл. Без нього
+  // форма виглядає так, ніби фото немає взагалі, — а воно є і в застосунку
+  // показується.
+  const чинне = person.photo_url || person.Photo?.url || null;
+  const [прев, setПрев] = useState(null);
   const save = useMutation({
     mutationFn: async () => {
       const data = {
@@ -142,8 +147,19 @@ export function PersonForm({ person, onClose, onCreated }) {
         <Field label="Місто">
           <input value={values.City} onChange={set('City')} />
         </Field>
-        <Field label="Фото">
-          <input type="file" accept="image/*" onChange={(e) => setPhoto(e.target.files?.[0] || null)} />
+        <Field label="Фото" hint={чинне ? 'Новий файл замінить це фото' : 'Фото ще немає'}>
+          <div className="club-cell">
+            {(прев || чинне) && <img src={прев || чинне} alt="" className="img-logo small" />}
+            <input
+              type="file"
+              accept="image/*"
+              onChange={(e) => {
+                const f = e.target.files?.[0] || null;
+                setPhoto(f);
+                setПрев(f ? URL.createObjectURL(f) : null);
+              }}
+            />
+          </div>
         </Field>
         <ErrorBox error={save.error} />
         <div className="form-actions">
