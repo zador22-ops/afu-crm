@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { crm } from '../api/client.js';
 import { Empty, ErrorBox, Field, Modal, useForm } from '../components/ui.jsx';
+import { kyivDateTimeString, toKyivInputValue, fromKyivInputValue } from '../utils/kyivTime.js';
 
 /**
  * Матчі турніру: календар, створення й редагування.
@@ -21,19 +22,14 @@ import { Empty, ErrorBox, Field, Modal, useForm } from '../components/ui.jsx';
  * не можна: `Table` тримає власний `leagues_id`, і рядки лишились би в старому.
  */
 
-const дата = (ts) => {
-  if (!ts) return '—';
-  const d = new Date(ts);
-  return d.toLocaleString('uk-UA', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
-};
+// Завжди за Києвом, а не за поясом браузера — знахідка 2026-09-17: обидва
+// хелпери тут раніше читали epoch голим new Date(...), тож і показ, і (що
+// небезпечніше) запис часу матчу зсувались для будь-кого поза Києвом.
+// Деталі — src/utils/kyivTime.js.
+const дата = (ts) => (ts ? kyivDateTimeString(ts) : '—');
 
-/** `datetime-local` розуміє лише «YYYY-MM-DDTHH:MM» у локальному часі. */
-const доФорми = (ts) => {
-  if (!ts) return '';
-  const d = new Date(ts);
-  const p = (n) => String(n).padStart(2, '0');
-  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}`;
-};
+/** `datetime-local` розуміє лише «YYYY-MM-DDTHH:MM» — тут це київський стінний час. */
+const доФорми = (ts) => (ts ? toKyivInputValue(ts) : '');
 
 const зафіксований = (m) => Number(m?.match_status_id) > 2;
 
@@ -189,7 +185,7 @@ function MatchForm({ item, tid, tours, команди, onClose, onSave, onDelete
   const submit = (e) => {
     e.preventDefault();
     const data = {
-      TimeOfMatch: new Date(values.TimeOfMatch).getTime(),
+      TimeOfMatch: fromKyivInputValue(values.TimeOfMatch),
       team1_id: Number(values.team1_id),
       team2_id: Number(values.team2_id),
       tours_id: Number(values.tours_id),

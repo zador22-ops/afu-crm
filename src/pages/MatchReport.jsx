@@ -2,6 +2,7 @@ import { useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { crm } from '../api/client.js';
 import { ErrorBox } from '../components/ui.jsx';
+import { kyivDateDashString, kyivTimeString } from '../utils/kyivTime.js';
 
 /**
  * Рапорт делегата — веброзклад того самого документа, що ADMIN збирає через
@@ -17,8 +18,6 @@ import { ErrorBox } from '../components/ui.jsx';
  */
 const ЛОГО =
   'https://xdeg-kg7i-jjtu.f2.xano.io/vault/oRBbf5J7/W9pxiKVExXZSd0E4RCoUr7PJFwA/9v58og../%D0%90%D0%A4%D0%A3_Vertical_Full_Txt_RGB.png';
-
-const дві = (n) => String(n).padStart(2, '0');
 
 export default function MatchReport({ match }) {
   const org = useQuery({ queryKey: ['organization', match.id], queryFn: () => crm.get(`/matches/${match.id}/organization`) });
@@ -44,9 +43,11 @@ export default function MatchReport({ match }) {
     return { пункти, розширені };
   }, [org.data]);
 
-  const d = new Date(match.TimeOfMatch);
-  const дата = `${дві(d.getDate())}-${дві(d.getMonth() + 1)}-${d.getFullYear()}`;
-  const час = `${дві(d.getHours())}:${дві(d.getMinutes())}`;
+  // Завжди за Києвом, незалежно від пристрою — знахідка 2026-09-17: тут
+  // раніше стояв голий new Date().getHours(), який показував місцевий час
+  // браузера. Див. src/utils/kyivTime.js.
+  const дата = kyivDateDashString(match.TimeOfMatch);
+  const час = kyivTimeString(match.TimeOfMatch);
 
   return (
     <section>

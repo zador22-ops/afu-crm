@@ -6,6 +6,7 @@ import { Empty, ErrorBox, Field, Modal, PageHeader, Tabs, Toggle, personName, to
 import MatchSquad from './MatchSquad.jsx';
 import MatchOrganization from './MatchOrganization.jsx';
 import MatchReport from './MatchReport.jsx';
+import { kyivDateTimeString } from '../utils/kyivTime.js';
 
 /**
  * Протокол матчу: події, рахунок, статус, фоли, хвилини перерв.
@@ -126,7 +127,8 @@ export default function MatchPage() {
           </span>
         }
         subtitle={[
-          m.TimeOfMatch ? new Date(m.TimeOfMatch).toLocaleString('uk-UA', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : null,
+          // Завжди за Києвом — new Date(...).toLocaleString без timeZone брав місцевий пояс браузера
+          m.TimeOfMatch ? kyivDateTimeString(m.TimeOfMatch) : null,
           m._tour?.TourName,
           (venues.data || []).find((v) => v.id === m.venues_id)?.City,
           m._status?.Status,
