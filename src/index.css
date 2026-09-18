@@ -1,12 +1,18 @@
 :root {
+  /* --primary і --brand-yellow — точні кольори з logo.png (АФУ), не підібрані:
+     синій rgb(33,113,184) і жовтий rgb(255,237,0), звірені піпеткою 2026-09-18.
+     Той самий синій фігурує в docs/audit/visual-audit-2026-09-17.md як
+     `palettes.App['АФУ синій']`, тож це не новий колір, а вже впізнаваний бренд. */
   --bg: #f5f6f8;
   --surface: #ffffff;
   --text: #1c2430;
   --muted: #6b7684;
   --border: #e3e7ec;
-  --primary: #0b3d91;
-  --primary-hover: #0a347a;
-  --primary-soft: #e8eefb;
+  --primary: #2171b8;
+  --primary-hover: #185a94;
+  --primary-soft: #e7f0f9;
+  --brand-yellow: #ffed00;
+  --brand-yellow-ink: #4d3f00; /* текст на жовтому — не білий, контраст білого на жовтому недостатній */
   --danger: #b42318;
   --danger-soft: #fdecea;
   --ok: #1a7f4b;
@@ -72,9 +78,14 @@ h3 {
 }
 .brand {
   display: flex;
-  align-items: baseline;
-  gap: 6px;
+  align-items: center;
+  gap: 8px;
   padding: 0 8px;
+}
+.brand-logo {
+  height: 30px;
+  width: auto;
+  flex-shrink: 0;
 }
 .brand-mark {
   font-weight: 800;
@@ -88,10 +99,20 @@ h3 {
 }
 .brand.big {
   justify-content: center;
+  flex-direction: column;
+  gap: 10px;
   margin-bottom: 8px;
+}
+.brand.big .brand-logo {
+  height: 64px;
 }
 .brand.big .brand-mark {
   font-size: 28px;
+}
+.brand.big .brand-text {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
 }
 .sidebar nav {
   display: flex;
@@ -275,6 +296,13 @@ h3 {
 .badge.warn {
   background: var(--warn-soft);
   color: var(--warn);
+}
+.badge.brand {
+  /* Бренд-жовтий лише як фон із темним текстом — білий текст на жовтому не
+     проходить контраст (той самий висновок, що в docs/audit/visual-audit
+     фанатського застосунку). Для «поточний сезон» / «головний турнір». */
+  background: var(--brand-yellow);
+  color: var(--brand-yellow-ink);
 }
 .badge.cup {
   background: #fdf1e0;

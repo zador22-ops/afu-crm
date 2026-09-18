@@ -51,7 +51,7 @@ export default function SeasonsPage() {
                   <Link to={`/seasons/${s.id}`} className="strong">
                     {s.name}
                   </Link>
-                  {s.is_current && <span className="badge">поточний</span>}
+                  {s.is_current && <span className="badge brand">поточний</span>}
                 </td>
                 <td className="muted">
                   {s.start_date || s.end_date ? `${fmtDate(s.start_date)} – ${fmtDate(s.end_date)}` : '—'}

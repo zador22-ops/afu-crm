@@ -64,7 +64,7 @@ export default function SeasonPage() {
                     <Link to={`/tournaments/${t.id}`} className="strong">
                       {t.League}
                     </Link>
-                    {t.main && <span className="badge">головний</span>}
+                    {t.main && <span className="badge brand">головний</span>}
                     {t.Official_name && <div className="muted small-text">{t.Official_name}</div>}
                   </td>
                   <td>

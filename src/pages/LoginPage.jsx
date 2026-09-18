@@ -32,8 +32,11 @@ export default function LoginPage() {
     <div className="login-wrap">
       <form className="login-card" onSubmit={submit}>
         <div className="brand big">
-          <span className="brand-mark">АФУ</span>
-          <span className="brand-sub">CRM</span>
+          <img src="/logo-mark.png" alt="АФУ" className="brand-logo" />
+          <div className="brand-text">
+            <span className="brand-mark">АФУ</span>
+            <span className="brand-sub">CRM</span>
+          </div>
         </div>
         <p className="muted">Вхід той самий, що в ADMIN АФУ: числовий id користувача і пароль.</p>
         <Field label="ID користувача">

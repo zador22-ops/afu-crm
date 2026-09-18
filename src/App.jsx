@@ -33,6 +33,7 @@ function Shell({ children }) {
     <div className="shell">
       <aside className="sidebar">
         <div className="brand">
+          <img src="/logo-mark.png" alt="" className="brand-logo" />
           <span className="brand-mark">АФУ</span>
           <span className="brand-sub">CRM</span>
         </div>
