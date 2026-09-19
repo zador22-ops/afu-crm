@@ -133,7 +133,10 @@ function ZoneForm({ zone, league_stage_id, onClose, onSave }) {
     zone_type: zone?.zone_type || 'playoff',
     place_from: zone?.place_from ?? '',
     place_to: zone?.place_to ?? '',
-    label: zone?.label || '',
+    // Порожній підпис виглядає в застосунку як зламана верстка, тому поле
+    // обовʼязкове (Backend, 2026-09-19) — і для нової зони одразу підставляємо
+    // назву типу, щоб не залишити порожнім там, де нема чого вигадувати.
+    label: zone?.label || ТИПИ[zone?.zone_type || 'playoff'],
   });
   const submit = (e) => {
     e.preventDefault();
@@ -165,8 +168,8 @@ function ZoneForm({ zone, league_stage_id, onClose, onSave }) {
             <input type="number" min="1" value={values.place_to} onChange={set('place_to')} required />
           </Field>
         </div>
-        <Field label="Підпис для легенди" hint="«Плей-оф» — як показується під таблицею">
-          <input value={values.label} onChange={set('label')} placeholder={ТИПИ[values.zone_type]} />
+        <Field label="Підпис для легенди" hint="Як показується під таблицею в застосунку">
+          <input value={values.label} onChange={set('label')} required />
         </Field>
         <ErrorBox error={onSave.error} />
         <div className="form-actions">

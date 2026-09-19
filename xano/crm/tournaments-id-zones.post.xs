@@ -8,7 +8,7 @@ query "tournaments/{leagues_id}/zones" verb=POST {
     text zone_type filters=trim
     int place_from filters=min:1
     int place_to filters=min:1
-    text label? filters=trim
+    text label filters=trim
   }
 
   stack {
@@ -22,6 +22,12 @@ query "tournaments/{leagues_id}/zones" verb=POST {
     precondition ($input.zone_type == "playoff" || $input.zone_type == "relegation" || $input.zone_type == "promotion" || $input.zone_type == "europe") {
       error_type = "badrequest"
       error = "Невідомий тип зони"
+    }
+    // Порожній підпис гірший за відсутність поля: смуга є, а підпис нульової
+    // ширини виглядає в застосунку як зламана верстка (Backend, 2026-09-19)
+    precondition ($input.label != "") {
+      error_type = "badrequest"
+      error = "Підпис для легенди обовʼязковий"
     }
     precondition ($input.place_from <= $input.place_to) {
       error_type = "badrequest"
@@ -50,17 +56,21 @@ query "tournaments/{leagues_id}/zones" verb=POST {
       output = ["id", "place_from", "place_to", "label"]
     } as $existing
 
+    // Повідомлення складаємо тут-таки, у JS: конкатенація рядка з числом
+    // через XanoScript `+` падає з ERROR_FATAL "Not numeric" (перевірено 19.09).
     api.lambda {
       code = """
         const a1 = $input.place_from, b1 = $input.place_to;
-        return $var.existing.find(z => a1 <= z.place_to && z.place_from <= b1) || null;
+        const z = $var.existing.find(z => a1 <= z.place_to && z.place_from <= b1);
+        if (!z) return { found: false, message: '' };
+        return { found: true, message: `Перетинається із зоною «${z.label}» (${z.place_from}–${z.place_to})` };
       """
       timeout = 10
     } as $overlap
 
-    precondition ($overlap == null) {
+    precondition ($overlap.found == false) {
       error_type = "badrequest"
-      error = `"Перетинається із зоною «" + ($overlap.label|default:"без підпису") + "» (" + $overlap.place_from + "–" + $overlap.place_to + ")"`
+      error = $overlap.message
     }
 
     db.add league_zone {
