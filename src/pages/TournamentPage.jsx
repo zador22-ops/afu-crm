@@ -5,6 +5,7 @@ import { crm } from '../api/client.js';
 import { Empty, ErrorBox, Field, Modal, PageHeader, Tabs, Toggle, useForm } from '../components/ui.jsx';
 import TournamentMatches from './TournamentMatches.jsx';
 import TournamentBracket from './TournamentBracket.jsx';
+import TournamentZones from './TournamentZones.jsx';
 
 const ЕТАПИ = { 1: 'Основна таблиця', 2: 'Плей-оф / сітка' };
 
@@ -41,12 +42,14 @@ export default function TournamentPage() {
           { key: 'tours', label: 'Тури', count: tours.data?.length },
           { key: 'matches', label: 'Матчі', count: matches.data?.length },
           { key: 'bracket', label: 'Сітка' },
+          { key: 'zones', label: 'Зони' },
         ]}
       />
       {tab === 'participants' && <Participants tid={tid} query={participants} />}
       {tab === 'tours' && <Tours tid={tid} query={tours} />}
       {tab === 'matches' && <TournamentMatches tid={tid} participants={participants.data} />}
       {tab === 'bracket' && <TournamentBracket tid={tid} participants={participants.data} />}
+      {tab === 'zones' && <TournamentZones tid={tid} />}
     </div>
   );
 }
