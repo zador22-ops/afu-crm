@@ -139,6 +139,7 @@ function CompetitionForm({ item, onClose, onSave }) {
             file={logo}
             url={!logo ? чинний : undefined}
             прозоро
+            size={256}
             onClose={() => setКадруємо(false)}
             onDone={(blob, urlПрев) => {
               setLogo(new File([blob], 'logo.png', { type: 'image/png' }));
