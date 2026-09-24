@@ -877,3 +877,26 @@ input[type='radio'] {
 .match-link:hover .strong {
   text-decoration: underline;
 }
+
+/* R3 «Топ-матч»: галочка в списку матчів і в шапці картки */
+.top-toggle {
+  display: inline-flex;
+  flex-direction: column;
+  gap: 2px;
+  white-space: nowrap;
+}
+.top-toggle label {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  cursor: pointer;
+}
+.top-toggle label.muted {
+  cursor: not-allowed;
+}
+.top-toggle-error {
+  color: var(--danger, #b42318);
+  font-size: 12px;
+  white-space: normal;
+  max-width: 260px;
+}

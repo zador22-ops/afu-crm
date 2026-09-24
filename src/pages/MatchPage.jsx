@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import TopMatchToggle from '../components/TopMatchToggle.jsx';
 import { crm } from '../api/client.js';
 import { Empty, ErrorBox, Field, Modal, PageHeader, Tabs, Toggle, personName, toInt, useForm } from '../components/ui.jsx';
 import MatchSquad from './MatchSquad.jsx';
@@ -136,9 +137,12 @@ export default function MatchPage() {
           .filter(Boolean)
           .join(' · ')}
         actions={
-          <span className="score-big">
-            {m.Result_team1 ?? 0} : {m.Result_team2 ?? 0}
-          </span>
+          <>
+            <TopMatchToggle match={m} />
+            <span className="score-big">
+              {m.Result_team1 ?? 0} : {m.Result_team2 ?? 0}
+            </span>
+          </>
         }
       />
 

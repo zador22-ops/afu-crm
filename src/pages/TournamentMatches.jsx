@@ -4,6 +4,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { crm } from '../api/client.js';
 import { Empty, ErrorBox, Field, Modal, useForm } from '../components/ui.jsx';
 import { kyivDateTimeString, toKyivInputValue, fromKyivInputValue } from '../utils/kyivTime.js';
+import TopMatchToggle from '../components/TopMatchToggle.jsx';
 
 /**
  * Матчі турніру: календар, створення й редагування.
@@ -102,6 +103,7 @@ export default function TournamentMatches({ tid, participants }) {
               <th>Рахунок</th>
               <th>Арена</th>
               <th>Стан</th>
+              <th>Топ</th>
               <th></th>
             </tr>
           </thead>
@@ -120,6 +122,9 @@ export default function TournamentMatches({ tid, participants }) {
                 <td>{зафіксований(m) ? `${m.Result_team1 ?? 0} : ${m.Result_team2 ?? 0}` : '—'}</td>
                 <td className="muted">{аренаЗа[m.venues_id] || '—'}</td>
                 <td>{m._status?.Status || '—'}</td>
+                <td>
+                  <TopMatchToggle match={m} compact />
+                </td>
                 <td className="row-actions">
                   <Link className="btn small primary" to={`/matches/${m.id}`}>
                     Керувати матчем
