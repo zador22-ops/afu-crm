@@ -30,14 +30,10 @@ export default function LoginPage() {
 
   return (
     <div className="login-wrap">
+      {/* Повне лого з жовтим написом — тому на темно-синьому тлі сторінки, а не на білій картці */}
+      <img src="/logo-afu-full.webp" alt="Асоціація футзалу України" className="login-logo" />
       <form className="login-card" onSubmit={submit}>
-        <div className="brand big">
-          <img src="/logo-mark.png" alt="АФУ" className="brand-logo" />
-          <div className="brand-text">
-            <span className="brand-mark">АФУ</span>
-            <span className="brand-sub">CRM</span>
-          </div>
-        </div>
+        <h1 className="login-title">Вхід у CRM</h1>
         <p className="muted">Вхід той самий, що в ADMIN АФУ: числовий id користувача і пароль.</p>
         <Field label="ID користувача">
           <input inputMode="numeric" autoFocus value={id} onChange={(e) => setId(e.target.value)} required />
