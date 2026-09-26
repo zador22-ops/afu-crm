@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { crm } from '../api/client.js';
-import { Empty, ErrorBox, Field, Modal, PageHeader, useForm } from '../components/ui.jsx';
+import { Empty, ErrorBox, Field, Modal, PageHeader, Toggle, useForm } from '../components/ui.jsx';
 import PhotoCropper from '../components/PhotoCropper.jsx';
 
 export default function CompetitionsPage() {
@@ -11,6 +11,10 @@ export default function CompetitionsPage() {
   const save = useMutation({
     mutationFn: async (v) => {
       const saved = v.id ? await crm.patch(`/competitions/${v.id}`, v.data) : await crm.post('/competitions', v.data);
+      // R27: окремий ендпоінт; нове змагання й так показується (типово true)
+      if (v.show_in_app !== undefined && v.show_in_app !== (saved.show_in_app ?? true)) {
+        await crm.patch(`/competitions/${saved.id}/visibility`, { show_in_app: v.show_in_app });
+      }
       if (v.logo) {
         // Логотип живе у league.logo — один на змагання, спільний для всіх його сезонів
         const form = new FormData();
@@ -26,6 +30,10 @@ export default function CompetitionsPage() {
   });
   // Сервер відмовляє, якщо на змагання посилається хоч один турнір сезону,
   // і називає ці турніри — повідомлення показуємо у формі
+  const visibility = useMutation({
+    mutationFn: ({ id, show_in_app }) => crm.patch(`/competitions/${id}/visibility`, { show_in_app }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['competitions'] }),
+  });
   const remove = useMutation({
     mutationFn: (id) => crm.del(`/competitions/${id}`),
     onSuccess: () => {
@@ -38,14 +46,14 @@ export default function CompetitionsPage() {
     <div className="page">
       <PageHeader
         title="Змагання"
-        subtitle="Ліга має таблицю і, за потреби, плей-оф; кубок — лише сітку; міжнародне — лише матчі (збірна, єврокубки). Турнір сезону посилається на змагання"
+        subtitle="Ліга має таблицю і, за потреби, плей-оф; кубок — лише сітку; міжнародне — лише матчі (збірна, єврокубки). Турнір сезону посилається на змагання. «У застосунку» знято — змагання не показується в шторці «Змагання» і в пікерах застосунку; його матчі й таблиці лишаються"
         actions={
           <button className="btn primary" onClick={() => setEditing({})}>
             Нове змагання
           </button>
         }
       />
-      <ErrorBox error={list.error} />
+      <ErrorBox error={list.error || visibility.error} />
       {list.data?.length === 0 && <Empty>Змагань ще немає</Empty>}
       {list.data?.length > 0 && (
         <table className="table">
@@ -55,6 +63,7 @@ export default function CompetitionsPage() {
               <th>Коротка</th>
               <th>Тип</th>
               <th>Порядок</th>
+              <th>У застосунку</th>
               <th></th>
             </tr>
           </thead>
@@ -72,6 +81,16 @@ export default function CompetitionsPage() {
                   <span className={`badge ${c.type === 'кубок' ? 'cup' : c.type === 'міжнародне' ? 'intl' : 'league'}`}>{c.type || '—'}</span>
                 </td>
                 <td>{c.sort_order}</td>
+                <td>
+                  <input
+                    type="checkbox"
+                    aria-label={`Показувати «${c.name}» у застосунку`}
+                    title="Показувати в шторці «Змагання» застосунку"
+                    checked={c.show_in_app !== false}
+                    disabled={visibility.isPending}
+                    onChange={(e) => visibility.mutate({ id: c.id, show_in_app: e.target.checked })}
+                  />
+                </td>
                 <td className="row-actions">
                   <button className="btn small" onClick={() => setEditing(c)}>
                     Редагувати
@@ -94,6 +113,7 @@ function CompetitionForm({ item, onClose, onSave, onDelete }) {
     short_name: item.short_name || '',
     sort_order: item.sort_order ?? 0,
   });
+  const [показувати, setПоказувати] = useState(item.show_in_app !== false);
   const [logo, setLogo] = useState(null);
   const чинний = item.logo?.url || null;
   const [прев, setПрев] = useState(null);
@@ -104,6 +124,7 @@ function CompetitionForm({ item, onClose, onSave, onDelete }) {
     onSave.mutate({
       id: item.id,
       logo,
+      show_in_app: показувати,
       data: { name: values.name.trim(), type: values.type, short_name: values.short_name.trim(), sort_order: Number(values.sort_order) || 0 },
     });
   };
@@ -128,6 +149,11 @@ function CompetitionForm({ item, onClose, onSave, onDelete }) {
         <Field label="Коротка назва">
           <input value={values.short_name} onChange={set('short_name')} />
         </Field>
+        <Toggle
+          checked={показувати}
+          onChange={setПоказувати}
+          label="Показувати в застосунку (шторка «Змагання»). Знято — змагання не показується в шторці й пікерах; його матчі й таблиці лишаються"
+        />
         <Field label="Логотип" hint="Один на змагання, спільний для всіх його сезонів. Застосунок читає його через звʼязок турніру зі змаганням">
           <div className="club-cell">
             {(прев || чинний) && <img src={прев || чинний} alt="" className="img-logo small" />}
