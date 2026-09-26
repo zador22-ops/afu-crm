@@ -313,6 +313,11 @@ h3 {
 .badge.league {
   margin-left: 0;
 }
+.badge.intl {
+  background: var(--primary-soft);
+  color: var(--primary-hover);
+  margin-left: 0;
+}
 
 .btn {
   appearance: none;

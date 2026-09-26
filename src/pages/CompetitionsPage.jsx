@@ -29,7 +29,7 @@ export default function CompetitionsPage() {
     <div className="page">
       <PageHeader
         title="Змагання"
-        subtitle="Ліга має таблицю і, за потреби, плей-оф; кубок — лише сітку. Турнір сезону посилається на змагання"
+        subtitle="Ліга має таблицю і, за потреби, плей-оф; кубок — лише сітку; міжнародне — лише матчі (збірна, єврокубки). Турнір сезону посилається на змагання"
         actions={
           <button className="btn primary" onClick={() => setEditing({})}>
             Нове змагання
@@ -60,7 +60,7 @@ export default function CompetitionsPage() {
                 </td>
                 <td className="muted">{c.short_name || '—'}</td>
                 <td>
-                  <span className={`badge ${c.type === 'кубок' ? 'cup' : 'league'}`}>{c.type || '—'}</span>
+                  <span className={`badge ${c.type === 'кубок' ? 'cup' : c.type === 'міжнародне' ? 'intl' : 'league'}`}>{c.type || '—'}</span>
                 </td>
                 <td>{c.sort_order}</td>
                 <td className="row-actions">
@@ -108,6 +108,7 @@ function CompetitionForm({ item, onClose, onSave }) {
             <select value={values.type} onChange={set('type')}>
               <option value="ліга">ліга</option>
               <option value="кубок">кубок</option>
+              <option value="міжнародне">міжнародне</option>
             </select>
           </Field>
           <Field label="Порядок у списках">

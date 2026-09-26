@@ -18,9 +18,9 @@ query "competitions/{league_id}" verb=PATCH {
       error_type = "accessdenied"
       error = "Доступ заборонено"
     }
-    precondition ($input.type == null || $input.type == "ліга" || $input.type == "кубок") {
+    precondition ($input.type == null || $input.type == "ліга" || $input.type == "кубок" || $input.type == "міжнародне") {
       error_type = "badrequest"
-      error = "Тип має бути «ліга» або «кубок»"
+      error = "Тип має бути «ліга», «кубок» або «міжнародне»"
     }
 
     db.get league {

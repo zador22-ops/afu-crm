@@ -21,9 +21,9 @@ query competitions verb=POST {
       error_type = "badrequest"
       error = "Назва змагання порожня"
     }
-    precondition ($input.type == "ліга" || $input.type == "кубок") {
+    precondition ($input.type == "ліга" || $input.type == "кубок" || $input.type == "міжнародне") {
       error_type = "badrequest"
-      error = "Тип має бути «ліга» або «кубок»"
+      error = "Тип має бути «ліга», «кубок» або «міжнародне»"
     }
 
     db.add league {
