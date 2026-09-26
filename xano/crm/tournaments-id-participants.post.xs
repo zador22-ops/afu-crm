@@ -56,9 +56,36 @@ query "tournaments/{leagues_id}/participants" verb=POST {
       }
     } as $row
 
+    // Тип змагання турніру: для «міжнародне» головний турнір клубу не міняємо.
+    // Інакше український клуб, доданий у ЛЧ, дістав би leagues_id = ЛЧ і
+    // зник би з пікерів Екстра-ліги в ADMIN (#121 бере саме TeamInfo.leagues_id).
+    db.get league {
+      field_name = "id"
+      field_value = $tournament.league_id
+    } as $competition
+    var $mirrorAllowed {
+      value = $input.set_main
+    }
+    conditional {
+      if ($competition != null && $competition.type == "міжнародне") {
+        var.update $mirrorAllowed {
+          value = false
+        }
+      }
+    }
+    // Суперникам (збірним і іноземним клубам) leagues_id не ставимо ніколи:
+    // порожнє значення тримає їх поза пікерами команд ADMIN (R20)
+    conditional {
+      if ($club.team_kind != null && $club.team_kind != "") {
+        var.update $mirrorAllowed {
+          value = false
+        }
+      }
+    }
+
     // Дзеркало для ADMIN і фан-застосунку: TeamInfo.leagues_id = головний турнір клубу
     conditional {
-      if ($input.set_main) {
+      if ($mirrorAllowed) {
         db.edit TeamInfo {
           field_name = "id"
           field_value = $input.teaminfo_id

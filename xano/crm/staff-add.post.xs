@@ -27,6 +27,12 @@ query "staff/add" verb=POST {
       error_type = "notfound"
       error = "Клуб не знайдено"
     }
+    // R20, варіант А: для збірних і іноземних клубів ведеться лише рахунок
+    // матчу. Заявка через Team закрила б гравцеві клубну (#38, #109, тут-таки)
+    precondition ($club.team_kind == null || $club.team_kind == "") {
+      error_type = "badrequest"
+      error = "Штаб для суперників (збірних і іноземних клубів) не ведеться: для них лише рахунок матчу"
+    }
     db.get People {
       field_name = "id"
       field_value = $input.people_id

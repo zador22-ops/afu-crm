@@ -19,6 +19,8 @@ query "clubs/{teaminfo_id}" verb=PATCH {
     text contact_name? filters=trim
     text contact_phone? filters=trim
     text contact_email? filters=trim
+    text team_kind? filters=trim
+    text country? filters=trim
   }
 
   stack {
@@ -43,6 +45,11 @@ query "clubs/{teaminfo_id}" verb=PATCH {
       error = "Клуб не знайдено"
     }
 
+    precondition ($input.team_kind == null || $input.team_kind == "" || $input.team_kind == "збірна" || $input.team_kind == "іноземний клуб") {
+      error_type = "badrequest"
+      error = "Вид команди має бути порожнім (клуб АФУ), «збірна» або «іноземний клуб»"
+    }
+
     util.get_raw_input {
       encoding = "json"
       exclude_middleware = false
@@ -52,6 +59,18 @@ query "clubs/{teaminfo_id}" verb=PATCH {
       field_value = $input.teaminfo_id
       data = `$input|pick:($raw|keys)|unset:"teaminfo_id"`
     } as $club
+
+    // Суперник лишається поза списками й пікерами ADMIN, що б не прийшло в
+    // Relevance чи leagues_id (R20)
+    conditional {
+      if ($club.team_kind != null && $club.team_kind != "") {
+        db.edit TeamInfo {
+          field_name = "id"
+          field_value = $input.teaminfo_id
+          data = {Relevance: false, leagues_id: null, parent_teaminfo_id: null}
+        } as $club
+      }
+    }
   }
 
   response = $club

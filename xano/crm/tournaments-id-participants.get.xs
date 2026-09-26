@@ -14,7 +14,7 @@ query "tournaments/{leagues_id}/participants" verb=GET {
       addon = [
         {
           name  : "TeamInfo"
-          output: ["TeamName", "TeamInfo", "TeamLogo.url", "leagues_id", "parent_teaminfo_id", "Relevance"]
+          output: ["TeamName", "TeamInfo", "TeamLogo.url", "leagues_id", "parent_teaminfo_id", "Relevance", "team_kind", "country"]
           input : {Teams_id: $output.teaminfo_id}
           as    : "_club"
         }

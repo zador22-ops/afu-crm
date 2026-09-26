@@ -7,7 +7,10 @@ import TournamentMatches from './TournamentMatches.jsx';
 import TournamentBracket from './TournamentBracket.jsx';
 import TournamentZones from './TournamentZones.jsx';
 
-const ЕТАПИ = { 1: 'Основна таблиця', 2: 'Плей-оф / сітка' };
+const ЕТАПИ = { 1: 'Основна таблиця', 2: 'Плей-оф / сітка', 5: 'Матчі' };
+
+// Суперник збірної чи єврокубків (R20): team_kind заповнений
+const суперник = (c) => Boolean(c?.team_kind);
 
 export default function TournamentPage() {
   const { id } = useParams();
@@ -16,12 +19,16 @@ export default function TournamentPage() {
 
   const tournaments = useQuery({ queryKey: ['tournaments', 'all'], queryFn: () => crm.get('/tournaments') });
   const seasons = useQuery({ queryKey: ['seasons'], queryFn: () => crm.get('/seasons') });
+  const competitions = useQuery({ queryKey: ['competitions'], queryFn: () => crm.get('/competitions') });
   const participants = useQuery({ queryKey: ['participants', tid], queryFn: () => crm.get(`/tournaments/${tid}/participants`) });
   const tours = useQuery({ queryKey: ['tours', tid], queryFn: () => crm.get(`/tournaments/${tid}/tours`) });
   const matches = useQuery({ queryKey: ['matches', tid, ''], queryFn: () => crm.get('/matches', { leagues_id: tid }) });
 
   const t = tournaments.data?.find((x) => x.id === tid);
   const season = seasons.data?.find((s) => s.id === t?.season_id);
+  // Турнір збірної чи єврокубка: учасники — клуби АФУ і суперники, головний
+  // турнір клубу не змінюється (сервер теж це тримає, #450)
+  const міжнародний = competitions.data?.find((c) => c.id === t?.league_id)?.type === 'міжнародне';
 
   return (
     <div className="page">
@@ -45,7 +52,7 @@ export default function TournamentPage() {
           { key: 'zones', label: 'Зони' },
         ]}
       />
-      {tab === 'participants' && <Participants tid={tid} query={participants} />}
+      {tab === 'participants' && <Participants tid={tid} query={participants} міжнародний={міжнародний} />}
       {tab === 'tours' && <Tours tid={tid} query={tours} />}
       {tab === 'matches' && <TournamentMatches tid={tid} participants={participants.data} />}
       {tab === 'bracket' && <TournamentBracket tid={tid} participants={participants.data} />}
@@ -54,9 +61,14 @@ export default function TournamentPage() {
   );
 }
 
-function Participants({ tid, query }) {
+function Participants({ tid, query, міжнародний }) {
   const qc = useQueryClient();
   const clubs = useQuery({ queryKey: ['clubs', false], queryFn: () => crm.get('/clubs') });
+  const opponents = useQuery({
+    queryKey: ['clubs', 'opponents'],
+    queryFn: () => crm.get('/clubs', { kind: 'opponents' }),
+    enabled: !!міжнародний,
+  });
   const [adding, setAdding] = useState(false);
   const invalidate = () => {
     qc.invalidateQueries({ queryKey: ['participants', tid] });
@@ -76,7 +88,7 @@ function Participants({ tid, query }) {
   });
 
   const inTournament = new Set((query.data || []).map((p) => p.teaminfo_id));
-  const candidates = (clubs.data || []).filter((c) => !inTournament.has(c.id));
+  const candidates = [...(clubs.data || []), ...(міжнародний ? opponents.data || [] : [])].filter((c) => !inTournament.has(c.id));
 
   return (
     <section>
@@ -102,14 +114,23 @@ function Participants({ tid, query }) {
             {query.data.map((p) => (
               <tr key={p.id} className={p.withdrawn ? 'muted' : ''}>
                 <td>
-                  <Link to={`/clubs/${p.teaminfo_id}`} className="club-cell">
+                  <Link to={суперник(p._club) ? '/opponents' : `/clubs/${p.teaminfo_id}`} className="club-cell">
                     {p._club?.TeamLogo?.url && <img src={p._club.TeamLogo.url} alt="" className="logo-sm" />}
                     <span className="strong">{p._club?.TeamName || `#${p.teaminfo_id}`}</span>
                   </Link>
+                  {суперник(p._club) && <span className="badge intl">{p._club.team_kind}</span>}
                   {p.withdrawn && <span className="badge warn">знявся</span>}
                 </td>
-                <td className="muted">{p._club?.TeamInfo}</td>
-                <td>{p._club?.leagues_id === tid ? 'цей' : <span className="muted">інший (#{p._club?.leagues_id})</span>}</td>
+                <td className="muted">{суперник(p._club) ? p._club.country : p._club?.TeamInfo}</td>
+                <td>
+                  {суперник(p._club) ? (
+                    <span className="muted">—</span>
+                  ) : p._club?.leagues_id === tid ? (
+                    'цей'
+                  ) : (
+                    <span className="muted">інший (#{p._club?.leagues_id})</span>
+                  )}
+                </td>
                 <td className="row-actions">
                   <button
                     className="btn small danger"
@@ -123,15 +144,15 @@ function Participants({ tid, query }) {
           </tbody>
         </table>
       )}
-      {adding && <AddParticipant candidates={candidates} onClose={() => setAdding(false)} onAdd={add} />}
+      {adding && <AddParticipant candidates={candidates} міжнародний={міжнародний} onClose={() => setAdding(false)} onAdd={add} />}
     </section>
   );
 }
 
-function AddParticipant({ candidates, onClose, onAdd }) {
+function AddParticipant({ candidates, міжнародний, onClose, onAdd }) {
   const [q, setQ] = useState('');
   const [teaminfo_id, setId] = useState('');
-  const [set_main, setMain] = useState(true);
+  const [set_main, setMain] = useState(!міжнародний);
   const list = useMemo(() => candidates.filter((c) => c.TeamName.toLowerCase().includes(q.toLowerCase())), [candidates, q]);
   return (
     <Modal title="Додати клуб у турнір" onClose={onClose}>
@@ -151,12 +172,22 @@ function AddParticipant({ candidates, onClose, onAdd }) {
               <input type="radio" name="club" value={c.id} checked={String(c.id) === String(teaminfo_id)} onChange={() => setId(c.id)} />
               {c.TeamLogo?.url && <img src={c.TeamLogo.url} alt="" className="logo-sm" />}
               <span>{c.TeamName}</span>
-              <span className="muted">{c.TeamInfo}</span>
+              <span className="muted">{суперник(c) ? `${c.team_kind}${c.country ? ', ' + c.country : ''}` : c.TeamInfo}</span>
             </label>
           ))}
-          {list.length === 0 && <Empty>Нічого не знайдено. Новий клуб створюється на сторінці «Клуби»</Empty>}
+          {list.length === 0 && (
+            <Empty>
+              Нічого не знайдено. Новий клуб створюється на сторінці «Клуби»{міжнародний ? ', суперник — на сторінці «Суперники»' : ''}
+            </Empty>
+          )}
         </div>
-        <Toggle checked={set_main} onChange={setMain} label="Зробити цей турнір головним для клубу (те, що бачить ADMIN і фан-застосунок)" />
+        {міжнародний ? (
+          <p className="muted small-text">
+            Турнір збірної чи єврокубка: головний турнір клубу не змінюється, інакше клуб зник би з пікерів Екстра-ліги в ADMIN.
+          </p>
+        ) : (
+          <Toggle checked={set_main} onChange={setMain} label="Зробити цей турнір головним для клубу (те, що бачить ADMIN і фан-застосунок)" />
+        )}
         <ErrorBox error={onAdd.error} />
         <div className="form-actions">
           <button type="button" className="btn" onClick={onClose}>
@@ -260,10 +291,12 @@ function Tours({ tid, query }) {
 function GenerateTours({ onClose, onGenerate }) {
   const { values, set } = useForm({ league_stage_id: '1', count: 18, names: '1/4 фіналу\n1/2 фіналу\nМатч за 3 місце\nФінал' });
   const isTable = values.league_stage_id === '1';
+  const isMatches = values.league_stage_id === '5';
   const submit = (e) => {
     e.preventDefault();
     const body = { league_stage_id: Number(values.league_stage_id) };
     if (isTable) body.count = Number(values.count) || 0;
+    else if (isMatches) body.names = ['Матчі'];
     else body.names = values.names.split('\n').map((s) => s.trim()).filter(Boolean);
     onGenerate.mutate(body);
   };
@@ -274,9 +307,12 @@ function GenerateTours({ onClose, onGenerate }) {
           <select value={values.league_stage_id} onChange={set('league_stage_id')}>
             <option value="1">Основна таблиця — «1-й тур … N-й тур»</option>
             <option value="2">Плей-оф / сітка — раунди за назвами</option>
+            <option value="5">Матчі — один тур «Матчі», без таблиці й сітки (збірна, єврокубки)</option>
           </select>
         </Field>
-        {isTable ? (
+        {isMatches ? (
+          <p className="muted small-text">Буде створено один тур «Матчі». У застосунку турнір покаже список матчів, без таблиці й сітки.</p>
+        ) : isTable ? (
           <Field label="Кількість турів" hint="Наявні назви пропускаються, дублів не буде">
             <input type="number" min="1" max="60" value={values.count} onChange={set('count')} />
           </Field>

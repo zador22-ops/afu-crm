@@ -17,9 +17,11 @@ query "tournaments/{leagues_id}/tours/generate" verb=POST {
       error_type = "accessdenied"
       error = "Доступ заборонено"
     }
-    precondition ($input.league_stage_id == 1 || $input.league_stage_id == 2) {
+    // 5 — «Матчі» (stage_type «матчі», R20): лише список матчів, без таблиці й
+    // сітки. Для збірної та єврокубків
+    precondition ($input.league_stage_id == 1 || $input.league_stage_id == 2 || $input.league_stage_id == 5) {
       error_type = "badrequest"
-      error = "Етап має бути 1 (таблиця) або 2 (сітка)"
+      error = "Етап має бути 1 (таблиця), 2 (сітка) або 5 (матчі)"
     }
 
     db.get Leagues {
