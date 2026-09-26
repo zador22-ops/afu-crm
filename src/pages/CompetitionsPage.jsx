@@ -24,6 +24,15 @@ export default function CompetitionsPage() {
       setEditing(null);
     },
   });
+  // Сервер відмовляє, якщо на змагання посилається хоч один турнір сезону,
+  // і називає ці турніри — повідомлення показуємо у формі
+  const remove = useMutation({
+    mutationFn: (id) => crm.del(`/competitions/${id}`),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['competitions'] });
+      setEditing(null);
+    },
+  });
 
   return (
     <div className="page">
@@ -73,12 +82,12 @@ export default function CompetitionsPage() {
           </tbody>
         </table>
       )}
-      {editing && <CompetitionForm item={editing} onClose={() => setEditing(null)} onSave={save} />}
+      {editing && <CompetitionForm item={editing} onClose={() => setEditing(null)} onSave={save} onDelete={remove} />}
     </div>
   );
 }
 
-function CompetitionForm({ item, onClose, onSave }) {
+function CompetitionForm({ item, onClose, onSave, onDelete }) {
   const { values, set } = useForm({
     name: item.name || '',
     type: item.type || 'ліга',
@@ -89,6 +98,7 @@ function CompetitionForm({ item, onClose, onSave }) {
   const чинний = item.logo?.url || null;
   const [прев, setПрев] = useState(null);
   const [кадруємо, setКадруємо] = useState(false);
+  const [confirming, setConfirming] = useState(false);
   const submit = (e) => {
     e.preventDefault();
     onSave.mutate({
@@ -149,12 +159,35 @@ function CompetitionForm({ item, onClose, onSave }) {
             }}
           />
         )}
+        {confirming && (
+          <div className="danger-box">
+            <div className="strong">Видалити змагання «{item.name}» назавжди?</div>
+            <div className="muted small-text">
+              Якщо на нього посилається хоч один турнір сезону, сервер відмовить і назве ці турніри.
+            </div>
+            <ErrorBox error={onDelete.error} />
+            <div className="form-actions">
+              <button type="button" className="btn" onClick={() => setConfirming(false)}>
+                Ні, лишити
+              </button>
+              <button type="button" className="btn danger" disabled={onDelete.isPending} onClick={() => onDelete.mutate(item.id)}>
+                Так, видалити
+              </button>
+            </div>
+          </div>
+        )}
         <ErrorBox error={onSave.error} />
         <div className="form-actions">
+          {item.id && !confirming && (
+            <button type="button" className="btn danger ghost" onClick={() => setConfirming(true)}>
+              Видалити змагання
+            </button>
+          )}
+          <span className="spacer" />
           <button type="button" className="btn" onClick={onClose}>
             Скасувати
           </button>
-          <button className="btn primary" disabled={onSave.isPending}>
+          <button className="btn primary" disabled={onSave.isPending || confirming}>
             Зберегти
           </button>
         </div>
