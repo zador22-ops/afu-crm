@@ -1,3 +1,4 @@
+import { lazy, Suspense } from 'react';
 import { Navigate, NavLink, Route, Routes, useLocation } from 'react-router-dom';
 import { useAuth, РОЛІ } from './auth/AuthContext.jsx';
 import LoginPage from './pages/LoginPage.jsx';
@@ -8,6 +9,10 @@ import CompetitionsPage from './pages/CompetitionsPage.jsx';
 import ClubsPage from './pages/ClubsPage.jsx';
 import ClubPage from './pages/ClubPage.jsx';
 import OpponentsPage from './pages/OpponentsPage.jsx';
+// Новини тягнуть редактор TipTap (~сотні КБ) — вантажимо лише коли відкрили
+const NewsPage = lazy(() => import('./pages/NewsPage.jsx'));
+const NewsEditPage = lazy(() => import('./pages/NewsEditPage.jsx'));
+const NewsCategoriesPage = lazy(() => import('./pages/NewsCategoriesPage.jsx'));
 import PeoplePage from './pages/PeoplePage.jsx';
 import JudgesPage from './pages/JudgesPage.jsx';
 import VenuesPage from './pages/VenuesPage.jsx';
@@ -19,6 +24,7 @@ import SettingsPage from './pages/SettingsPage.jsx';
 const NAV = [
   { to: '/seasons', label: 'Сезони' },
   { to: '/calendar', label: 'Календар' },
+  { to: '/news', label: 'Новини' },
   { to: '/competitions', label: 'Змагання' },
   { to: '/clubs', label: 'Клуби' },
   { to: '/opponents', label: 'Суперники' },
@@ -87,6 +93,9 @@ export default function App() {
         <Route path="/clubs" element={<ClubsPage />} />
         <Route path="/clubs/:id" element={<ClubPage />} />
         <Route path="/opponents" element={<OpponentsPage />} />
+        <Route path="/news" element={<Suspense fallback={<div className="center muted">Завантаження…</div>}><NewsPage /></Suspense>} />
+        <Route path="/news/:id" element={<Suspense fallback={<div className="center muted">Завантаження…</div>}><NewsEditPage /></Suspense>} />
+        <Route path="/news-categories" element={<Suspense fallback={<div className="center muted">Завантаження…</div>}><NewsCategoriesPage /></Suspense>} />
         <Route path="/people" element={<PeoplePage />} />
         <Route path="/judges" element={<JudgesPage />} />
         <Route path="/venues" element={<VenuesPage />} />

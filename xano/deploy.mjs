@@ -12,15 +12,22 @@
  * - PUT …/api/{id} з тим самим типом оновлює логіку; PUT із JSON логіку ІГНОРУЄ.
  * - Ендпоінт ідентифікується парою (name, verb); name = шлях із першого рядка файла.
  *
- * Група Default (ADMIN АФУ) цим скриптом не чіпається ніколи: id групи зашитий.
+ *   node xano/deploy.mjs --group=site news   — група site (id 7, api:tqrLXZWT), файли з xano/site
+ *
+ * Група Default (ADMIN АФУ) цим скриптом не чіпається ніколи: дозволені лише
+ * групи з переліку ГРУПИ нижче.
  */
 import fs from 'node:fs';
 import path from 'node:path';
 import { мета } from './meta.mjs';
 
-const ГРУПА = 6;
-const ДИР = path.join(path.dirname(new URL(import.meta.url).pathname), 'crm');
+// Лише наші групи. Default (1) і authentication (2) сюди не додаються ніколи.
+const ГРУПИ = { crm: 6, site: 7 };
 const args = process.argv.slice(2);
+const назваГрупи = (args.find((a) => a.startsWith('--group=')) || '--group=crm').slice('--group='.length);
+const ГРУПА = ГРУПИ[назваГрупи];
+if (!ГРУПА) throw new Error(`Невідома група «${назваГрупи}». Дозволені: ${Object.keys(ГРУПИ).join(', ')}`);
+const ДИР = path.join(path.dirname(new URL(import.meta.url).pathname), назваГрупи);
 const перевірка = args.includes('--check');
 const фільтр = args.find((a) => !a.startsWith('--'));
 
