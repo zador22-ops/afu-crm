@@ -1,10 +1,11 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { EditorContent, useEditor, useEditorState } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
 import Image from '@tiptap/extension-image';
 import Youtube from '@tiptap/extension-youtube';
 import { TableKit } from '@tiptap/extension-table';
 import { crm } from '../api/client.js';
+import { Modal } from './ui.jsx';
 
 // Редактор тексту новини з обмеженим набором форматування (afu-crm#1):
 // абзаци, h2–h4, жирний, курсив, посилання, списки, цитата, зображення,
@@ -30,8 +31,55 @@ function Кнопка({ on, active, title, disabled, children }) {
   );
 }
 
+// Замість window.prompt: вбудований браузер і частина вбудованих переглядачів
+// блокують системні вікна, і prompt мовчки повертає null — кнопка «нічого не
+// робить». Власне вікно працює скрізь.
+function InputDialog({ dialog, onClose, onApply }) {
+  const [value, setValue] = useState(dialog.value || '');
+  const тексти = {
+    link: { title: 'Посилання', label: 'Адреса', hint: 'Порожньо — прибрати посилання', placeholder: 'https://…' },
+    video: { title: 'Відео YouTube', label: 'Посилання на відео', hint: 'Звичайне посилання з адресного рядка YouTube', placeholder: 'https://www.youtube.com/watch?v=…' },
+    alt: { title: 'Опис фото', label: 'Що на фото', hint: 'Для людей з вадами зору; прочитає програма екранного доступу', placeholder: 'Гравці ХІТ святкують гол' },
+  }[dialog.kind];
+  const apply = () => onApply(value.trim());
+  return (
+    <Modal title={тексти.title} onClose={onClose} width={460}>
+      <div className="form">
+        <label className="field">
+          <span className="field-label">{тексти.label}</span>
+          <input
+            autoFocus
+            value={value}
+            placeholder={тексти.placeholder}
+            onChange={(e) => setValue(e.target.value)}
+            onKeyDown={(e) => {
+              // Enter не має відправляти всю форму новини
+              if (e.key === 'Enter') {
+                e.preventDefault();
+                apply();
+              }
+            }}
+          />
+          <span className="field-hint">{тексти.hint}</span>
+        </label>
+        <div className="form-actions">
+          <span className="spacer" />
+          <button type="button" className="btn" onClick={onClose}>
+            Скасувати
+          </button>
+          <button type="button" className="btn primary" onClick={apply}>
+            Готово
+          </button>
+        </div>
+      </div>
+    </Modal>
+  );
+}
+
 export default function NewsEditor({ value, onChange, disabled }) {
   const fileRef = useRef(null);
+  const [dialog, setDialog] = useState(null); // { kind: 'link' | 'video' | 'alt', value, img? }
+  const [помилка, setПомилка] = useState('');
   const editor = useEditor({
     extensions: [
       StarterKit.configure({
@@ -79,27 +127,28 @@ export default function NewsEditor({ value, onChange, disabled }) {
   if (!editor) return null;
   const ch = () => editor.chain().focus();
 
-  const посилання = () => {
-    const was = editor.getAttributes('link').href || '';
-    const href = window.prompt('Адреса посилання (порожньо — прибрати)', was);
-    if (href === null) return;
-    if (!href.trim()) return ch().extendMarkRange('link').unsetLink().run();
-    ch().extendMarkRange('link').setLink({ href: href.trim() }).run();
-  };
-
-  const відео = () => {
-    const src = window.prompt('Посилання на відео YouTube');
-    if (src) ch().setYoutubeVideo({ src: src.trim() }).run();
-  };
-
+  const посилання = () => setDialog({ kind: 'link', value: editor.getAttributes('link').href || '' });
+  const відео = () => setDialog({ kind: 'video', value: '' });
   const фото = async (file) => {
+    setПомилка('');
     const form = new FormData();
     form.append('image', file);
     const img = await crm.upload('/news/images', form);
-    const alt = window.prompt('Опис фото для людей з вадами зору', '') || '';
-    ch().setImage({ src: img.url, alt, width: img.meta?.width || null, height: img.meta?.height || null }).run();
+    setDialog({ kind: 'alt', value: '', img });
   };
 
+  const застосувати = (text) => {
+    const d = dialog;
+    setDialog(null);
+    if (d.kind === 'link') {
+      if (!text) ch().extendMarkRange('link').unsetLink().run();
+      else ch().extendMarkRange('link').setLink({ href: text }).run();
+    } else if (d.kind === 'video') {
+      if (text && !ch().setYoutubeVideo({ src: text }).run()) setПомилка('Це не схоже на посилання YouTube');
+    } else if (d.kind === 'alt') {
+      ch().setImage({ src: d.img.url, alt: text, width: d.img.meta?.width || null, height: d.img.meta?.height || null }).run();
+    }
+  };
 
   return (
     <div className="news-editor">
@@ -174,11 +223,23 @@ export default function NewsEditor({ value, onChange, disabled }) {
           onChange={(e) => {
             const f = e.target.files?.[0];
             e.target.value = '';
-            if (f) фото(f).catch((err) => window.alert(err.message || 'Фото не завантажилось'));
+            if (f) фото(f).catch((err) => setПомилка(err.message || 'Фото не завантажилось'));
           }}
         />
       </div>
+      {помилка && <div className="error-text news-editor-error">{помилка}</div>}
       <EditorContent editor={editor} className="news-editor-body" />
+      {dialog && (
+        <InputDialog
+          dialog={dialog}
+          onClose={() => {
+            // Фото вже завантажене — вставляємо без опису, щоб воно не загубилось
+            if (dialog.kind === 'alt') застосувати('');
+            else setDialog(null);
+          }}
+          onApply={застосувати}
+        />
+      )}
     </div>
   );
 }

@@ -80,6 +80,8 @@ export default function NewsEditPage() {
   const [cover, setCover] = useState(null); // файл, ще не завантажений
   const [coverПрев, setCoverПрев] = useState(null);
   const [повідомлення, setПовідомлення] = useState('');
+  const [видаляємо, setВидаляємо] = useState(false); // підтвердження у формі: window.confirm блокують вбудовані браузери
+  const [помилкаФото, setПомилкаФото] = useState('');
 
   useEffect(() => {
     if (item.data) {
@@ -307,13 +309,15 @@ export default function NewsEditPage() {
                 onChange={async (e) => {
                   const files = [...(e.target.files || [])];
                   e.target.value = '';
-                  for (const f of files) await галерея(f).catch((err) => window.alert(err.message || 'Фото не завантажилось'));
+                  setПомилкаФото('');
+                  for (const f of files) await галерея(f).catch((err) => setПомилкаФото(err.message || 'Фото не завантажилось'));
                 }}
               />
             </label>
           </div>
         </Field>
 
+        {помилкаФото && <div className="error-text">{помилкаФото}</div>}
         <Field label="Відео YouTube" hint="Необов'язкове посилання, покажеться під текстом">
           <input value={v.video_url} onChange={set('video_url')} placeholder="https://www.youtube.com/watch?v=…" />
         </Field>
@@ -359,17 +363,26 @@ export default function NewsEditPage() {
           </Field>
         </div>
 
+        {видаляємо && (
+          <div className="danger-box">
+            <div className="strong">Видалити чернетку «{v.title}» назавжди?</div>
+            <div className="muted small-text">Відновити її не можна. Опубліковані новини видалити не можна — лише зняти з публікації чи перенести в архів.</div>
+            <div className="form-actions">
+              <button type="button" className="btn" onClick={() => setВидаляємо(false)}>
+                Ні, лишити
+              </button>
+              <button type="button" className="btn danger" disabled={remove.isPending} onClick={() => remove.mutate()}>
+                Так, видалити
+              </button>
+            </div>
+          </div>
+        )}
         <ErrorBox error={помилка} />
         {повідомлення && !помилка && <div className="ok-text">{повідомлення}</div>}
 
         <div className="form-actions">
-          {!нова && n?.status === 'draft' && (
-            <button
-              type="button"
-              className="btn danger ghost"
-              disabled={зайнято}
-              onClick={() => window.confirm(`Видалити чернетку «${v.title}»? Це незворотно.`) && remove.mutate()}
-            >
+          {!нова && n?.status === 'draft' && !видаляємо && (
+            <button type="button" className="btn danger ghost" disabled={зайнято} onClick={() => setВидаляємо(true)}>
               Видалити чернетку
             </button>
           )}
