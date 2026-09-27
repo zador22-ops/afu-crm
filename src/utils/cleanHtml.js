@@ -24,7 +24,10 @@ export function cleanNewsHtml(html) {
     ALLOWED_TAGS: ТЕГИ,
     ALLOWED_ATTR: АТРИБУТИ,
     ADD_TAGS: ['iframe'],
-    ALLOWED_URI_REGEXP: /^(https?:|mailto:|tel:|\/|#)/i,
+    // Цей шаблон DOMPurify застосовує до значень УСІХ атрибутів, не лише до
+    // посилань: вузький /^(https?:|…)/ викидав width="160" і alt без схеми.
+    // Тому — стандартний шаблон DOMPurify, лише з протоколами https, mailto, tel.
+    ALLOWED_URI_REGEXP: /^(?:(?:https?|mailto|tel):|[^a-z]|[a-z+.-]+(?:[^a-z+.\-:]|$))/i,
   });
   DOMPurify.removeAllHooks();
   // Порожній редактор TipTap віддає «<p></p>»

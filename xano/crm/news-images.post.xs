@@ -22,7 +22,16 @@ query "news/images" verb=POST {
       access = "public"
       filename = ""
     } as $img
+
+    // storage.create_image віддає лише path; адресу добудовуємо так само,
+    // як people/search і ADMIN (MakeURL_from_path): база інстансу + path
+    api.lambda {
+      code = """
+        return { ...$var.img, url: 'https://xdeg-kg7i-jjtu.f2.xano.io' + $var.img.path };
+      """
+      timeout = 10
+    } as $out
   }
 
-  response = $img
+  response = $out
 }

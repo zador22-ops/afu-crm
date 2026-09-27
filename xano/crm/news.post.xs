@@ -36,7 +36,15 @@ query news verb=POST {
       error_type = "badrequest"
       error = "Адреса (slug) порожня"
     }
-    precondition ($input.slug == null || ($input.slug|regex_matches:"/^[a-z0-9]+(-[a-z0-9]+)*$/")) {
+    // Формат адреси — у JS: фільтр regex_matches XanoScript відхиляв і правильні адреси
+    api.lambda {
+      code = """
+        const s = $input.slug;
+        return s === null || s === undefined || s === '' || /^[a-z0-9]+(-[a-z0-9]+)*$/.test(String(s));
+      """
+      timeout = 10
+    } as $slugOk
+    precondition ($slugOk == true) {
       error_type = "badrequest"
       error = "Адреса (slug) — лише малі латинські літери, цифри й дефіси: ekstra-liha-3-tur"
     }
