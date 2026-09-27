@@ -11,7 +11,7 @@ query "news/{slug}" verb=GET {
     db.query news {
       where = $db.news.slug == $input.slug && $db.news.status == "published"
       return = {type: "list"}
-      output = ["id", "title", "slug", "category_id", "lead", "body_html", "cover", "cover_alt", "gallery", "video_url", "tournament_ids", "club_ids", "match_id", "is_featured", "status", "published_at", "updated_at"]
+      output = ["id", "title", "slug", "category_id", "lead", "body_html", "cover", "cover_thumb", "cover_alt", "gallery", "video_url", "tournament_ids", "club_ids", "match_id", "is_featured", "status", "published_at", "updated_at"]
     } as $rows
     db.query news_category {
       where = $db.news_category.is_active == true
@@ -27,7 +27,7 @@ query "news/{slug}" verb=GET {
         const live = (n) => n.status === 'published' && n.published_at && Number(n.published_at) <= now && (!n.category_id || cats[n.category_id]);
         const card = (n) => ({
           id: n.id, title: n.title, slug: n.slug, lead: n.lead,
-          cover: img(n.cover), cover_alt: n.cover_alt || '',
+          cover: img(n.cover), cover_thumb: img(n.cover_thumb) || img(n.cover), cover_alt: n.cover_alt || '',
           category: cats[n.category_id] || null,
           is_featured: Boolean(n.is_featured), video_url: n.video_url || null,
           tournament_ids: n.tournament_ids || [], club_ids: n.club_ids || [], match_id: n.match_id || null,

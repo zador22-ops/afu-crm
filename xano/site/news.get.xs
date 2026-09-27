@@ -8,6 +8,8 @@ query news verb=GET {
   input {
     int page?=1
     int per_page?=20
+    int limit?=0
+    int since?=0
     text category? filters=trim
     int tournament_id?=0
     int club_id?=0
@@ -19,7 +21,7 @@ query news verb=GET {
     db.query news {
       where = $db.news.status == "published"
       return = {type: "list"}
-      output = ["id", "title", "slug", "category_id", "lead", "cover", "cover_alt", "video_url", "tournament_ids", "club_ids", "match_id", "is_featured", "status", "published_at", "updated_at"]
+      output = ["id", "title", "slug", "category_id", "lead", "cover", "cover_thumb", "cover_alt", "video_url", "tournament_ids", "club_ids", "match_id", "is_featured", "status", "published_at", "updated_at"]
     } as $rows
     db.query news_category {
       where = $db.news_category.is_active == true
@@ -35,13 +37,16 @@ query news verb=GET {
         const live = (n) => n.status === 'published' && n.published_at && Number(n.published_at) <= now && (!n.category_id || cats[n.category_id]);
         const card = (n) => ({
           id: n.id, title: n.title, slug: n.slug, lead: n.lead,
-          cover: img(n.cover), cover_alt: n.cover_alt || '',
+          cover: img(n.cover), cover_thumb: img(n.cover_thumb) || img(n.cover), cover_alt: n.cover_alt || '',
           category: cats[n.category_id] || null,
           is_featured: Boolean(n.is_featured), video_url: n.video_url || null,
           tournament_ids: n.tournament_ids || [], club_ids: n.club_ids || [], match_id: n.match_id || null,
           published_at: n.published_at, updated_at: n.updated_at,
         });
-        const per = Math.min(Math.max(Number($input.per_page) || 20, 1), 50);
+        // limit — синонім per_page, як у futsal-news-api, з якого зараз читає застосунок
+        const per = Math.min(Math.max(Number($input.limit) || Number($input.per_page) || 20, 1), 50);
+        // since (мс): лише новіші за цю дату — для pull-to-refresh
+        const since = Number($input.since) || 0;
         const page = Math.max(Number($input.page) || 1, 1);
         const cat = $input.category || '';
         const t = Number($input.tournament_id) || 0, c = Number($input.club_id) || 0, m = Number($input.match_id) || 0;
@@ -52,8 +57,9 @@ query news verb=GET {
           .filter((n) => !c || (n.club_ids || []).includes(c))
           .filter((n) => !m || n.match_id === m)
           .filter((n) => !$input.featured || n.is_featured)
+          .filter((n) => !since || Number(n.published_at) > since)
           .sort((a, b) => Number(b.published_at) - Number(a.published_at));
-        return { items: rows.slice((page - 1) * per, page * per).map(card), total: rows.length, page, per_page: per };
+        return { items: rows.slice((page - 1) * per, page * per).map(card), total: rows.length, page, per_page: per, totalPages: Math.max(1, Math.ceil(rows.length / per)) };
       """
       timeout = 10
     } as $out

@@ -6,6 +6,7 @@ import { ErrorBox, Field, PageHeader, Toggle } from '../components/ui.jsx';
 import NewsEditor from '../components/NewsEditor.jsx';
 import { cleanNewsHtml } from '../utils/cleanHtml.js';
 import { makeSlug, slugValid } from '../utils/slug.js';
+import { makeThumb } from '../utils/thumb.js';
 import { fromKyivInputValue, kyivDateTimeString, toKyivInputValue } from '../utils/kyivTime.js';
 import { стан } from '../utils/newsStatus.js';
 
@@ -113,6 +114,7 @@ export default function NewsEditPage() {
     if (cover) {
       const form = new FormData();
       form.append('image', cover);
+      form.append('thumb', await makeThumb(cover));
       saved = await crm.upload(`/news/${saved.id}/cover`, form);
       setCover(null);
     }
@@ -253,7 +255,7 @@ export default function NewsEditPage() {
           <textarea rows={2} value={v.lead} onChange={set('lead')} />
         </Field>
 
-        <Field label="Обкладинка">
+        <Field label="Обкладинка" hint="Мініатюру до 400 px для списків CRM зробить сама">
           <div className="club-cell">
             {(coverПрев || чиннаОбкладинка) && <img src={coverПрев || чиннаОбкладинка} alt="" className="news-cover-prev" />}
             <input
