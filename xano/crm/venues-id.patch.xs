@@ -5,10 +5,6 @@ query "venues/{venues_id}" verb=PATCH {
   input {
     int venues_id filters=min:1
     text City filters=trim
-    text name? filters=trim
-    text city? filters=trim
-    text address? filters=trim
-    int capacity?
   }
 
   stack {
@@ -36,7 +32,7 @@ query "venues/{venues_id}" verb=PATCH {
     db.edit Venues {
       field_name = "id"
       field_value = $input.venues_id
-      data = {City: $input.City, name: $input.name, city: $input.city, address: $input.address, capacity: $input.capacity}
+      data = {City: $input.City}
     } as $venue
   }
 
