@@ -52,7 +52,7 @@ https://xdeg-kg7i-jjtu.f2.xano.io/api:tqrLXZWT
 АФУ сховала змагання зі шторки застосунку. Сайт може поводитись так само.
 
 ### `GET /leagues/{id}/participants`
-`[{teaminfo_id, group_name, withdrawn, club: {id, name, short, logo}}]`
+`[{teaminfo_id, group_name, withdrawn, club: {id, name, logo}}]`
 
 ### `GET /leagues/{id}/zones`
 `[{id, name, zone_type, color, place_from, place_to, stage_id}]`
@@ -88,7 +88,7 @@ https://xdeg-kg7i-jjtu.f2.xano.io/api:tqrLXZWT
 { id, TimeOfMatch, league_id, tour_id,
   tour: {id, number, name}, stage: {id, name, type},
   match_number,
-  teams: [club1, club2],            // {id, name, short, logo}
+  teams: [club1, club2],            // {id, name, logo}
   result: [goals1, goals2] | null,  // null, поки матч не «Онлайн» чи «Зіграний»
   fouls: {team1: [1-й тайм, 2-й тайм], team2: [...]},  // true, якщо набрано 5 фолів
   status: {id, name},               // 1 Запланований, 2 Перенесений, 3 Онлайн, 4 Зіграний
@@ -117,13 +117,13 @@ https://xdeg-kg7i-jjtu.f2.xano.io/api:tqrLXZWT
 ### `GET /clubs` і `GET /clubs/{id}`
 
 ```
-{ id, name, short, logo, team_kind, country, Relevance, parent_teaminfo_id,
+{ id, name, logo, team_kind, country, Relevance, parent_teaminfo_id,
   home_venue: {id, name, city} | null, city, founded, colors }
 ```
 
 - **Список** віддає чинні клуби АФУ разом із суперниками збірної та єврокубків (`team_kind`: `"збірна"` або `"іноземний клуб"`, для клубів АФУ — `null`).
 - **Один клуб** віддається будь-який, зокрема архівний: на архівні клуби посилаються старі матчі.
-- **`short`** — `null`, короткої назви в базі поки немає.
+- **Короткої назви немає** і не буде (рішення АФУ 29.09): показуйте повну `name`.
 
 ### `GET /clubs/{id}/squad?league_id=`
 Без `league_id` віддаються лише чинні записи заявки. З `league_id` — усі записи клубу в цьому
@@ -156,8 +156,8 @@ https://xdeg-kg7i-jjtu.f2.xano.io/api:tqrLXZWT
 разом («м. Київ, СК ЦСК»). Воно віддається як `name`, решта полів — `null`.
 
 ### `GET /event-types`
-`{events: [{id, name, code}], cards: [...], goals: [...]}`: типи подій, карток і голів.
-`code` поки `null`.
+`{events: [{id, name}], cards: [...], goals: [...]}`: типи подій, карток і голів.
+Коду події немає (рішення АФУ 29.09): працюйте за `id` і `name`.
 
 ### `GET /staff-cards?match_id=`
 Картки штабу матчу:
@@ -170,10 +170,8 @@ https://xdeg-kg7i-jjtu.f2.xano.io/api:tqrLXZWT
 
 Перелік — у `afu-futzal/docs/reports/site-api-missing-fields-2026-09-29.md`:
 
-- окремі назва, місто, адреса, місткість і фото арени;
-- коротка назва клубу;
-- код події;
-- власний колір зони.
+- окремі назва, місто, адреса, місткість і фото арени (рішення АФУ очікується);
+- власний колір зони (АФУ погодила 29.09, поле буде додано; до того колір виводиться з типу).
 
 Поки полів немає, ці ключі у відповідях є і дорівнюють `null`. Сайт може на них розраховувати: з'явиться поле — з'явиться значення.
 
