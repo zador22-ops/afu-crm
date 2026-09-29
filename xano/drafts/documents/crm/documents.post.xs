@@ -15,7 +15,7 @@ query documents verb=POST {
 
   stack {
     function.run "Check access rights" {
-      input = {id_access_rights: __RIGHT_DOCS__, user_id: $auth.id}
+      input = {id_access_rights: 15, user_id: $auth.id}
     } as $ok
     precondition ($ok) {
       error_type = "accessdenied"

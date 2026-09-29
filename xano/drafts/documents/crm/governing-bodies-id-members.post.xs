@@ -13,7 +13,7 @@ query "governing-bodies/{body_id}/members" verb=POST {
 
   stack {
     function.run "Check access rights" {
-      input = {id_access_rights: __RIGHT_GOV__, user_id: $auth.id}
+      input = {id_access_rights: 16, user_id: $auth.id}
     } as $ok
     precondition ($ok) {
       error_type = "accessdenied"
