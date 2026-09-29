@@ -1064,3 +1064,12 @@ input[type='radio'] {
   object-fit: cover;
   border-radius: 6px;
 }
+
+/* ── Органи управління (afu-crm#6) ── */
+.gov-body {
+  margin-bottom: 14px;
+}
+.gov-title {
+  margin: 0;
+  font-size: 16px;
+}
