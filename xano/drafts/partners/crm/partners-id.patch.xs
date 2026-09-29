@@ -13,7 +13,7 @@ query "partners/{partner_id}" verb=PATCH {
 
   stack {
     function.run "Check access rights" {
-      input = {id_access_rights: __RIGHT__, user_id: $auth.id}
+      input = {id_access_rights: 14, user_id: $auth.id}
     } as $ok
     precondition ($ok) {
       error_type = "accessdenied"
