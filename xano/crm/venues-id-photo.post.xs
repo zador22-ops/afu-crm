@@ -1,14 +1,10 @@
-query "venues/{venues_id}" verb=PATCH {
+query "venues/{venues_id}/photo" verb=POST {
   api_group = "crm"
   auth = "Users"
 
   input {
     int venues_id filters=min:1
-    text City filters=trim
-    text name? filters=trim
-    text city? filters=trim
-    text address? filters=trim
-    int capacity?
+    file image
   }
 
   stack {
@@ -18,10 +14,6 @@ query "venues/{venues_id}" verb=PATCH {
     precondition ($ok) {
       error_type = "accessdenied"
       error = "Доступ заборонено"
-    }
-    precondition ($input.City != "") {
-      error_type = "badrequest"
-      error = "Назва арени порожня"
     }
 
     db.get Venues {
@@ -33,10 +25,15 @@ query "venues/{venues_id}" verb=PATCH {
       error = "Арену не знайдено"
     }
 
+    storage.create_image {
+      value = $input.image
+      access = "public"
+      filename = ""
+    } as $img
     db.edit Venues {
       field_name = "id"
       field_value = $input.venues_id
-      data = {City: $input.City, name: $input.name, city: $input.city, address: $input.address, capacity: $input.capacity}
+      data = {photo: $img}
     } as $venue
   }
 

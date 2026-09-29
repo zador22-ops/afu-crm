@@ -9,6 +9,7 @@ query "tournaments/{leagues_id}/zones" verb=POST {
     int place_from filters=min:1
     int place_to filters=min:1
     text label filters=trim
+    text color? filters=trim
   }
 
   stack {
@@ -73,6 +74,18 @@ query "tournaments/{leagues_id}/zones" verb=POST {
       error = $overlap.message
     }
 
+    api.lambda {
+      code = """
+        const c = $input.color;
+        return c === null || c === undefined || c === '' || /^#[0-9a-fA-F]{6}$/.test(String(c));
+      """
+      timeout = 10
+    } as $colorOk
+    precondition ($colorOk == true) {
+      error_type = "badrequest"
+      error = "Колір зони — у форматі #RRGGBB, наприклад #1676BC"
+    }
+
     db.add league_zone {
       data = {
         created_at     : "now"
@@ -82,6 +95,7 @@ query "tournaments/{leagues_id}/zones" verb=POST {
         place_from     : $input.place_from
         place_to       : $input.place_to
         label          : $input.label
+        color          : $input.color
       }
     } as $zone
   }

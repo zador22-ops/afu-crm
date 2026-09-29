@@ -4,6 +4,10 @@ query venues verb=POST {
 
   input {
     text City filters=trim
+    text name? filters=trim
+    text city? filters=trim
+    text address? filters=trim
+    int capacity?
   }
 
   stack {
@@ -19,11 +23,11 @@ query venues verb=POST {
       error = "Назва арени порожня"
     }
 
-    // Місто й об'єкт живуть одним рядком («м. Бровари, БФСК») — так само, як їх
-    // показує застосунок у картці матчу. Розділяти поле тут не можна: на нього
-    // дивиться ADMIN і фанатський застосунок.
+    // City лишається одним рядком «м. Бровари, БФСК»: ним живуть ADMIN і
+    // застосунок. Окремі name/city/address/capacity/photo (рішення Андрія
+    // 29.09) — для сайту; вони не замінюють City.
     db.add Venues {
-      data = {created_at: "now", City: $input.City}
+      data = {created_at: "now", City: $input.City, name: $input.name, city: $input.city, address: $input.address, capacity: $input.capacity}
     } as $venue
   }
 

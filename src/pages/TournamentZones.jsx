@@ -80,6 +80,7 @@ export default function TournamentZones({ tid }) {
                   <th>Місця</th>
                   <th>Тип</th>
                   <th>Підпис</th>
+                  <th>Колір</th>
                   <th></th>
                 </tr>
               </thead>
@@ -91,6 +92,10 @@ export default function TournamentZones({ tid }) {
                     </td>
                     <td>{ТИПИ[z.zone_type] || z.zone_type}</td>
                     <td className="muted">{z.label || '—'}</td>
+                    <td>
+                      <span className="zone-swatch" style={{ background: z.color || КОЛІР_ТИПУ[z.zone_type] }} title={z.color ? 'свій колір' : 'колір типу зони'} />
+                      <span className="muted small-text"> {z.color || 'за типом'}</span>
+                    </td>
                     <td className="row-actions">
                       <button className="btn small" onClick={() => setEditing(z)}>
                         Редагувати
@@ -128,7 +133,12 @@ export default function TournamentZones({ tid }) {
   );
 }
 
+// Колір за замовчуванням — той самий, що site віддає для зони без свого кольору
+const КОЛІР_ТИПУ = { playoff: '#1676BC', promotion: '#1A7F4B', europe: '#FFF200', relegation: '#B42318' };
+
 function ZoneForm({ zone, league_stage_id, onClose, onSave }) {
+  const [свійКолір, setСвійКолір] = useState(Boolean(zone?.color));
+  const [колір, setКолір] = useState(zone?.color || КОЛІР_ТИПУ[zone?.zone_type || 'playoff']);
   const { values, set } = useForm({
     zone_type: zone?.zone_type || 'playoff',
     place_from: zone?.place_from ?? '',
@@ -145,6 +155,8 @@ function ZoneForm({ zone, league_stage_id, onClose, onSave }) {
       place_from: Number(values.place_from),
       place_to: Number(values.place_to),
       label: values.label.trim(),
+      // Порожній рядок прибирає свій колір — тоді діє колір типу зони
+      color: свійКолір ? колір : '',
     };
     onSave.mutate(zone ? data : { ...data, league_stage_id });
   };
@@ -170,6 +182,22 @@ function ZoneForm({ zone, league_stage_id, onClose, onSave }) {
         </div>
         <Field label="Підпис для легенди" hint="Як показується під таблицею в застосунку">
           <input value={values.label} onChange={set('label')} required />
+        </Field>
+        <Field label="Колір смуги на сайті" hint="Без свого кольору діє колір типу зони">
+          <div className="club-cell">
+            <label className="toggle">
+              <input type="checkbox" checked={свійКолір} onChange={(e) => setСвійКолір(e.target.checked)} />
+              <span>Свій колір</span>
+            </label>
+            <input
+              type="color"
+              value={свійКолір ? колір : КОЛІР_ТИПУ[values.zone_type] || '#1676BC'}
+              disabled={!свійКолір}
+              onChange={(e) => setКолір(e.target.value.toUpperCase())}
+              aria-label="Колір зони"
+            />
+            <span className="muted small-text">{свійКолір ? колір : `${КОЛІР_ТИПУ[values.zone_type] || '—'} (за типом)`}</span>
+          </div>
         </Field>
         <ErrorBox error={onSave.error} />
         <div className="form-actions">

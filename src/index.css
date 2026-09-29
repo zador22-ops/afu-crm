@@ -1064,3 +1064,13 @@ input[type='radio'] {
   object-fit: cover;
   border-radius: 6px;
 }
+
+/* Колір зони в CRM */
+.zone-swatch {
+  display: inline-block;
+  width: 14px;
+  height: 14px;
+  border-radius: 3px;
+  border: 1px solid var(--border);
+  vertical-align: middle;
+}

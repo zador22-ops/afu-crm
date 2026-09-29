@@ -1,8 +1,9 @@
 query "leagues/{league_id}/zones" verb=GET {
   api_group = "site"
 
-  // Колір — з типу зони (окремого поля в базі немає): playoff синій, promotion
-  // зелений, europe жовтий, relegation червоний. name — підпис з CRM або null.
+  // Колір — з поля color (задає АФУ в CRM), а якщо порожнє — з типу зони:
+  // playoff синій, promotion зелений, europe жовтий, relegation червоний.
+  // name — підпис з CRM або null.
   input {
     int league_id filters=min:1
   }
@@ -19,7 +20,7 @@ query "leagues/{league_id}/zones" verb=GET {
     db.query league_zone {
       where = $db.league_zone.leagues_id == $input.league_id
       return = {type: "list"}
-      output = ["id", "league_stage_id", "zone_type", "place_from", "place_to", "label"]
+      output = ["id", "league_stage_id", "zone_type", "place_from", "place_to", "label", "color"]
     } as $rows
     api.lambda {
       code = """
@@ -38,7 +39,7 @@ query "leagues/{league_id}/zones" verb=GET {
         const when = (v, end) => { if (v === null || v === undefined || v === '') return null; if (/^\d+$/.test(String(v))) return Number(v); if (/^\d{4}-\d{2}-\d{2}$/.test(String(v))) return kyivDay(v) + (end ? 86400000 - 1 : 0); const t = Date.parse(v); return isNaN(t) ? null : t; };
 
         const COLOR = { playoff: '#1676BC', promotion: '#1A7F4B', europe: '#FFF200', relegation: '#B42318' };
-        return ($var.rows || []).map((z) => ({ id: z.id, name: (z.label && String(z.label).trim()) || null, zone_type: z.zone_type, color: COLOR[z.zone_type] || null, place_from: z.place_from, place_to: z.place_to, stage_id: z.league_stage_id }))
+        return ($var.rows || []).map((z) => ({ id: z.id, name: (z.label && String(z.label).trim()) || null, zone_type: z.zone_type, color: (z.color && String(z.color).trim()) || COLOR[z.zone_type] || null, place_from: z.place_from, place_to: z.place_to, stage_id: z.league_stage_id }))
           .sort((a, b) => a.stage_id - b.stage_id || a.place_from - b.place_from);
       """
       timeout = 15

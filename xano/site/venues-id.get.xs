@@ -9,7 +9,7 @@ query "venues/{venue_id}" verb=GET {
     db.query Venues {
       where = $db.Venues.id == $input.venue_id
       return = {type: "list"}
-      output = ["id", "City"]
+      output = ["id", "City", "name", "city", "address", "capacity", "photo"]
     } as $venues
     api.lambda {
       code = """
@@ -20,7 +20,7 @@ query "venues/{venue_id}" verb=GET {
         const person = (p) => (p ? { id: p.id, first_name: p.Name || null, last_name: p.prizvushche || null } : null);
         const personFull = (p) => (p ? { ...person(p), photo: img(p.Photo || p.photo), birth_year: year(p.Date_of_birth), city: p.City || null } : null);
         const club = (t) => (t ? { id: t.id, name: t.TeamName, logo: img(t.TeamLogo) } : null);
-        const venue = (v) => (v ? { id: v.id, name: v.City || null, city: null } : null);
+        const venue = (v) => (v ? { id: v.id, name: (v.name && String(v.name).trim()) || v.City || null, city: v.city || null } : null);
         const tourNo = (name) => { const m = String(name || '').match(/(\d+)/); return m ? Number(m[1]) : null; };
         const page = (rows, p, pp) => { const per = Math.min(Math.max(Number(pp) || 50, 1), 100); const pg = Math.max(Number(p) || 1, 1); return { items: rows.slice((pg - 1) * per, pg * per), total: rows.length, page: pg, per_page: per, totalPages: Math.max(1, Math.ceil(rows.length / per)) }; };
         // Київська північ для дати «YYYY-MM-DD» (з урахуванням літнього часу)
@@ -28,7 +28,7 @@ query "venues/{venue_id}" verb=GET {
         const when = (v, end) => { if (v === null || v === undefined || v === '') return null; if (/^\d+$/.test(String(v))) return Number(v); if (/^\d{4}-\d{2}-\d{2}$/.test(String(v))) return kyivDay(v) + (end ? 86400000 - 1 : 0); const t = Date.parse(v); return isNaN(t) ? null : t; };
 
         const v = ($var.venues || [])[0];
-        return v ? { ...venue(v), address: null, capacity: null, photo: null } : null;
+        return v ? { ...venue(v), address: v.address || null, capacity: v.capacity || null, photo: img(v.photo) } : null;
       """
       timeout = 15
     } as $out
