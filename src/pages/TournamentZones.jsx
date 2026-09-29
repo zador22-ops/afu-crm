@@ -34,6 +34,8 @@ export default function TournamentZones({ tid }) {
   const zones = useQuery({ queryKey: ['zones', tid], queryFn: () => crm.get(`/tournaments/${tid}/zones`) });
   const [adding, setAdding] = useState(null); // null | { league_stage_id }
   const [editing, setEditing] = useState(null); // зона, яку редагують
+  // Підтвердження в рядку: window.confirm вбудований браузер мовчки блокує
+  const [прибираємо, setПрибираємо] = useState(null);
 
   const invalidate = () => qc.invalidateQueries({ queryKey: ['zones', tid] });
   const add = useMutation({
@@ -100,12 +102,28 @@ export default function TournamentZones({ tid }) {
                       <button className="btn small" onClick={() => setEditing(z)}>
                         Редагувати
                       </button>
-                      <button
-                        className="btn small danger"
-                        onClick={() => window.confirm(`Прибрати зону «${z.label || ТИПИ[z.zone_type]}» (${z.place_from}–${z.place_to})?`) && remove.mutate(z.id)}
-                      >
+                      {прибираємо === z.id ? (
+                        <>
+                          <span className="muted small-text">Прибрати зону?</span>
+                          <button className="btn small" onClick={() => setПрибираємо(null)}>
+                            Ні
+                          </button>
+                          <button
+                            className="btn small danger"
+                            disabled={remove.isPending}
+                            onClick={() => {
+                              setПрибираємо(null);
+                              remove.mutate(z.id);
+                            }}
+                          >
+                            Так, прибрати
+                          </button>
+                        </>
+                      ) : (
+                        <button className="btn small danger" onClick={() => setПрибираємо(z.id)}>
                         Прибрати
-                      </button>
+                        </button>
+                      )}
                     </td>
                   </tr>
                 ))}
