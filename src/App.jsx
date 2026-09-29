@@ -9,6 +9,7 @@ import CompetitionsPage from './pages/CompetitionsPage.jsx';
 import ClubsPage from './pages/ClubsPage.jsx';
 import ClubPage from './pages/ClubPage.jsx';
 import OpponentsPage from './pages/OpponentsPage.jsx';
+import PartnersPage from './pages/PartnersPage.jsx';
 // Новини тягнуть редактор TipTap (~сотні КБ) — вантажимо лише коли відкрили
 const NewsPage = lazy(() => import('./pages/NewsPage.jsx'));
 const NewsEditPage = lazy(() => import('./pages/NewsEditPage.jsx'));
@@ -25,6 +26,7 @@ const NAV = [
   { to: '/seasons', label: 'Сезони' },
   { to: '/calendar', label: 'Календар' },
   { to: '/news', label: 'Новини' },
+  { to: '/partners', label: 'Партнери' },
   { to: '/competitions', label: 'Змагання' },
   { to: '/clubs', label: 'Клуби' },
   { to: '/opponents', label: 'Суперники' },
@@ -93,6 +95,7 @@ export default function App() {
         <Route path="/clubs" element={<ClubsPage />} />
         <Route path="/clubs/:id" element={<ClubPage />} />
         <Route path="/opponents" element={<OpponentsPage />} />
+        <Route path="/partners" element={<PartnersPage />} />
         <Route path="/news" element={<Suspense fallback={<div className="center muted">Завантаження…</div>}><NewsPage /></Suspense>} />
         <Route path="/news/:id" element={<Suspense fallback={<div className="center muted">Завантаження…</div>}><NewsEditPage /></Suspense>} />
         <Route path="/news-categories" element={<Suspense fallback={<div className="center muted">Завантаження…</div>}><NewsCategoriesPage /></Suspense>} />
