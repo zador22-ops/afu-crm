@@ -8,6 +8,7 @@ query "zones/{zone_id}" verb=PATCH {
     int place_from?
     int place_to?
     text label? filters=trim
+    text color? filters=trim
   }
 
   stack {
@@ -33,6 +34,18 @@ query "zones/{zone_id}" verb=PATCH {
     precondition ($input.place_to == null || $input.place_to >= 1) {
       error_type = "badrequest"
       error = "Останнє місце зони має бути не менше 1"
+    }
+
+    api.lambda {
+      code = """
+        const c = $input.color;
+        return c === null || c === undefined || c === '' || /^#[0-9a-fA-F]{6}$/.test(String(c));
+      """
+      timeout = 10
+    } as $colorOk
+    precondition ($colorOk == true) {
+      error_type = "badrequest"
+      error = "Колір зони — у форматі #RRGGBB, наприклад #1676BC"
     }
 
     db.get league_zone {
@@ -87,6 +100,16 @@ query "zones/{zone_id}" verb=PATCH {
         }
       }
     }
+    var $colorValue {
+      value = $was.color
+    }
+    conditional {
+      if ($input.color != null) {
+        var.update $colorValue {
+          value = $input.color
+        }
+      }
+    }
     precondition ($from <= $to) {
       error_type = "badrequest"
       error = "Перше місце зони має бути не більше за останнє"
@@ -124,6 +147,7 @@ query "zones/{zone_id}" verb=PATCH {
         place_from: $from
         place_to  : $to
         label     : $labelValue
+        color     : $colorValue
       }
     } as $zone
   }
