@@ -1,4 +1,4 @@
-import { lazy, Suspense } from 'react';
+import { lazy, Suspense, useEffect, useRef, useState } from 'react';
 import { Navigate, NavLink, Route, Routes, useLocation } from 'react-router-dom';
 import { useAuth, РОЛІ } from './auth/AuthContext.jsx';
 import LoginPage from './pages/LoginPage.jsx';
@@ -37,9 +37,80 @@ const NAV = [
   { to: '/people', label: 'Особи' },
   { to: '/judges', label: 'Судді' },
   { to: '/venues', label: 'Арени' },
-  { to: '/users', label: 'Користувачі' },
-  { to: '/settings', label: 'Службове' },
 ];
+
+// Користувачі й службове — у верхній смузі поруч із профілем, як в Alliance CRM:
+// це керування самою CRM, а не робота з даними федерації
+const ІКОНКИ = {
+  users: (
+    <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
+      <circle cx="9" cy="7" r="4" />
+      <path d="M22 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75" />
+    </svg>
+  ),
+  settings: (
+    <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <circle cx="12" cy="12" r="3" />
+      <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
+    </svg>
+  ),
+  logout: (
+    <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
+      <polyline points="16 17 21 12 16 7" />
+      <line x1="21" y1="12" x2="9" y2="12" />
+    </svg>
+  ),
+};
+
+const НАЛАШТУВАННЯ = [
+  { to: '/users', label: 'Користувачі', icon: 'users' },
+  { to: '/settings', label: 'Службове', icon: 'settings' },
+];
+
+// Одне меню «Налаштування»: закривається вибором пункту, кліком поза ним і Escape
+function SettingsMenu() {
+  const [open, setOpen] = useState(false);
+  const ref = useRef(null);
+  const location = useLocation();
+  const активне = НАЛАШТУВАННЯ.some((n) => location.pathname.startsWith(n.to));
+  useEffect(() => {
+    if (!open) return undefined;
+    const onDown = (e) => ref.current && !ref.current.contains(e.target) && setOpen(false);
+    const onKey = (e) => e.key === 'Escape' && setOpen(false);
+    document.addEventListener('mousedown', onDown);
+    document.addEventListener('keydown', onKey);
+    return () => {
+      document.removeEventListener('mousedown', onDown);
+      document.removeEventListener('keydown', onKey);
+    };
+  }, [open]);
+  return (
+    <div className="topbar-menu" ref={ref}>
+      <button
+        type="button"
+        className={`topbar-link${активне ? ' active' : ''}`}
+        aria-haspopup="menu"
+        aria-expanded={open}
+        onClick={() => setOpen((x) => !x)}
+      >
+        {ІКОНКИ.settings}
+        <span>Налаштування</span>
+      </button>
+      {open && (
+        <div className="topbar-dropdown" role="menu">
+          {НАЛАШТУВАННЯ.map((n) => (
+            <NavLink key={n.to} to={n.to} role="menuitem" className={({ isActive }) => (isActive ? 'active' : '')} onClick={() => setOpen(false)}>
+              {ІКОНКИ[n.icon]}
+              <span>{n.label}</span>
+            </NavLink>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
 
 function Shell({ children }) {
   const { user, logout } = useAuth();
@@ -58,17 +129,25 @@ function Shell({ children }) {
             </NavLink>
           ))}
         </nav>
-        <div className="sidebar-foot">
-          <div className="user">
-            <div className="user-name">{user?.Name || `Користувач ${user?.id ?? ''}`}</div>
-            <div className="user-role">{РОЛІ[user?.types_of_user_roles_id] || 'роль не визначена'}</div>
-          </div>
-          <button className="btn ghost" onClick={logout}>
-            Вийти
-          </button>
-        </div>
       </aside>
-      <main className="content">{children}</main>
+      <div className="content">
+        <header className="topbar">
+          <SettingsMenu />
+          <div className="topbar-user">
+            <div className="topbar-user-text">
+              <div className="user-name">{user?.Name || `Користувач ${user?.id ?? ''}`}</div>
+              <div className="user-role">{РОЛІ[user?.types_of_user_roles_id] || 'роль не визначена'}</div>
+            </div>
+            <span className="topbar-avatar" aria-hidden="true">
+              {String(user?.Name || '?').trim().charAt(0).toUpperCase()}
+            </span>
+            <button className="btn icon topbar-logout" onClick={logout} title="Вийти" aria-label="Вийти">
+              {ІКОНКИ.logout}
+            </button>
+          </div>
+        </header>
+        <main>{children}</main>
+      </div>
     </div>
   );
 }
