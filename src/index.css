@@ -1083,4 +1083,11 @@ input[type='radio'] {
   border-radius: 6px;
   padding: 4px;
   background: repeating-conic-gradient(#eee 0% 25%, #fff 0% 50%) 50% / 12px 12px;
+/* ── Органи управління (afu-crm#6) ── */
+.gov-body {
+  margin-bottom: 14px;
+}
+.gov-title {
+  margin: 0;
+  font-size: 16px;
 }
