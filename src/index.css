@@ -651,8 +651,25 @@ input[type='radio'] {
     align-items: center;
     flex-wrap: wrap;
   }
+  .sidebar {
+    min-width: 0;
+    padding: 12px 16px;
+    gap: 10px;
+  }
+  /* Меню — горизонтальна стрічка з прокруткою: інакше рядок пунктів
+     розпирає сторінку ширше за екран телефона */
   .sidebar nav {
     flex-direction: row;
+    width: 100%;
+    overflow-x: auto;
+    white-space: nowrap;
+    scrollbar-width: none;
+  }
+  .sidebar nav a {
+    flex: none;
+  }
+  .content {
+    overflow-x: hidden;
   }
   .page {
     padding: 18px 16px 40px;
