@@ -1064,3 +1064,23 @@ input[type='radio'] {
   object-fit: cover;
   border-radius: 6px;
 }
+
+/* ── Партнери (afu-crm#5) ── */
+.partner-logo {
+  height: 32px;
+  max-width: 96px;
+  object-fit: contain;
+  display: inline-block;
+  flex: none;
+}
+.partner-logo.logo-empty {
+  width: 64px;
+}
+.partner-logo.big {
+  height: 56px;
+  max-width: 180px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 4px;
+  background: repeating-conic-gradient(#eee 0% 25%, #fff 0% 50%) 50% / 12px 12px;
+}
