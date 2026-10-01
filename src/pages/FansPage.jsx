@@ -18,6 +18,15 @@ const дата = (v) => {
   return d && m && y ? `${d}.${m}.${y}` : String(v);
 };
 
+const СТОВПЦІ = [
+  { key: 'name', label: 'Вболівальник', first: 'asc' },
+  { key: 'login', label: 'Вхід', first: 'asc' },
+  { key: 'club', label: 'Улюблений клуб', first: 'asc' },
+  { key: 'created_at', label: 'Реєстрація', first: 'desc' },
+  { key: 'latest_activity', label: 'Остання активність', first: 'desc' },
+  { key: 'notifications', label: 'Сповіщення', first: 'desc' },
+];
+
 function Плитка({ value, label }) {
   return (
     <div className="fan-stat">
@@ -79,9 +88,10 @@ export default function FansPage() {
   const [очистка, setОчистка] = useState(false);
   const [q, setQ] = useState('');
   const [page, setPage] = useState(1);
+  const [сорт, setСорт] = useState({ key: 'created_at', dir: 'desc' });
   const list = useQuery({
-    queryKey: ['fans', q, page],
-    queryFn: () => crm.get('/fans', { q: q || undefined, page, per_page: 50 }),
+    queryKey: ['fans', q, page, сорт.key, сорт.dir],
+    queryFn: () => crm.get('/fans', { q: q || undefined, page, per_page: 50, sort: сорт.key, dir: сорт.dir }),
     placeholderData: (prev) => prev,
   });
   const items = list.data?.items || [];
@@ -123,12 +133,24 @@ export default function FansPage() {
         <table className="table">
           <thead>
             <tr>
-              <th>Вболівальник</th>
-              <th>Вхід</th>
-              <th>Улюблений клуб</th>
-              <th>Реєстрація</th>
-              <th>Остання активність</th>
-              <th>Сповіщення</th>
+              {СТОВПЦІ.map((c) => (
+                <th key={c.key} aria-sort={сорт.key === c.key ? (сорт.dir === 'asc' ? 'ascending' : 'descending') : 'none'}>
+                  <button
+                    type="button"
+                    className={`th-sort ${сорт.key === c.key ? 'active' : ''}`}
+                    onClick={() => {
+                      // Перший клік: дати й сповіщення — спершу нові / увімкнені, текст — від А
+                      setСорт((s) => (s.key === c.key ? { key: c.key, dir: s.dir === 'asc' ? 'desc' : 'asc' } : { key: c.key, dir: c.first }));
+                      setPage(1);
+                    }}
+                  >
+                    {c.label}
+                    <span className="th-sort-arrow" aria-hidden="true">
+                      {сорт.key === c.key ? (сорт.dir === 'asc' ? '↑' : '↓') : '↕'}
+                    </span>
+                  </button>
+                </th>
+              ))}
             </tr>
           </thead>
           <tbody>

@@ -11,6 +11,8 @@ query fans verb=GET {
     text q? filters=trim
     int page?=1
     int per_page?=50
+    text sort? filters=trim
+    text dir? filters=trim
   }
 
   stack {
@@ -60,9 +62,27 @@ query fans verb=GET {
           google: all.filter((f) => f.login === 'google').length,
           apple: all.filter((f) => f.login === 'apple').length,
         };
+        // Сортування по стовпцях: sort — ключ стовпця, dir — asc | desc.
+        // Порожні значення завжди в кінці, за рівних — новіші реєстрації першими.
+        const ключі = {
+          name: (f) => (f.full_name || f.email || '').toLowerCase(),
+          login: (f) => (f.login === 'email' && !f.email ? 'яяя' : f.login),
+          club: (f) => (f.club ? f.club.name.toLowerCase() : ''),
+          created_at: (f) => ms(f.created_at),
+          latest_activity: (f) => ms(f.latest_activity),
+          notifications: (f) => (f.send_notifications ? 1 : 0),
+        };
+        const key = ключі[$input.sort] || ключі.created_at;
+        const sign = $input.dir === 'asc' ? 1 : $input.dir === 'desc' ? -1 : ключі[$input.sort] ? 1 : -1;
+        const порожнє = (v) => v === '' || v === 0;
         const rows = all
           .filter((f) => !q || (f.email || '').toLowerCase().includes(q) || (f.full_name || '').toLowerCase().includes(q))
-          .sort((a, b) => ms(b.created_at) - ms(a.created_at));
+          .sort((a, b) => {
+            const x = key(a), y = key(b);
+            if ($input.sort !== 'notifications' && порожнє(x) !== порожнє(y)) return порожнє(x) ? 1 : -1;
+            const c = typeof x === 'string' ? x.localeCompare(y, 'uk') : x - y;
+            return c ? c * sign : ms(b.created_at) - ms(a.created_at);
+          });
         return { items: rows.slice((page - 1) * per, page * per), total: rows.length, page, per_page: per, stats };
       """
       timeout = 10

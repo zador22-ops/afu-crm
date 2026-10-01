@@ -1245,3 +1245,28 @@ input[type='radio'] {
   color: var(--muted);
   font-size: 13px;
 }
+
+/* Заголовок стовпця, за яким можна сортувати */
+.th-sort {
+  all: unset;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+.th-sort:hover,
+.th-sort.active {
+  color: var(--text);
+}
+.th-sort:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+.th-sort-arrow {
+  color: var(--muted);
+  font-size: 12px;
+}
+.th-sort.active .th-sort-arrow {
+  color: var(--primary);
+}
