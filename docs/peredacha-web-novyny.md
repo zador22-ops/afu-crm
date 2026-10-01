@@ -38,7 +38,7 @@ https://xdeg-kg7i-jjtu.f2.xano.io/api:tqrLXZWT
 { "items": [ …картки… ], "total": 0, "page": 1, "per_page": 20, "totalPages": 1 }
 ```
 
-Картка (`items[]`): `id`, `title`, `slug`, `lead`, `cover` (url), `cover_thumb` (url, ≤ 400 px,
+Картка (`items[]`): `id`, `title`, `slug`, `lead`, `cover` (`{url, width, height}`), `cover_thumb` (`{url, width, height}`, ширина ≤ 400 px,
 для карток), `cover_alt`, `category` (`{id, name, slug, competition_id}` або `null`),
 `is_featured`, `video_url` (або `null`), `tournament_ids[]`, `club_ids[]`, `match_id` (або
 `null`), `published_at`, `updated_at`. Сортування — від новішої до старішої.
