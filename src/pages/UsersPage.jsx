@@ -57,6 +57,13 @@ function UsersList() {
       setEditing(null);
     },
   });
+  const remove = useMutation({
+    mutationFn: (id) => crm.del(`/users/${id}`),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['users'] });
+      setEditing(null);
+    },
+  });
   const setPassword = useMutation({
     mutationFn: ({ id, password }) => crm.post(`/users/${id}/password`, { password }),
     onSuccess: () => setPass(null),
@@ -106,13 +113,14 @@ function UsersList() {
           </tbody>
         </table>
       )}
-      {editing && <UserForm item={editing} roles={roles.data?.roles || []} me={user} onClose={() => setEditing(null)} onSave={save} />}
+      {editing && <UserForm item={editing} roles={roles.data?.roles || []} me={user} onClose={() => { remove.reset(); setEditing(null); }} onSave={save} onDelete={remove} />}
       {pass && <PasswordForm item={pass} onClose={() => setPass(null)} onSave={setPassword} />}
     </section>
   );
 }
 
-function UserForm({ item, roles, me, onClose, onSave }) {
+function UserForm({ item, roles, me, onClose, onSave, onDelete }) {
+  const [confirming, setConfirming] = useState(false);
   const { values, set } = useForm({
     Name: item.Name || '',
     password: '',
@@ -149,12 +157,35 @@ function UserForm({ item, roles, me, onClose, onSave }) {
         {item.id && item.id !== me?.id && (
           <Toggle checked={values.Relevance} onChange={set('Relevance')} label="Активний (деактивований не увійде ні в CRM, ні в ADMIN)" />
         )}
+        {confirming && (
+          <div className="danger-box">
+            <div className="strong">Видалити користувача «{item.Name}» назавжди?</div>
+            <div className="muted small-text">
+              Якщо він делегат хоч одного матчу чи автор новини, сервер відмовить: тоді лишається деактивація.
+            </div>
+            <ErrorBox error={onDelete.error} />
+            <div className="form-actions">
+              <button type="button" className="btn" onClick={() => { onDelete.reset(); setConfirming(false); }}>
+                Ні, лишити
+              </button>
+              <button type="button" className="btn danger" disabled={onDelete.isPending} onClick={() => onDelete.mutate(item.id)}>
+                Так, видалити
+              </button>
+            </div>
+          </div>
+        )}
         <ErrorBox error={onSave.error} />
         <div className="form-actions">
+          {item.id && item.id !== me?.id && !confirming && (
+            <button type="button" className="btn danger ghost" onClick={() => setConfirming(true)}>
+              Видалити користувача
+            </button>
+          )}
+          <span className="spacer" />
           <button type="button" className="btn" onClick={onClose}>
             Скасувати
           </button>
-          <button className="btn primary" disabled={onSave.isPending}>
+          <button className="btn primary" disabled={onSave.isPending || confirming}>
             Зберегти
           </button>
         </div>
