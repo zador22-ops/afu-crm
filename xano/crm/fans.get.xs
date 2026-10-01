@@ -66,7 +66,8 @@ query fans verb=GET {
         // Порожні значення завжди в кінці, за рівних — новіші реєстрації першими.
         const ключі = {
           name: (f) => (f.full_name || f.email || '').toLowerCase(),
-          login: (f) => (f.login === 'email' && !f.email ? 'яяя' : f.login),
+          // ранг, а не текст: в українській локалі кирилиця йде перед латиницею
+          login: (f) => (f.login === 'email' && !f.email ? 4 : { apple: 1, google: 2, email: 3 }[f.login] || 4),
           club: (f) => (f.club ? f.club.name.toLowerCase() : ''),
           created_at: (f) => ms(f.created_at),
           latest_activity: (f) => ms(f.latest_activity),
