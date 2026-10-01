@@ -6,7 +6,8 @@ import { kyivDateTimeString } from '../utils/kyivTime.js';
 
 // Вболівальники застосунку «Футзал AFU» — лише перегляд (R36). Сервер не
 // віддає ні кодів входу, ні push-токенів, ні ідентифікаторів Google чи Apple:
-// спосіб входу приходить уже висновком.
+// спосіб входу приходить уже висновком. Без email і без Google/Apple —
+// анонімний профіль пристрою: застосунок заводить його сам при першому запуску.
 const ВХІД = { google: 'Google', apple: 'Apple', email: 'Код на пошту' };
 
 // latest_activity — поле типу date, приходить рядком YYYY-MM-DD
@@ -84,7 +85,7 @@ export default function FansPage() {
                   <br />
                   <span className="muted small-text">{f.email || 'без email'}</span>
                 </td>
-                <td className="muted">{ВХІД[f.login] || f.login}</td>
+                <td className="muted">{f.login === 'email' && !f.email ? 'Без входу' : ВХІД[f.login] || f.login}</td>
                 <td className="muted">{f.club?.name || '—'}</td>
                 <td className="muted nowrap">{kyivDateTimeString(f.created_at)}</td>
                 <td className="muted nowrap">{дата(f.latest_activity)}</td>
