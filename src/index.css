@@ -1222,3 +1222,26 @@ input[type='radio'] {
     display: none;
   }
 }
+
+/* Вболівальники: зведення над списком */
+.fan-stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 12px;
+  margin-bottom: 16px;
+}
+.fan-stat {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 12px 16px;
+}
+.fan-stat-value {
+  font-size: 24px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+.fan-stat-label {
+  color: var(--muted);
+  font-size: 13px;
+}
