@@ -1,7 +1,7 @@
 import { useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { crm } from '../api/client.js';
-import { Empty, ErrorBox, PageHeader } from '../components/ui.jsx';
+import { Empty, ErrorBox, Modal, PageHeader } from '../components/ui.jsx';
 import { kyivDateTimeString } from '../utils/kyivTime.js';
 
 // Вболівальники застосунку «Футзал AFU» — лише перегляд (R36). Сервер не
@@ -27,7 +27,56 @@ function Плитка({ value, label }) {
   );
 }
 
+// Очистка мертвих анонімних профілів (R38): спершу сервер рахує, хто потрапляє
+// під критерій, видалення — лише з тим самим числом. Межа 90 днів — рішення
+// Андрія 01.10; менше сервер не прийме.
+function Очистка({ onClose }) {
+  const qc = useQueryClient();
+  const перегляд = useQuery({ queryKey: ['fans-cleanup'], queryFn: () => crm.post('/fans/cleanup', { days: 90 }), gcTime: 0 });
+  const видалити = useMutation({
+    mutationFn: (expected) => crm.post('/fans/cleanup', { days: 90, confirm: true, expected }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['fans'] }),
+  });
+  const p = перегляд.data;
+  return (
+    <Modal title="Очистка неактивних профілів" onClose={onClose} width={520}>
+      <div className="form">
+        <div className="muted">
+          Профілі без email, без Google і без Apple, які не відкривали застосунок понад 90 днів. Якщо людина
+          повернеться, застосунок заведе їй новий профіль, але обраний клуб і сповіщення доведеться налаштувати знову.
+        </div>
+        <ErrorBox error={перегляд.error || видалити.error} />
+        {перегляд.isLoading && <div className="muted">Рахую…</div>}
+        {видалити.isSuccess ? (
+          <div className="strong">Видалено профілів: {видалити.data.count}</div>
+        ) : (
+          p && (
+            <div className="danger-box">
+              <div className="strong">
+                {p.count ? `Під очистку потрапляє профілів: ${p.count}` : 'Таких профілів немає'}
+              </div>
+              {p.count > 0 && <div className="muted small-text">З них отримують сповіщення: {p.with_notifications}. Видалення назавжди.</div>}
+            </div>
+          )
+        )}
+        <div className="form-actions">
+          <span className="spacer" />
+          <button type="button" className="btn" onClick={onClose}>
+            {видалити.isSuccess ? 'Закрити' : 'Скасувати'}
+          </button>
+          {!видалити.isSuccess && p?.count > 0 && (
+            <button type="button" className="btn danger" disabled={видалити.isPending} onClick={() => видалити.mutate(p.count)}>
+              Так, видалити {p.count}
+            </button>
+          )}
+        </div>
+      </div>
+    </Modal>
+  );
+}
+
 export default function FansPage() {
+  const [очистка, setОчистка] = useState(false);
   const [q, setQ] = useState('');
   const [page, setPage] = useState(1);
   const list = useQuery({
@@ -41,7 +90,7 @@ export default function FansPage() {
 
   return (
     <div className="page">
-      <PageHeader title="Вболівальники" subtitle="Ті, хто зареєструвався в застосунку «Футзал AFU». Лише перегляд" />
+      <PageHeader title="Вболівальники" subtitle="Профілі застосунку «Футзал AFU»: з входом через пошту, Google чи Apple і анонімні профілі пристрою" />
       {s && (
         <div className="fan-stats">
           <Плитка value={s.total} label="усього" />
@@ -62,7 +111,12 @@ export default function FansPage() {
           }}
         />
         {list.data && q && <span className="muted">Знайдено: {list.data.total}</span>}
+        <span className="spacer" />
+        <button className="btn danger ghost" onClick={() => setОчистка(true)}>
+          Очистити неактивні
+        </button>
       </div>
+      {очистка && <Очистка onClose={() => setОчистка(false)} />}
       <ErrorBox error={list.error} />
       {!list.isLoading && !list.error && items.length === 0 && <Empty>Нікого не знайдено</Empty>}
       {items.length > 0 && (
