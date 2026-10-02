@@ -263,7 +263,7 @@ function KitColor({ label, value, onChange }) {
           onChange={(e) => onChange(e.target.value.toUpperCase())}
           aria-label={`${label}: вибір кольору`}
         />
-        <input value={value} onChange={(e) => onChange(e.target.value)} placeholder="не задано" maxLength={7} className="kit-hex" />
+        <input value={value} onChange={(e) => onChange(e.target.value)} placeholder="не задано" maxLength={7} className="kit-hex" aria-label={`${label}: код #RRGGBB`} />
         {value && (
           <button type="button" className="btn small" onClick={() => onChange('')}>
             Прибрати

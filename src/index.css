@@ -1306,3 +1306,6 @@ input[type='radio'] {
   font-variant-numeric: tabular-nums;
   text-transform: uppercase;
 }
+.kit-hex::placeholder {
+  text-transform: none;
+}
