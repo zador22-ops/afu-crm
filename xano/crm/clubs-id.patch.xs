@@ -21,6 +21,8 @@ query "clubs/{teaminfo_id}" verb=PATCH {
     text contact_email? filters=trim
     text team_kind? filters=trim
     text country? filters=trim
+    text kit_color_primary? filters=trim
+    text kit_color_secondary? filters=trim
   }
 
   stack {
@@ -48,6 +50,20 @@ query "clubs/{teaminfo_id}" verb=PATCH {
     precondition ($input.team_kind == null || $input.team_kind == "" || $input.team_kind == "збірна" || $input.team_kind == "іноземний клуб") {
       error_type = "badrequest"
       error = "Вид команди має бути порожнім (клуб АФУ), «збірна» або «іноземний клуб»"
+    }
+
+    // Кольори форми (R43): порожньо або #RRGGBB. Перевірка в JS — regex_matches
+    // у XanoScript ненадійний (новини, 26.09)
+    api.lambda {
+      code = """
+        const ok = (v) => v == null || v === '' || /^#[0-9A-Fa-f]{6}$/.test(v);
+        return ok($input.kit_color_primary) && ok($input.kit_color_secondary);
+      """
+      timeout = 10
+    } as $colors_ok
+    precondition ($colors_ok == true) {
+      error_type = "badrequest"
+      error = "Колір форми має бути у форматі #RRGGBB, наприклад #1E4FA0"
     }
 
     util.get_raw_input {

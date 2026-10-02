@@ -21,7 +21,7 @@ query matches verb=GET {
     } as $matches
     db.query TeamInfo {
       return = {type: "list"}
-      output = ["id", "TeamName", "TeamLogo", "TeamInfo", "Relevance", "parent_teaminfo_id", "founded_year", "home_venues_id", "colors", "team_kind", "country", "leagues_id"]
+      output = ["id", "TeamName", "TeamLogo", "TeamInfo", "Relevance", "parent_teaminfo_id", "founded_year", "home_venues_id", "colors", "team_kind", "country", "leagues_id", "kit_color_primary", "kit_color_secondary"]
     } as $teams
     db.query Venues {
       return = {type: "list"}
@@ -59,7 +59,7 @@ query matches verb=GET {
         const year = (d) => { if (!d) return null; const m = String(d).match(/^(\d{4})/); return m ? Number(m[1]) : null; };
         const person = (p) => (p ? { id: p.id, first_name: p.Name || null, last_name: p.prizvushche || null } : null);
         const personFull = (p) => (p ? { ...person(p), photo: img(p.Photo || p.photo), birth_year: year(p.Date_of_birth), city: p.City || null } : null);
-        const club = (t) => (t ? { id: t.id, name: t.TeamName, logo: img(t.TeamLogo) } : null);
+        const club = (t) => (t ? { id: t.id, name: t.TeamName, logo: img(t.TeamLogo), kit_color_primary: t.kit_color_primary || null, kit_color_secondary: t.kit_color_secondary || null } : null);
         const venue = (v) => (v ? { id: v.id, name: v.City || null, city: null } : null);
         const tourNo = (name) => { const m = String(name || '').match(/(\d+)/); return m ? Number(m[1]) : null; };
         const page = (rows, p, pp) => { const per = Math.min(Math.max(Number(pp) || 50, 1), 100); const pg = Math.max(Number(p) || 1, 1); return { items: rows.slice((pg - 1) * per, pg * per), total: rows.length, page: pg, per_page: per, totalPages: Math.max(1, Math.ceil(rows.length / per)) }; };

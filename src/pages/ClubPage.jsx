@@ -72,6 +72,8 @@ function Card({ data }) {
         facebook: values.facebook.trim(),
         youtube: values.youtube.trim(),
         colors: values.colors.trim(),
+        kit_color_primary: hex(values.kit_color_primary),
+        kit_color_secondary: hex(values.kit_color_secondary),
         contact_name: values.contact_name.trim(),
         contact_phone: values.contact_phone.trim(),
         contact_email: values.contact_email.trim(),
@@ -154,7 +156,12 @@ function Card({ data }) {
               ))}
             </div>
           )}
-          <Field label="Кольори">
+          <KitColors
+            primary={values.kit_color_primary}
+            secondary={values.kit_color_secondary}
+            onChange={(k, v) => setValues((s) => ({ ...s, [k]: v }))}
+          />
+          <Field label="Кольори словами" hint="Для людей: «синій, білий». Застосунок бере кольори з вибору вище">
             <input value={values.colors} onChange={set('colors')} placeholder="синій, білий" />
           </Field>
           <Toggle checked={values.Relevance} onChange={set('Relevance')} label="Активний клуб (в архіві не показується в списках ADMIN і застосунку)" />
@@ -203,11 +210,81 @@ function Card({ data }) {
       <ErrorBox error={save.error} />
       <div className="form-actions sticky">
         {saved && <span className="ok">Збережено</span>}
-        <button className="btn primary" disabled={save.isPending}>
+        <button className="btn primary" disabled={save.isPending || [values.kit_color_primary, values.kit_color_secondary].some((v) => v && !HEX.test(hex(v)))}>
           Зберегти картку
         </button>
       </div>
     </form>
+  );
+}
+
+// Кольори форми (R43): порожньо → null, інакше #RRGGBB великими літерами.
+// Сервер приймає лише цей формат.
+const HEX = /^#[0-9A-F]{6}$/;
+const hex = (v) => {
+  const x = (v || '').trim().toUpperCase();
+  if (!x) return null;
+  return x.startsWith('#') ? x : `#${x}`;
+};
+
+function KitShirt({ primary, secondary }) {
+  const p = HEX.test(primary || '') ? primary : null;
+  const s = HEX.test(secondary || '') ? secondary : null;
+  return (
+    <svg viewBox="0 0 64 64" width="72" height="72" className="kit-shirt" role="img" aria-label="Прев'ю форми">
+      <path
+        d="M22 6 L12 10 L3 22 L11 28 L15 24 L15 58 L49 58 L49 24 L53 28 L61 22 L52 10 L42 6 Q32 14 22 6 Z"
+        fill={p || 'var(--surface)'}
+        stroke="var(--border)"
+        strokeWidth="1.5"
+        strokeDasharray={p ? undefined : '3 3'}
+      />
+      {s && (
+        <>
+          <path d="M3 22 L11 28 L13.2 25.8 L5.2 19.6 Z" fill={s} />
+          <path d="M61 22 L53 28 L50.8 25.8 L58.8 19.6 Z" fill={s} />
+          <path d="M22 6 Q32 14 42 6 L39 5 Q32 10 25 5 Z" fill={s} />
+          <rect x="29" y="22" width="6" height="22" rx="1" fill={s} />
+        </>
+      )}
+    </svg>
+  );
+}
+
+function KitColor({ label, value, onChange }) {
+  const valid = !value || HEX.test(hex(value) || '');
+  return (
+    <div className="kit-color">
+      <span className="field-label">{label}</span>
+      <div className="kit-color-row">
+        <input
+          type="color"
+          value={valid && value ? hex(value) : '#FFFFFF'}
+          onChange={(e) => onChange(e.target.value.toUpperCase())}
+          aria-label={`${label}: вибір кольору`}
+        />
+        <input value={value} onChange={(e) => onChange(e.target.value)} placeholder="не задано" maxLength={7} className="kit-hex" />
+        {value && (
+          <button type="button" className="btn small" onClick={() => onChange('')}>
+            Прибрати
+          </button>
+        )}
+      </div>
+      {!valid && <div className="error-text">Формат #RRGGBB, наприклад #1E4FA0</div>}
+    </div>
+  );
+}
+
+function KitColors({ primary, secondary, onChange }) {
+  return (
+    <div className="kit-colors">
+      <KitShirt primary={hex(primary)} secondary={hex(secondary)} />
+      <div className="kit-colors-fields">
+        <KitColor label="Основний колір форми" value={primary} onChange={(v) => onChange('kit_color_primary', v)} />
+        <KitColor label="Додатковий колір форми" value={secondary} onChange={(v) => onChange('kit_color_secondary', v)} />
+        <div className="field-hint">Застосунок фарбує ними смугу H2H і футболки в складах</div>
+      </div>
+    </div>
   );
 }
 
@@ -223,6 +300,8 @@ const toForm = (c) => ({
   facebook: c.facebook || '',
   youtube: c.youtube || '',
   colors: c.colors || '',
+  kit_color_primary: c.kit_color_primary || '',
+  kit_color_secondary: c.kit_color_secondary || '',
   contact_name: c.contact_name || '',
   contact_phone: c.contact_phone || '',
   contact_email: c.contact_email || '',
