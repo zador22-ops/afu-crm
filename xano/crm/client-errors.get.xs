@@ -21,7 +21,7 @@ query client_errors verb=GET {
 
     db.query client_errors {
       sort = {client_errors.created_at: "desc"}
-      return = {type: "list", paging: {page: 1, per_page: 5000}}
+      return = {type: "list"}
       output = ["id", "created_at", "message", "stack", "screen", "app_version", "build", "platform", "os_version", "is_fatal", "at"]
     } as $rows
 

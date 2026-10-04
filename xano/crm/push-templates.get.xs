@@ -23,7 +23,7 @@ query "push-templates" verb=GET {
 
     db.query push_log {
       sort = {push_log.sent_at: "desc"}
-      return = {type: "list", paging: {page: 1, per_page: 100}}
+      return = {type: "list"}
       output = ["id", "kind", "ref", "sent_at", "recipients", "mode", "title", "body"]
     } as $log
 
@@ -35,7 +35,7 @@ query "push-templates" verb=GET {
 
     api.lambda {
       code = """
-        const log = Array.isArray($var.log) ? $var.log : ($var.log && $var.log.items) || [];
+        const log = (Array.isArray($var.log) ? $var.log : []).slice(0, 100);
         const c = $var.cfg || {};
         return {
           templates: $var.templates || [],
