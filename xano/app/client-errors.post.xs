@@ -2,7 +2,7 @@ query client_errors verb=POST {
   api_group = "app"
 
   // R56. Необроблена помилка застосунку «Футзал АФУ». Без авторизації:
-  // помилка буває ще до входу. Захист від сміття — стелі розміру й перевірка
+  // помилка буває ще до входу. Захист від сміття — стелі розміру (message 1000, stack 4 КБ) й перевірка
   // платформи; дедуплікація й частота — на пристрої. Даних людини не беремо:
   // ні IP, ні id вболівальника, а e-mail і токени з тексту вирізаємо.
   input {
@@ -33,7 +33,7 @@ query client_errors verb=POST {
           if (s.length > max) s = s.slice(0, max - 1) + '…';
           return s;
         };
-        const message = clean($input.message, 500);
+        const message = clean($input.message, 1000);
         if (!message) return { ok: false, error: 'message порожній' };
         const p = String($input.platform || '').trim().toLowerCase();
         if (p !== 'ios' && p !== 'android') return { ok: false, error: 'platform — ios або android' };
