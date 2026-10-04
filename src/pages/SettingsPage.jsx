@@ -27,7 +27,7 @@ const ЯК_ЧИТАЄ = {
   3: 'Старий ADMIN — лише точний збіг; ADMIN 2.0 — не нижче',
   5: 'Старий ADMIN — лише точний збіг; ADMIN 2.0 — не нижче',
   6: 'Нижчі версії побачать екран оновлення',
-  7: 'iPhone до збірки 1.56 шле 1.27 — з примусом не вище 1.27',
+  7: 'Нижчі версії побачать екран оновлення',
 };
 const МАГАЗИН = { 'fan:android': 6, 'fan:ios': 7, 'admin:android': 3, 'admin:ios': 5 };
 const ЗАСТОСУНКИ = [
@@ -37,11 +37,6 @@ const ЗАСТОСУНКИ = [
   { app: 'admin', platform: 'ios', label: 'ADMIN, iOS' },
 ];
 const чиста = (v) => String(v || '').trim().replace(/^[vV]\.?\s*/, '');
-const більша = (a, b) => {
-  const x = чиста(a).split('.').map(Number), y = чиста(b).split('.').map(Number);
-  for (let i = 0; i < Math.max(x.length, y.length); i++) if ((x[i] || 0) !== (y[i] || 0)) return (x[i] || 0) > (y[i] || 0);
-  return false;
-};
 
 export default function SettingsPage() {
   const list = useQuery({ queryKey: ['variables'], queryFn: () => crm.get('/variables') });
@@ -244,9 +239,6 @@ function MinVersion({ item }) {
   const [v, setV] = useState({ text: item.text || '', bool: !!item.bool });
   useEffect(() => setV({ text: item.text || '', bool: !!item.bool }), [item]);
   const змінено = v.text !== (item.text || '') || v.bool !== !!item.bool;
-  // Попередження для iOS-фанатського (див. ЯК_ЧИТАЄ[7]). Не забороняє: рішення за
-  // продактом (Андрій 04.10: «це моє рішення»)
-  const небезпечно = item.id === 7 && v.bool && більша(v.text, '1.27');
   return (
     <form
       className="ver-cell"
@@ -265,9 +257,7 @@ function MinVersion({ item }) {
         </button>
       )}
       {save.isSuccess && !змінено && <span className="muted small-text">збережено</span>}
-      <div className={небезпечно ? 'error-text ver-hint' : 'muted small-text ver-hint'}>
-        {небезпечно ? 'Увага: iPhone до збірки 1.56 шле 1.27 і побачить екран оновлення' : ЯК_ЧИТАЄ[item.id]}
-      </div>
+      <div className="muted small-text ver-hint">{ЯК_ЧИТАЄ[item.id]}</div>
       <ErrorBox error={save.error} />
     </form>
   );
