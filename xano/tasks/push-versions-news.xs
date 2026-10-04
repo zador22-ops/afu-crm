@@ -78,7 +78,7 @@ task push_versions_news {
         api.lambda {
           code = """
             const v = $var.v;
-            return [{ to: ($var.aud || []).map((a) => a.token), title: $var.r.title, body: $var.r.body, data: { update: v.platform, version: v.version } }];
+            return [{ to: ($var.aud || []).map((a) => a.token), title: $var.r.title, body: $var.r.body, data: { kind: 'update', platform: v.platform, version: v.version } }];
           """
           timeout = 10
         } as $messages
