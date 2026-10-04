@@ -41,7 +41,7 @@ task push_versions_news {
         const body = $var.ios && $var.ios.response && $var.ios.response.result;
         const parsed = typeof body === 'string' ? (() => { try { return JSON.parse(body); } catch (e) { return null; } })() : body;
         const iosV = parsed && parsed.results && parsed.results[0] && parsed.results[0].version || null;
-        const andV = (($var.android && $var.android.text) || '').replace(/^v\\.?/i, '').trim() || null;
+        const andV = (($var.android && $var.android.text) || '').replace(/^v\.?/i, '').trim() || null;
         const log = ($var.log || []).filter((r) => r.mode !== 'dry');
         const mm = (v) => { const [a, b] = String(v || '').split('.').map((x) => parseInt(x, 10) || 0); return a * 1000 + b; };
         const notes = $var.notes || [];
