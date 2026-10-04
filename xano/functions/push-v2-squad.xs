@@ -42,6 +42,9 @@ function "Push v2 squad" {
           body: `📋 Склад ${team.name} оголошено${змагання ? ' · ' + змагання : ''}`,
           people: ($var.rows || []).map((r) => r._team && r._team.player_id).filter(Boolean),
           ref: `${c.id}:${team.id}`,
+          kind: ($var.rows || []).length > 0 ? 'squad' : '',
+          tpl: 'squad',
+          vars: { home: c.team1.name, away: c.team2.name, competition: c.competition, tour: c.tour, team: team.name },
           count: ($var.rows || []).length,
         };
       """
@@ -51,16 +54,30 @@ function "Push v2 squad" {
     var $sent {
       value = null
     }
+    var $r {
+      value = {enabled: false}
+    }
 
     conditional {
-      if ($text.count > 0) {
+      if ($text.kind != "") {
+        function.run "Push v2 render" {
+          input = {tpl: $text.tpl, vars: $text.vars, fallback_title: $text.title, fallback_body: $text.body}
+        } as $rendered
+        var.update $r {
+          value = $rendered
+        }
+      }
+    }
+
+    conditional {
+      if ($text.kind != "" && $r.enabled) {
         function.run "Push v2 audience" {
           input = {kind: "squad", match_id: $input.match_id, team1_id: $ctx.team1.id, team2_id: $ctx.team2.id, people_ids: $text.people}
         } as $aud
 
         api.lambda {
           code = """
-            const c = $var.ctx, t = $var.text;
+            const c = $var.ctx, t = $var.r;
             const by = { 0: [], 1: [], 2: [] };
             for (const a of $var.aud || []) by[a.follows].push(a.token);
             const img = { 0: c.logo, 1: c.team2.logo, 2: c.team1.logo };

@@ -54,7 +54,9 @@ function "Push v2 match status" {
         // Один пуш на матч для подій, які не повторюються; час — щоразу новий
         const once = ['match_start', 'match_finish', 'half_time', 'second_half', 'reminder60'].includes(kind);
         const ref = kind === 'time_change' || kind === 'match_postponed' ? `${c.id}:${c.time}` : String(c.id);
-        return { kind, ref, once, title: `${c.team1.name} — ${c.team2.name}`, body };
+        const tpl = kind === 'reminder60' && c.is_top ? 'reminder60_top' : kind;
+        const vars = { home: c.team1.name, away: c.team2.name, competition: c.competition, tour: c.tour, score: рахунок, time: коли(c.time) };
+        return { kind, tpl, vars, ref, once, title: `${c.team1.name} — ${c.team2.name}`, body };
       """
       timeout = 10
     } as $text
@@ -62,16 +64,30 @@ function "Push v2 match status" {
     var $sent {
       value = null
     }
+    var $r {
+      value = {enabled: false}
+    }
 
     conditional {
       if ($text.kind != "") {
+        function.run "Push v2 render" {
+          input = {tpl: $text.tpl, vars: $text.vars, fallback_title: $text.title, fallback_body: $text.body}
+        } as $rendered
+        var.update $r {
+          value = $rendered
+        }
+      }
+    }
+
+    conditional {
+      if ($text.kind != "" && $r.enabled) {
         function.run "Push v2 audience" {
           input = {kind: $text.kind, match_id: $input.match_id, team1_id: $ctx.team1.id, team2_id: $ctx.team2.id, is_top: $ctx.is_top}
         } as $aud
 
         api.lambda {
           code = """
-            const c = $var.ctx, t = $var.text;
+            const c = $var.ctx, t = $var.r;
             const by = { 0: [], 1: [], 2: [] };
             for (const a of $var.aud || []) by[a.follows].push(a.token);
             const img = { 0: c.logo, 1: c.team2.logo, 2: c.team1.logo };

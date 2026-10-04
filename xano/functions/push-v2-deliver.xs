@@ -32,7 +32,7 @@ function "Push v2 deliver" {
         const mode = $input.silent ? 'silent' : $input.dry_run ? 'dry' : cfg.live === true ? 'live' : 'test';
         const was = ($var.was || []).map((r) => r.mode);
         if ($input.once && was.some((m) => m === mode || m === 'live' || m === 'silent')) {
-          return { skip: true, mode, recipients: 0, expo: [], title: '', body: '' };
+          return { skip: true, mode, recipients: 0, would_reach: 0, expo: [], title: '', body: '', sample: [] };
         }
         const groups = (Array.isArray($input.messages) ? $input.messages : []).filter((g) => g && g.title);
         const msg = (to, g) => {

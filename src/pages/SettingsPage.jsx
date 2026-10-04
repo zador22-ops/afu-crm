@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { crm } from '../api/client.js';
-import { ErrorBox, Field, PageHeader, Toggle } from '../components/ui.jsx';
+import { Empty, ErrorBox, Field, Modal, PageHeader, Toggle, fmtDate } from '../components/ui.jsx';
 
 /**
  * Службові налаштування — таблиця `Variables`, сім рядків, які керують
@@ -21,6 +21,28 @@ import { ErrorBox, Field, PageHeader, Toggle } from '../components/ui.jsx';
  */
 const БЛОКУВАННЯ = { 1: 'адмінський застосунок (ADMIN АФУ)', 4: 'фанатський застосунок' };
 const ВЕРСІЇ = { 3: 'ADMIN, Android', 5: 'ADMIN, iOS', 6: 'Фанатський, Android', 7: 'Фанатський, iOS' };
+
+// R57: як саме кожен застосунок читає мінімальну версію. Це не однаково, і
+// «правильна» цифра в чужому сенсі замикає людей (Андрій, 04.10).
+const ЯК_ЧИТАЄ = {
+  3: 'Старий ADMIN вимагає ТОЧНОГО збігу з вашою збіркою; ADMIN 2.0 цей рядок не читає. Не вмикайте примус, поки делегати на старому ADMIN',
+  5: 'Старий ADMIN вимагає ТОЧНОГО збігу з вашою збіркою; ADMIN 2.0 цей рядок не читає. Не вмикайте примус, поки делегати на старому ADMIN',
+  6: 'Пускає всі версії, не нижчі за вказану. Нижчі бачать екран «Потрібне оновлення»',
+  7: 'Збірки iOS до 1.56 повідомляють не справжню версію, а 1.27. Поки вони в людей, з примусом тут не можна ставити вище 1.27 — заблокуються всі iPhone',
+};
+const МАГАЗИН = { 'fan:android': 6, 'fan:ios': 7, 'admin:android': 3, 'admin:ios': 5 };
+const ЗАСТОСУНКИ = [
+  { app: 'fan', platform: 'android', label: 'Фанатський, Android' },
+  { app: 'fan', platform: 'ios', label: 'Фанатський, iOS' },
+  { app: 'admin', platform: 'android', label: 'ADMIN, Android' },
+  { app: 'admin', platform: 'ios', label: 'ADMIN, iOS' },
+];
+const чиста = (v) => String(v || '').trim().replace(/^[vV]\.?\s*/, '');
+const більша = (a, b) => {
+  const x = чиста(a).split('.').map(Number), y = чиста(b).split('.').map(Number);
+  for (let i = 0; i < Math.max(x.length, y.length); i++) if ((x[i] || 0) !== (y[i] || 0)) return (x[i] || 0) > (y[i] || 0);
+  return false;
+};
 
 export default function SettingsPage() {
   const list = useQuery({ queryKey: ['variables'], queryFn: () => crm.get('/variables') });
@@ -51,10 +73,13 @@ export default function SettingsPage() {
             ))}
           </section>
 
+          <Releases variables={list.data} />
+
           <section className="card-form">
-            <h3>Обовʼязкові версії застосунків</h3>
+            <h3>Мінімальні версії застосунків</h3>
             <p className="muted small-text">
-              Якщо перемикач увімкнено, застосунок вимагатиме оновлення до вказаної версії й не пустить далі
+              Глухий екран «Потрібне оновлення» для збірок, які вже не працюють із сервером. Вмикається лише тоді, коли
+              стара версія справді несумісна. Звичайне «вийшло оновлення» — у блоці вище, воно нікого не блокує
             </p>
             {[3, 5, 6, 7].map((id) => (
               <Version key={id} item={рядок(id)} назва={ВЕРСІЇ[id]} />
@@ -149,6 +174,8 @@ function Version({ item, назва }) {
     if (item) setValues({ bool: !!item.bool, text: item.text || '', explanatio: item.explanatio || '' });
   }, [item]);
   if (!item) return null;
+  // Запобіжник для iOS-фанатського: див. ЯК_ЧИТАЄ[7]
+  const небезпечно = item.id === 7 && values.bool && більша(values.text, '1.27');
   return (
     <form
       className="form"
@@ -170,13 +197,161 @@ function Version({ item, назва }) {
         onChange={(v) => setValues((s) => ({ ...s, bool: v }))}
         label="Вимагати оновлення примусово"
       />
+      <div className="muted small-text">{ЯК_ЧИТАЄ[item.id]}</div>
+      {небезпечно && <div className="error-box">З увімкненим примусом версія вище 1.27 заблокує всі iPhone. Залиште 1.27 або вимкніть примус</div>}
       <ErrorBox error={save.error} />
       <div className="form-actions">
         {save.isSuccess && <span className="muted small-text">збережено</span>}
-        <button className="btn primary" disabled={save.isPending}>
+        <button className="btn primary" disabled={save.isPending || небезпечно}>
           Зберегти
         </button>
       </div>
     </form>
+  );
+}
+
+// R57. Актуальні версії в магазинах — журнал релізів. Вносить продакт, коли
+// версія справді в магазині. Від цього залежать м'який банер «Є оновлення» в
+// застосунках і пуш про нову версію (фанатський, лише major/minor).
+function Releases({ variables }) {
+  const qc = useQueryClient();
+  const list = useQuery({ queryKey: ['releases'], queryFn: () => crm.get('/releases') });
+  const [новий, setНовий] = useState(null);
+  const [правка, setПравка] = useState(null);
+  const [історія, setІсторія] = useState(false);
+  const всі = list.data || [];
+  const останній = (a) => всі.find((r) => r.app === a.app && r.platform === a.platform) || null;
+  const посилання = (a) => (variables || []).find((v) => v.id === МАГАЗИН[`${a.app}:${a.platform}`])?.explanatio || '';
+  const done = () => qc.invalidateQueries({ queryKey: ['releases'] });
+
+  return (
+    <section className="card-form">
+      <h3>Актуальні версії в магазинах</h3>
+      <p className="muted small-text">
+        Вносьте нову версію після релізу, коли перевірили, що вона справді в магазині. Застосунки покажуть смугу «Є
+        оновлення», а вболівальники отримають пуш (лише на нову major/minor-версію). Нікого не блокує
+      </p>
+      <ErrorBox error={list.error} />
+      <table className="table">
+        <thead>
+          <tr>
+            <th>Застосунок</th>
+            <th>Версія в магазині</th>
+            <th>Що нового</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody>
+          {ЗАСТОСУНКИ.map((a) => {
+            const r = останній(a);
+            return (
+              <tr key={a.label}>
+                <td className="strong">{a.label}</td>
+                <td>
+                  {r ? (
+                    <>
+                      <span className="strong">{r.version}</span> <span className="muted small-text">від {fmtDate(r.released_at)}</span>
+                    </>
+                  ) : (
+                    <span className="muted">не внесено</span>
+                  )}
+                </td>
+                <td className="muted">{r?.note || '—'}</td>
+                <td className="row-actions">
+                  <button className="btn small primary" onClick={() => setНовий({ ...a, store_url: r?.store_url || посилання(a) })}>
+                    Новий реліз
+                  </button>
+                  {r && (
+                    <button className="btn small" onClick={() => setПравка(r)}>
+                      Змінити
+                    </button>
+                  )}
+                </td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+      <button type="button" className="btn small" onClick={() => setІсторія(!історія)} aria-expanded={історія}>
+        {історія ? 'Сховати історію' : `Історія релізів (${всі.length})`}
+      </button>
+      {історія && (всі.length === 0 ? <Empty>Релізів ще не внесено</Empty> : (
+        <table className="table compact">
+          <tbody>
+            {всі.map((r) => (
+              <tr key={r.id}>
+                <td>{ЗАСТОСУНКИ.find((a) => a.app === r.app && a.platform === r.platform)?.label}</td>
+                <td className="strong">{r.version}</td>
+                <td className="muted">{fmtDate(r.released_at)}</td>
+                <td className="muted">{r.note || '—'}</td>
+                <td className="muted">{r._by?.Name || ''}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      ))}
+      {новий && <ReleaseForm init={новий} onClose={() => setНовий(null)} onDone={done} />}
+      {правка && <ReleaseForm init={правка} edit onClose={() => setПравка(null)} onDone={done} />}
+    </section>
+  );
+}
+
+const сьогодні = () => new Date().toISOString().slice(0, 10);
+
+function ReleaseForm({ init, edit, onClose, onDone }) {
+  const назва = ЗАСТОСУНКИ.find((a) => a.app === init.app && a.platform === init.platform)?.label;
+  const [v, setV] = useState({
+    version: edit ? init.version : '',
+    note: init.note || '',
+    store_url: init.store_url || '',
+    released_at: init.released_at ? new Date(init.released_at).toISOString().slice(0, 10) : сьогодні(),
+  });
+  const save = useMutation({
+    mutationFn: () => {
+      const body = { note: v.note.trim(), store_url: v.store_url.trim(), released_at: Date.parse(v.released_at + 'T12:00:00Z') };
+      return edit ? crm.patch(`/releases/${init.id}`, body) : crm.post('/releases', { ...body, app: init.app, platform: init.platform, version: v.version.trim() });
+    },
+    onSuccess: () => {
+      onDone();
+      onClose();
+    },
+  });
+  return (
+    <Modal title={edit ? `${назва}: ${init.version}` : `Новий реліз — ${назва}`} onClose={onClose}>
+      <form
+        className="form"
+        onSubmit={(e) => {
+          e.preventDefault();
+          save.mutate();
+        }}
+      >
+        {!edit && (
+          <Field label="Версія" hint="Як у магазині: 1.56.0. Вносьте, коли перевірили, що вона вже там">
+            <input value={v.version} onChange={(e) => setV((s) => ({ ...s, version: e.target.value }))} required autoFocus placeholder="1.56.0" />
+          </Field>
+        )}
+        <Field label="Що нового" hint="Одне-два речення про користь — це текст смуги й пуша. Порожньо — загальний текст">
+          <textarea rows={3} value={v.note} onChange={(e) => setV((s) => ({ ...s, note: e.target.value }))} maxLength={200} />
+        </Field>
+        <div className="row2">
+          <Field label="Дата в магазині">
+            <input type="date" value={v.released_at} onChange={(e) => setV((s) => ({ ...s, released_at: e.target.value }))} required />
+          </Field>
+          <Field label="Посилання на магазин">
+            <input value={v.store_url} onChange={(e) => setV((s) => ({ ...s, store_url: e.target.value }))} placeholder="https://…" />
+          </Field>
+        </div>
+        <ErrorBox error={save.error} />
+        <div className="form-actions">
+          <span className="spacer" />
+          <button type="button" className="btn" onClick={onClose}>
+            Скасувати
+          </button>
+          <button className="btn primary" disabled={save.isPending}>
+            {edit ? 'Зберегти' : 'Внести реліз'}
+          </button>
+        </div>
+      </form>
+    </Modal>
   );
 }
