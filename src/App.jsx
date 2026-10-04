@@ -13,6 +13,7 @@ import PartnersPage from './pages/PartnersPage.jsx';
 import DocumentsPage from './pages/DocumentsPage.jsx';
 import GoverningBodiesPage from './pages/GoverningBodiesPage.jsx';
 import FansPage from './pages/FansPage.jsx';
+import ClientErrorsPage from './pages/ClientErrorsPage.jsx';
 // Новини тягнуть редактор TipTap (~сотні КБ) — вантажимо лише коли відкрили
 const NewsPage = lazy(() => import('./pages/NewsPage.jsx'));
 const NewsEditPage = lazy(() => import('./pages/NewsEditPage.jsx'));
@@ -62,6 +63,13 @@ const ІКОНКИ = {
       <line x1="12" y1="18" x2="12.01" y2="18" />
     </svg>
   ),
+  bug: (
+    <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M12 9v4" />
+      <path d="M12 17h.01" />
+      <path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z" />
+    </svg>
+  ),
   logout: (
     <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
       <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
@@ -74,6 +82,7 @@ const ІКОНКИ = {
 const НАЛАШТУВАННЯ = [
   { to: '/users', label: 'Користувачі', icon: 'users' },
   { to: '/fans', label: 'Вболівальники', icon: 'fans' },
+  { to: '/client-errors', label: 'Помилки застосунку', icon: 'bug' },
   { to: '/settings', label: 'Службове', icon: 'settings' },
 ];
 
@@ -198,6 +207,7 @@ export default function App() {
         <Route path="/matches/:id" element={<MatchPage />} />
         <Route path="/users" element={<UsersPage />} />
         <Route path="/fans" element={<FansPage />} />
+        <Route path="/client-errors" element={<ClientErrorsPage />} />
         <Route path="/settings" element={<SettingsPage />} />
         <Route path="*" element={<div className="page">Сторінку не знайдено</div>} />
       </Routes>
