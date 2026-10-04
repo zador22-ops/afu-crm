@@ -63,6 +63,24 @@ query "matches/{match_id}/result" verb=POST {
     function.run "CRM table recalc" {
       input = {match_id: $input.match_id}
     } as $recalc
+
+    // R55: «Матч почався» / «Кінець матчу» — лише коли статус справді змінився.
+    // До R55 цей ендпоінт пушів не слав, тож без старого формату (legacy false):
+    // поки push_config.live = false, новий формат іде лише на тестові токени.
+    conditional {
+      if ($was.match_status_id != $input.match_status_id) {
+        // Пуш не має ламати збереження: помилка розсилки не повертається клієнту
+        try_catch {
+          try {
+              function.run "Push v2 match status" {
+                input = {match_id: $input.match_id, type_of_event: "status", legacy: false}
+              } as $push
+          }
+          catch {
+          }
+        }
+      }
+    }
   }
 
   response = {match: $match, table: $recalc}

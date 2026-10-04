@@ -56,15 +56,22 @@ query "matches/{match_id}/staff-cards" verb=POST {
     // шукати людину в штабі, а не у складі — так само робить ADMIN (#203).
     conditional {
       if ($input.notify && $match.match_status_id == 3) {
-        function.run PushNotificationsMatchEvents {
-          input = {
-            match_id                : $input.match_id
-            team_id                 : $input.administration_of_teams_id
-            types_of_match_events_id: 2
-            types_of_cards_id       : $input.types_of_cards_id
-            minute                  : 1001
+        // Пуш не має ламати збереження: помилка розсилки не повертається клієнту
+        try_catch {
+          try {
+              function.run "Push v2 match event" {
+                input = {
+                  match_id                : $input.match_id
+                  team_id                 : $input.administration_of_teams_id
+                  types_of_match_events_id: 2
+                  types_of_cards_id       : $input.types_of_cards_id
+                  minute                  : 1001
+                }
+              } as $push
           }
-        } as $push
+          catch {
+          }
+        }
       }
     }
   }

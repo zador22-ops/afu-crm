@@ -13,6 +13,7 @@
  * - Ендпоінт ідентифікується парою (name, verb); name = шлях із першого рядка файла.
  *
  *   node xano/deploy.mjs --group=site news   — група site (id 7, api:tqrLXZWT), файли з xano/site
+ *   node xano/deploy.mjs --group=app         — група app (id 8, api:BTbEmLYm), застосунок вболівальника (R55)
  *
  * Група Default (ADMIN АФУ) цим скриптом не чіпається ніколи: дозволені лише
  * групи з переліку ГРУПИ нижче.
@@ -22,7 +23,7 @@ import path from 'node:path';
 import { мета } from './meta.mjs';
 
 // Лише наші групи. Default (1) і authentication (2) сюди не додаються ніколи.
-const ГРУПИ = { crm: 6, site: 7 };
+const ГРУПИ = { crm: 6, site: 7, app: 8 };
 const args = process.argv.slice(2);
 const назваГрупи = (args.find((a) => a.startsWith('--group=')) || '--group=crm').slice('--group='.length);
 const ГРУПА = ГРУПИ[назваГрупи];

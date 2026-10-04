@@ -4,7 +4,7 @@ query "matches/{match_id}/notify" verb=POST {
 
   input {
     int match_id filters=min:1
-    // Рівно ті два рядки, які розуміє PushNotificationsOtherEvents. Інші
+    // Рівно ті два рядки, які розуміє PushNotificationsOtherEvents (і двійник). Інші
     // події (гол, картка) шлються самі при записі в протокол.
     text type_of_event filters=trim
   }
@@ -37,9 +37,17 @@ query "matches/{match_id}/notify" verb=POST {
       error = "Сповіщення надсилаються лише під час матчу зі статусом «Онлайн»"
     }
 
-    function.run PushNotificationsOtherEvents {
-      input = {match_id: $input.match_id, type_of_event: $input.type_of_event}
-    } as $push
+    // R55: двійник #8; поки push_config.live = false, сам кличе стару #8
+    // Пуш не має ламати збереження: помилка розсилки не повертається клієнту
+    try_catch {
+      try {
+          function.run "Push v2 match status" {
+            input = {match_id: $input.match_id, type_of_event: $input.type_of_event}
+          } as $push
+      }
+      catch {
+      }
+    }
   }
 
   response = {sent: 1, event: $input.type_of_event}

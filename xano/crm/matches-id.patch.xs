@@ -83,6 +83,37 @@ query "matches/{match_id}" verb=PATCH {
     function.run "CRM table recalc" {
       input = {match_id: $input.match_id}
     } as $recalc
+
+    // R55: «Змінено час» / «Матч перенесено» тим, хто стежить за командами —
+    // лише для запланованого матчу, у якого справді змінився час або статус
+    // став «Перенесений». До R55 пушів тут не було (legacy false): поки
+    // push_config.live = false, новий формат іде лише на тестові токени.
+    conditional {
+      if ($match.match_status_id == 2 && $was.match_status_id != 2) {
+        // Пуш не має ламати збереження: помилка розсилки не повертається клієнту
+        try_catch {
+          try {
+              function.run "Push v2 match status" {
+                input = {match_id: $input.match_id, type_of_event: "status", legacy: false}
+              } as $push
+          }
+          catch {
+          }
+        }
+      }
+      elseif ($match.match_status_id == 1 && $match.TimeOfMatch != $was.TimeOfMatch) {
+        // Пуш не має ламати збереження: помилка розсилки не повертається клієнту
+        try_catch {
+          try {
+              function.run "Push v2 match status" {
+                input = {match_id: $input.match_id, type_of_event: "time_change", legacy: false}
+              } as $push
+          }
+          catch {
+          }
+        }
+      }
+    }
   }
 
   response = $match

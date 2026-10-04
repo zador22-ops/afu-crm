@@ -82,20 +82,28 @@ query "matches/{match_id}/events" verb=POST {
       input = {match_id: $input.match_id}
     } as $recalc
 
-    // Та сама функція, яку кличе ADMIN із #62 — щоб текст сповіщення в обох
-    // системах був однаковий. Відрізняється лише умова відправки.
+    // R55: двійник #7 у новому форматі. Поки push_config.live = false, він сам
+    // кличе стару #7 (той самий текст, що шле ADMIN із #62), а новий формат —
+    // лише на тестові токени.
     conditional {
       if ($input.notify && $match.match_status_id == 3) {
-        function.run PushNotificationsMatchEvents {
-          input = {
-            match_id                : $input.match_id
-            team_id                 : $input.team_id
-            types_of_match_events_id: $input.types_of_match_events_id
-            types_of_cards_id       : $input.types_of_cards_id
-            types_of_goals_id       : $input.types_of_goals_id
-            minute                  : $input.minute
+        // Пуш не має ламати збереження: помилка розсилки не повертається клієнту
+        try_catch {
+          try {
+              function.run "Push v2 match event" {
+                input = {
+                  match_id                : $input.match_id
+                  team_id                 : $input.team_id
+                  types_of_match_events_id: $input.types_of_match_events_id
+                  types_of_cards_id       : $input.types_of_cards_id
+                  types_of_goals_id       : $input.types_of_goals_id
+                  minute                  : $input.minute
+                }
+              } as $push
           }
-        } as $push
+          catch {
+          }
+        }
       }
     }
   }

@@ -148,6 +148,25 @@ query "matches/{match_id}/squad" verb=PUT {
         } as $added_staff
       }
     }
+
+    // R55: «Склад команди оголошено» тим, хто стежить за командою чи гравцями.
+    // Один раз на команду в матчі (повторне збереження не шле вдруге). До R55
+    // CRM і ADMIN 2.0 таких пушів не слали: поки push_config.live = false —
+    // лише тестові токени.
+    conditional {
+      if ($in.first5 == 5) {
+        // Пуш не має ламати збереження: помилка розсилки не повертається клієнту
+        try_catch {
+          try {
+              function.run "Push v2 squad" {
+                input = {match_id: $input.match_id, teaminfo_id: $input.teaminfo_id}
+              } as $push
+          }
+          catch {
+          }
+        }
+      }
+    }
   }
 
   response = {players: `$in.players|count`, staff: `$in.staff|count`, first5: $in.first5}
