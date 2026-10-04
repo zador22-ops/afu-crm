@@ -244,7 +244,8 @@ function MinVersion({ item }) {
   const [v, setV] = useState({ text: item.text || '', bool: !!item.bool });
   useEffect(() => setV({ text: item.text || '', bool: !!item.bool }), [item]);
   const змінено = v.text !== (item.text || '') || v.bool !== !!item.bool;
-  // Запобіжник для iOS-фанатського: див. ЯК_ЧИТАЄ[7]
+  // Попередження для iOS-фанатського (див. ЯК_ЧИТАЄ[7]). Не забороняє: рішення за
+  // продактом (Андрій 04.10: «це моє рішення»)
   const небезпечно = item.id === 7 && v.bool && більша(v.text, '1.27');
   return (
     <form
@@ -259,13 +260,13 @@ function MinVersion({ item }) {
         <input type="checkbox" checked={v.bool} onChange={(e) => setV((s) => ({ ...s, bool: e.target.checked }))} /> примус
       </label>
       {змінено && (
-        <button className="btn small primary" disabled={save.isPending || небезпечно}>
+        <button className="btn small primary" disabled={save.isPending}>
           Зберегти
         </button>
       )}
       {save.isSuccess && !змінено && <span className="muted small-text">збережено</span>}
       <div className={небезпечно ? 'error-text ver-hint' : 'muted small-text ver-hint'}>
-        {небезпечно ? 'Так заблокуються всі iPhone: лишіть 1.27 або зніміть примус' : ЯК_ЧИТАЄ[item.id]}
+        {небезпечно ? 'Увага: iPhone до збірки 1.56 шле 1.27 і побачить екран оновлення' : ЯК_ЧИТАЄ[item.id]}
       </div>
       <ErrorBox error={save.error} />
     </form>
