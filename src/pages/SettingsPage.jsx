@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { crm } from '../api/client.js';
-import { Empty, ErrorBox, Field, Modal, PageHeader, Toggle, fmtDate } from '../components/ui.jsx';
+import { Empty, ErrorBox, Field, Modal, PageHeader, Toggle } from '../components/ui.jsx';
 
 /**
  * Службові налаштування — таблиця `Variables`, сім рядків, які керують
@@ -296,6 +296,7 @@ function Releases({ variables }) {
   );
 }
 
+const fmtDate = (ms) => (ms ? new Date(ms).toLocaleDateString('uk-UA', { timeZone: 'Europe/Kyiv' }) : '');
 const сьогодні = () => new Date().toISOString().slice(0, 10);
 
 function ReleaseForm({ init, edit, onClose, onDone }) {
