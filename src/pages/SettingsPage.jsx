@@ -20,15 +20,14 @@ import { Empty, ErrorBox, Field, Modal, PageHeader, Toggle } from '../components
  * половину чекліста.
  */
 const БЛОКУВАННЯ = { 1: 'адмінський застосунок (ADMIN АФУ)', 4: 'фанатський застосунок' };
-const ВЕРСІЇ = { 3: 'ADMIN, Android', 5: 'ADMIN, iOS', 6: 'Фанатський, Android', 7: 'Фанатський, iOS' };
 
-// R57: як саме кожен застосунок читає мінімальну версію. Це не однаково, і
-// «правильна» цифра в чужому сенсі замикає людей (Андрій, 04.10).
+// R57: як кожен застосунок читає мінімальну версію — коротко, бо «правильна»
+// цифра в чужому сенсі замикає людей (Андрій, 04.10)
 const ЯК_ЧИТАЄ = {
-  3: 'Старий ADMIN (1.5.x) вимагає ТОЧНОГО збігу з його збіркою, ADMIN 2.0 — не нижче за вказану. Примус із версією 2.0.0 закриє старий ADMIN і залишить 2.0',
-  5: 'Старий ADMIN (1.5.x) вимагає ТОЧНОГО збігу з його збіркою, ADMIN 2.0 — не нижче за вказану. Примус із версією 2.0.0 закриє старий ADMIN і залишить 2.0',
-  6: 'Пускає всі версії, не нижчі за вказану. Нижчі бачать екран «Потрібне оновлення»',
-  7: 'Збірки iOS до 1.56 повідомляють не справжню версію, а 1.27. Поки вони в людей, з примусом тут не можна ставити вище 1.27 — заблокуються всі iPhone',
+  3: 'Старий ADMIN — лише точний збіг; ADMIN 2.0 — не нижче',
+  5: 'Старий ADMIN — лише точний збіг; ADMIN 2.0 — не нижче',
+  6: 'Нижчі версії побачать екран оновлення',
+  7: 'iPhone до збірки 1.56 шле 1.27 — з примусом не вище 1.27',
 };
 const МАГАЗИН = { 'fan:android': 6, 'fan:ios': 7, 'admin:android': 3, 'admin:ios': 5 };
 const ЗАСТОСУНКИ = [
@@ -73,18 +72,7 @@ export default function SettingsPage() {
             ))}
           </section>
 
-          <Releases variables={list.data} />
-
-          <section className="card-form">
-            <h3>Мінімальні версії застосунків</h3>
-            <p className="muted small-text">
-              Глухий екран «Потрібне оновлення» для збірок, які вже не працюють із сервером. Вмикається лише тоді, коли
-              стара версія справді несумісна. Звичайне «вийшло оновлення» — у блоці вище, воно нікого не блокує
-            </p>
-            {[3, 5, 6, 7].map((id) => (
-              <Version key={id} item={рядок(id)} назва={ВЕРСІЇ[id]} />
-            ))}
-          </section>
+          <AppVersions variables={list.data} />
         </>
       )}
     </div>
@@ -167,106 +155,58 @@ function Blocker({ item, назва }) {
   );
 }
 
-function Version({ item, назва }) {
-  const save = useSave(item?.id);
-  const [values, setValues] = useState({ bool: false, text: '', explanatio: '' });
-  useEffect(() => {
-    if (item) setValues({ bool: !!item.bool, text: item.text || '', explanatio: item.explanatio || '' });
-  }, [item]);
-  if (!item) return null;
-  // Запобіжник для iOS-фанатського: див. ЯК_ЧИТАЄ[7]
-  const небезпечно = item.id === 7 && values.bool && більша(values.text, '1.27');
-  return (
-    <form
-      className="form"
-      onSubmit={(e) => {
-        e.preventDefault();
-        save.mutate(values);
-      }}
-    >
-      <div className="row2">
-        <Field label={назва}>
-          <input value={values.text} onChange={(e) => setValues((s) => ({ ...s, text: e.target.value }))} />
-        </Field>
-        <Field label="Посилання на магазин">
-          <input value={values.explanatio} onChange={(e) => setValues((s) => ({ ...s, explanatio: e.target.value }))} />
-        </Field>
-      </div>
-      <Toggle
-        checked={values.bool}
-        onChange={(v) => setValues((s) => ({ ...s, bool: v }))}
-        label="Вимагати оновлення примусово"
-      />
-      <div className="muted small-text">{ЯК_ЧИТАЄ[item.id]}</div>
-      {небезпечно && <div className="error-box">З увімкненим примусом версія вище 1.27 заблокує всі iPhone. Залиште 1.27 або вимкніть примус</div>}
-      <ErrorBox error={save.error} />
-      <div className="form-actions">
-        {save.isSuccess && <span className="muted small-text">збережено</span>}
-        <button className="btn primary" disabled={save.isPending || небезпечно}>
-          Зберегти
-        </button>
-      </div>
-    </form>
-  );
-}
-
-// R57. Актуальні версії в магазинах — журнал релізів. Вносить продакт, коли
-// версія справді в магазині. Від цього залежать м'який банер «Є оновлення» в
-// застосунках і пуш про нову версію (фанатський, лише major/minor).
-function Releases({ variables }) {
+// R57. Версії застосунків — одна таблиця, рядок на застосунок.
+// «У магазині» — журнал релізів (вносить продакт після релізу): смуга «Є
+// оновлення» і пуш, нікого не блокує. «Мінімальна» + примус — Variables
+// 3/5/6/7: глухий екран для старіших збірок.
+function AppVersions({ variables }) {
   const qc = useQueryClient();
   const list = useQuery({ queryKey: ['releases'], queryFn: () => crm.get('/releases') });
   const [новий, setНовий] = useState(null);
   const [правка, setПравка] = useState(null);
   const [історія, setІсторія] = useState(false);
   const всі = list.data || [];
-  const останній = (a) => всі.find((r) => r.app === a.app && r.platform === a.platform) || null;
-  const посилання = (a) => (variables || []).find((v) => v.id === МАГАЗИН[`${a.app}:${a.platform}`])?.explanatio || '';
   const done = () => qc.invalidateQueries({ queryKey: ['releases'] });
 
   return (
     <section className="card-form">
-      <h3>Актуальні версії в магазинах</h3>
+      <h3>Версії застосунків</h3>
       <p className="muted small-text">
-        Вносьте нову версію після релізу, коли перевірили, що вона справді в магазині. Застосунки покажуть смугу «Є
-        оновлення», а вболівальники отримають пуш (лише на нову major/minor-версію). Нікого не блокує
+        <b>У магазині</b> — вносьте після релізу: застосунок покаже «Є оновлення», нікого не блокує. <b>Мінімальна</b> з
+        примусом — старіші збірки не пустить.
       </p>
       <ErrorBox error={list.error} />
-      <table className="table">
+      <table className="table versions">
         <thead>
           <tr>
             <th>Застосунок</th>
-            <th>Версія в магазині</th>
-            <th>Що нового</th>
-            <th></th>
+            <th>У магазині</th>
+            <th>Мінімальна</th>
           </tr>
         </thead>
         <tbody>
           {ЗАСТОСУНКИ.map((a) => {
-            const r = останній(a);
+            const r = всі.find((x) => x.app === a.app && x.platform === a.platform) || null;
+            const row = (variables || []).find((v) => v.id === МАГАЗИН[`${a.app}:${a.platform}`]);
             return (
               <tr key={a.label}>
-                <td className="strong">{a.label}</td>
+                <td className="strong nowrap">{a.label}</td>
                 <td>
-                  {r ? (
-                    <>
-                      <span className="strong">{r.version}</span> <span className="muted small-text">від {fmtDate(r.released_at)}</span>
-                    </>
-                  ) : (
-                    <span className="muted">не внесено</span>
-                  )}
-                </td>
-                <td className="muted">{r?.note || '—'}</td>
-                <td className="row-actions">
-                  <button className="btn small primary" onClick={() => setНовий({ ...a, store_url: r?.store_url || посилання(a) })}>
-                    Новий реліз
-                  </button>
-                  {r && (
-                    <button className="btn small" onClick={() => setПравка(r)}>
-                      Змінити
+                  <div className="ver-cell">
+                    {r ? (
+                      <button type="button" className="link-button" onClick={() => setПравка(r)} title="Змінити «що нового», дату, посилання">
+                        <span className="strong">{r.version}</span> <span className="muted small-text">{fmtDate(r.released_at)}</span>
+                      </button>
+                    ) : (
+                      <span className="muted">—</span>
+                    )}
+                    <button className="btn small" onClick={() => setНовий({ ...a, store_url: r?.store_url || row?.explanatio || '' })}>
+                      + реліз
                     </button>
-                  )}
+                  </div>
+                  {r?.note && <div className="muted small-text">{r.note}</div>}
                 </td>
+                <td>{row && <MinVersion item={row} />}</td>
               </tr>
             );
           })}
@@ -275,24 +215,60 @@ function Releases({ variables }) {
       <button type="button" className="btn small" onClick={() => setІсторія(!історія)} aria-expanded={історія}>
         {історія ? 'Сховати історію' : `Історія релізів (${всі.length})`}
       </button>
-      {історія && (всі.length === 0 ? <Empty>Релізів ще не внесено</Empty> : (
-        <table className="table compact">
-          <tbody>
-            {всі.map((r) => (
-              <tr key={r.id}>
-                <td>{ЗАСТОСУНКИ.find((a) => a.app === r.app && a.platform === r.platform)?.label}</td>
-                <td className="strong">{r.version}</td>
-                <td className="muted">{fmtDate(r.released_at)}</td>
-                <td className="muted">{r.note || '—'}</td>
-                <td className="muted">{r._by?.Name || ''}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      ))}
+      {історія &&
+        (всі.length === 0 ? (
+          <Empty>Релізів ще не внесено</Empty>
+        ) : (
+          <table className="table compact">
+            <tbody>
+              {всі.map((r) => (
+                <tr key={r.id}>
+                  <td>{ЗАСТОСУНКИ.find((a) => a.app === r.app && a.platform === r.platform)?.label}</td>
+                  <td className="strong">{r.version}</td>
+                  <td className="muted">{fmtDate(r.released_at)}</td>
+                  <td className="muted">{r.note || '—'}</td>
+                  <td className="muted">{r._by?.Name || ''}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        ))}
       {новий && <ReleaseForm init={новий} onClose={() => setНовий(null)} onDone={done} />}
       {правка && <ReleaseForm init={правка} edit onClose={() => setПравка(null)} onDone={done} />}
     </section>
+  );
+}
+
+function MinVersion({ item }) {
+  const save = useSave(item.id);
+  const [v, setV] = useState({ text: item.text || '', bool: !!item.bool });
+  useEffect(() => setV({ text: item.text || '', bool: !!item.bool }), [item]);
+  const змінено = v.text !== (item.text || '') || v.bool !== !!item.bool;
+  // Запобіжник для iOS-фанатського: див. ЯК_ЧИТАЄ[7]
+  const небезпечно = item.id === 7 && v.bool && більша(v.text, '1.27');
+  return (
+    <form
+      className="ver-cell"
+      onSubmit={(e) => {
+        e.preventDefault();
+        save.mutate(v);
+      }}
+    >
+      <input className="ver-input" value={v.text} onChange={(e) => setV((s) => ({ ...s, text: e.target.value }))} aria-label="Мінімальна версія" />
+      <label className="ver-force" title="Вимагати оновлення примусово">
+        <input type="checkbox" checked={v.bool} onChange={(e) => setV((s) => ({ ...s, bool: e.target.checked }))} /> примус
+      </label>
+      {змінено && (
+        <button className="btn small primary" disabled={save.isPending || небезпечно}>
+          Зберегти
+        </button>
+      )}
+      {save.isSuccess && !змінено && <span className="muted small-text">збережено</span>}
+      <div className={небезпечно ? 'error-text ver-hint' : 'muted small-text ver-hint'}>
+        {небезпечно ? 'Так заблокуються всі iPhone: лишіть 1.27 або зніміть примус' : ЯК_ЧИТАЄ[item.id]}
+      </div>
+      <ErrorBox error={save.error} />
+    </form>
   );
 }
 

@@ -1,5 +1,6 @@
 // R55. Усе про матч, що потрібно тексту пуша: команди з емблемами, рахунок,
-// змагання й тур, топ-матч. Емблеми — https-адреси з Xano (для картинки пуша).
+// змагання й тур, топ-матч. Емблеми — https-адреси з Xano (для картинки пуша);
+// для змагання — лише league.logo_square (квадрат), інакше null.
 function "Push v2 match context" {
   input {
     int match_id
@@ -33,7 +34,7 @@ function "Push v2 match context" {
     db.get league {
       field_name = "id"
       field_value = $lg.league_id
-      output = ["id", "name", "short_name", "logo"]
+      output = ["id", "name", "short_name", "logo_square"]
     } as $comp
 
     db.get Tours {
@@ -58,7 +59,8 @@ function "Push v2 match context" {
           score: [Number(m.Result_team1) || 0, Number(m.Result_team2) || 0],
           competition: comp.short_name || comp.name || lg.Short_name || lg.League || '',
           tour: ($var.tour && $var.tour.TourName) || '',
-          logo: url(comp.logo) || url(lg.Logo),
+          // Лише квадратний значок: високе лого Android обрізає. Немає — пуш без картинки змагання
+          logo: url(comp.logo_square),
         };
       """
       timeout = 10

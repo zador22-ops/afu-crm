@@ -1419,3 +1419,36 @@ input[type='radio'] {
 .chip .muted {
   font-family: inherit;
 }
+
+/* R55: квадратний значок — шахова підкладка показує прозорі поля */
+.square-check {
+  aspect-ratio: 1;
+  object-fit: contain;
+  background: repeating-conic-gradient(#e9edf2 0% 25%, #fff 0% 50%) 0 0 / 12px 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+
+/* R57: компактна таблиця версій */
+.table.versions td {
+  vertical-align: top;
+}
+.ver-cell {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+.ver-input {
+  width: 110px;
+}
+.ver-force {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 13px;
+  white-space: nowrap;
+}
+.ver-hint {
+  flex-basis: 100%;
+}

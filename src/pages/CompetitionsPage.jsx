@@ -21,6 +21,12 @@ export default function CompetitionsPage() {
         form.append('image', v.logo);
         await crm.upload(`/competitions/${saved.id}/logo`, form);
       }
+      if (v.logoSquare) {
+        // R55: квадратний значок для картинки в пуші — окреме поле league.logo_square
+        const form = new FormData();
+        form.append('image', v.logoSquare);
+        await crm.upload(`/competitions/${saved.id}/logo-square`, form);
+      }
       return saved;
     },
     onSuccess: () => {
@@ -118,12 +124,29 @@ function CompetitionForm({ item, onClose, onSave, onDelete }) {
   const чинний = item.logo?.url || null;
   const [прев, setПрев] = useState(null);
   const [кадруємо, setКадруємо] = useState(false);
+  const [квадрат, setКвадрат] = useState(null);
+  const [квадратПрев, setКвадратПрев] = useState(null);
+  const [кадруємоКвадрат, setКадруємоКвадрат] = useState(false);
+  const [вписуємо, setВписуємо] = useState('');
+  const чиннийКвадрат = item.logo_square?.url || null;
+  const вписати = async () => {
+    setВписуємо('…');
+    try {
+      const blob = await вписатиУКвадрат(прев || чинний);
+      setКвадрат(new File([blob], 'logo-square.png', { type: 'image/png' }));
+      setКвадратПрев(URL.createObjectURL(blob));
+      setВписуємо('');
+    } catch {
+      setВписуємо('Не вдалося обробити логотип — завантажте квадратний файл');
+    }
+  };
   const [confirming, setConfirming] = useState(false);
   const submit = (e) => {
     e.preventDefault();
     onSave.mutate({
       id: item.id,
       logo,
+      logoSquare: квадрат,
       show_in_app: показувати,
       data: { name: values.name.trim(), type: values.type, short_name: values.short_name.trim(), sort_order: Number(values.sort_order) || 0 },
     });
@@ -185,6 +208,46 @@ function CompetitionForm({ item, onClose, onSave, onDelete }) {
             }}
           />
         )}
+        <Field
+          label="Значок для сповіщень (квадрат)"
+          hint="Картинка в пуші. Android показує її у квадратному віконці, тож високий логотип обрізається. Немає значка — пуш іде без картинки змагання"
+        >
+          <div className="club-cell">
+            {квадратПрев || чиннийКвадрат ? (
+              <img src={квадратПрев || чиннийКвадрат} alt="" className="img-logo small square-check" />
+            ) : (
+              <span className="img-logo small logo-empty square-check" />
+            )}
+            <input
+              type="file"
+              accept="image/*"
+              aria-label="Файл квадратного значка"
+              onChange={(e) => {
+                const f = e.target.files?.[0] || null;
+                setКвадрат(f);
+                setКвадратПрев(f ? URL.createObjectURL(f) : null);
+                if (f) setКадруємоКвадрат(true);
+              }}
+            />
+            <button type="button" className="btn small" disabled={!прев && !чинний} onClick={вписати}>
+              Вписати логотип у квадрат
+            </button>
+          </div>
+          {вписуємо && <div className="muted small-text">{вписуємо}</div>}
+        </Field>
+        {кадруємоКвадрат && (
+          <PhotoCropper
+            file={квадрат}
+            прозоро
+            size={512}
+            onClose={() => setКадруємоКвадрат(false)}
+            onDone={(blob, urlПрев) => {
+              setКвадрат(new File([blob], 'logo-square.png', { type: 'image/png' }));
+              setКвадратПрев(urlПрев);
+              setКадруємоКвадрат(false);
+            }}
+          />
+        )}
         {confirming && (
           <div className="danger-box">
             <div className="strong">Видалити змагання «{item.name}» назавжди?</div>
@@ -220,4 +283,26 @@ function CompetitionForm({ item, onClose, onSave, onDelete }) {
       </form>
     </Modal>
   );
+}
+
+// R55: вписати будь-який логотип у квадрат 512×512 з прозорими полями, не обрізаючи.
+// Високе лого Екстра-ліги (2357×5616) так стає вузькою смугою по центру — але цілим.
+async function вписатиУКвадрат(src) {
+  const img = await new Promise((resolve, reject) => {
+    const i = new Image();
+    i.crossOrigin = 'anonymous';
+    i.onload = () => resolve(i);
+    i.onerror = reject;
+    i.src = src;
+  });
+  const N = 512;
+  const pad = 24;
+  const k = Math.min((N - pad * 2) / img.naturalWidth, (N - pad * 2) / img.naturalHeight);
+  const w = Math.round(img.naturalWidth * k);
+  const h = Math.round(img.naturalHeight * k);
+  const c = document.createElement('canvas');
+  c.width = N;
+  c.height = N;
+  c.getContext('2d').drawImage(img, (N - w) / 2, (N - h) / 2, w, h);
+  return new Promise((resolve, reject) => c.toBlob((b) => (b ? resolve(b) : reject(new Error('canvas'))), 'image/png'));
 }
