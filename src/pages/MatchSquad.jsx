@@ -28,7 +28,7 @@ export default function MatchSquad({ match }) {
             {match._team2?.TeamName}
           </button>
         </div>
-        <span className="muted">Заявка зберігається цілком на команду. Стартова пʼятірка — не більше пʼятьох</span>
+        <span className="muted">Заявка зберігається цілком на команду. У стартовій пʼятірці — рівно 5 гравців</span>
       </div>
       <SquadEditor key={side} matchId={match.id} teaminfoId={side} назва={клуб?.TeamName} />
     </section>
@@ -76,6 +76,18 @@ function SquadEditor({ matchId, teaminfoId, назва }) {
   const уСтарті = Object.values(обрані).filter((v) => v === 'first5').length;
   const заявлено = Object.values(обрані).filter(Boolean).length;
 
+  // R51: рівно 5 у старті (порожню заявку зберегти можна — так знімають склад)
+  const стартНеТой = заявлено > 0 && уСтарті !== 5;
+  // Однакові номери серед заявлених — підказка, не заборона
+  const дублі = useMemo(() => {
+    const заНомером = {};
+    for (const r of активні) {
+      if (!обрані[r.id] || !Number(r.Number)) continue;
+      (заНомером[r.Number] ||= []).push(personName(r._people) || `гравець ${r.player_id}`);
+    }
+    return Object.entries(заНомером).filter(([, імена]) => імена.length > 1);
+  }, [активні, обрані]);
+
   const перемкнути = (id, стан) => setОбрані((s) => ({ ...s, [id]: s[id] === стан ? undefined : стан }));
 
   if (roster.isPending || squad.isPending) return <div className="muted">Завантаження…</div>;
@@ -85,13 +97,25 @@ function SquadEditor({ matchId, teaminfoId, назва }) {
       <ErrorBox error={roster.error || squad.error || save.error} />
       <div className="section-bar">
         <span className="muted">
-          {назва}: заявлено {заявлено}, у старті {уСтарті}
+          {назва}: заявлено {заявлено}, у старті <span className={стартНеТой ? 'danger-text strong' : ''}>{уСтарті}/5</span>
         </span>
-        <button className="btn primary" onClick={() => save.mutate()} disabled={save.isPending}>
+        <button className="btn primary" onClick={() => save.mutate()} disabled={save.isPending || стартНеТой}>
           Зберегти заявку
         </button>
         {save.isSuccess && <span className="muted small-text">збережено</span>}
       </div>
+      {стартНеТой && <div className="error-box">У стартовій пʼятірці має бути рівно 5 гравців, зараз {уСтарті}</div>}
+      {дублі.length > 0 && (
+        <div className="warn-box">
+          Однакові номери в заявці:{' '}
+          {дублі.map(([n, імена], i) => (
+            <span key={n}>
+              {i > 0 && '; '}№{n} — {імена.join(', ')}
+            </span>
+          ))}
+          . Виправте номер у складі клубу.
+        </div>
+      )}
       {активні.length === 0 && <Empty>У клубі немає чинного складу</Empty>}
       {активні.length > 0 && (
         <table className="table">
