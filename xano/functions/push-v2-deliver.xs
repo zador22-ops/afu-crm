@@ -32,7 +32,7 @@ function "Push v2 deliver" {
         const mode = $input.silent ? 'silent' : $input.dry_run ? 'dry' : cfg.live === true ? 'live' : 'test';
         const was = ($var.was || []).map((r) => r.mode);
         if ($input.once && was.some((m) => m === mode || m === 'live' || m === 'silent')) {
-          return { skip: true, mode, recipients: 0, would_reach: 0, expo: [], title: '', body: '', sample: [] };
+          return { skip: true, mode, recipients: 0, would_reach: 0, expo: [], title: '', body: '', data: null, sample: [] };
         }
         const groups = (Array.isArray($input.messages) ? $input.messages : []).filter((g) => g && g.title);
         const msg = (to, g) => {
@@ -68,6 +68,7 @@ function "Push v2 deliver" {
           expo,
           title: first.title || '',
           body: first.body || '',
+          data: first.data || null,
           sample: groups.slice(0, 3).map((g) => ({ title: g.title, body: g.body, data: g.data, image: g.image || null, to_count: (g.to || []).length })),
         };
       """
@@ -96,6 +97,7 @@ function "Push v2 deliver" {
             mode      : $plan.mode
             title     : $plan.title
             body      : $plan.body
+            data      : $plan.data
           }
         } as $log
       }
