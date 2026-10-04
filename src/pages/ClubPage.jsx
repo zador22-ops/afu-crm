@@ -361,25 +361,28 @@ function ImageSlot({ label, url, onFile, busy, wide, кадрувати }) {
   );
 }
 
-// R50б: ігровий номер не має повторюватись серед чинних гравців клубу в одному
-// турнірі. Сервер дублі не забороняє (старий ADMIN пише в обхід CRM), тож
-// CRM підсвічує їх у складі й не дає зберегти новий дубль у формах.
-const ключНомера = (leagues_id, n) => `${leagues_id}:${Number(n)}`;
+// R50б: ігровий номер не має повторюватись у чинному складі клубу — без огляду
+// на турнір. Заявка на матч (CRM, ADMIN) пропонує всіх чинних гравців клубу,
+// тож два №11 з різних турнірів однаково стоять поруч (Авалон, 04.10: записи
+// 2025/26 і 2026/27). Сервер дублі не забороняє (старий ADMIN пише в обхід
+// CRM), тож CRM підсвічує їх у складі й не дає зберегти новий дубль у формах.
 const дублікатиНомерів = (rows) => {
   const групи = {};
   for (const r of rows || []) {
     if (!r.Relevance_of_the_record || !Number(r.Number)) continue;
-    (групи[ключНомера(r.leagues_id, r.Number)] ||= []).push(r);
+    (групи[Number(r.Number)] ||= []).push(r);
   }
-  return Object.values(групи).filter((g) => g.length > 1);
+  // Той самий гравець у двох турнірах з одним номером — не дубль
+  return Object.values(групи).filter((g) => new Set(g.map((r) => r.player_id)).size > 1);
 };
 // Чинний склад клубу без фільтрів — той самий запит, що й вкладка «Склад» за замовчуванням
 const useActiveRoster = (clubId) =>
   useQuery({ queryKey: ['roster', clubId, '', false], queryFn: () => crm.get(`/clubs/${clubId}/roster`, { all: false }) });
-const хтоМаєНомер = (rows, leagues_id, n, крімId) => {
-  if (!Number(n) || !leagues_id) return null;
+// Інший запис того самого гравця (people) — не конфлікт: це його ж заявка в іншому турнірі
+const хтоМаєНомер = (rows, n, крімId, player_id) => {
+  if (!Number(n)) return null;
   return (rows || []).find(
-    (r) => r.Relevance_of_the_record && r.id !== крімId && Number(r.leagues_id) === Number(leagues_id) && Number(r.Number) === Number(n)
+    (r) => r.Relevance_of_the_record && r.id !== крімId && r.player_id !== player_id && Number(r.Number) === Number(n)
   );
 };
 
@@ -406,7 +409,9 @@ function Roster({ club, participations }) {
     },
   });
 
-  const дублі = дублікатиНомерів(roster.data);
+  // Дублі рахуємо по всьому чинному складу, а не лише по відфільтрованому турніру
+  const чинний = useActiveRoster(club.id);
+  const дублі = дублікатиНомерів(чинний.data);
   const уДублях = new Set(дублі.flat().map((r) => r.id));
 
   return (
@@ -430,10 +435,10 @@ function Roster({ club, participations }) {
       <ErrorBox error={roster.error || close.error} />
       {дублі.length > 0 && (
         <div className="warn-box">
-          <div className="strong">Однакові ігрові номери в одному турнірі</div>
+          <div className="strong">Однакові ігрові номери в чинному складі</div>
           {дублі.map((g) => (
             <div key={g[0].id}>
-              №{g[0].Number} — {g.map((r) => personName(r._people)).join(', ')} ({g[0]._leagues?.League || `турнір #${g[0].leagues_id}`})
+              №{g[0].Number} — {g.map((r) => `${personName(r._people)} (${r._leagues?.League || `турнір #${r.leagues_id}`})`).join(', ')}
             </div>
           ))}
           <div className="muted small-text">Змініть номер одному з гравців кнопкою «Змінити»</div>
@@ -456,7 +461,7 @@ function Roster({ club, participations }) {
           <tbody>
             {roster.data.map((r) => (
               <tr key={r.id} className={r.Relevance_of_the_record ? '' : 'muted'}>
-                <td className={`num ${уДублях.has(r.id) ? 'num-dup' : ''}`} title={уДублях.has(r.id) ? 'Цей номер має ще один гравець у турнірі' : undefined}>
+                <td className={`num ${уДублях.has(r.id) ? 'num-dup' : ''}`} title={уДублях.has(r.id) ? 'Цей номер має ще один чинний гравець клубу' : undefined}>
                   {r.Number || '—'}
                 </td>
                 <td className="club-cell">
@@ -531,7 +536,7 @@ function AddPlayer({ club, participations, defaultLeague, onClose, onDone }) {
   });
   const playerPositions = (dicts.data?.positions || []).filter((p) => p.Player_position);
   const склад = useActiveRoster(club.id);
-  const зайнято = хтоМаєНомер(склад.data, values.leagues_id, values.Number);
+  const зайнято = хтоМаєНомер(склад.data, values.Number, null, person?.id);
 
   return (
     <Modal title={`Заявити гравця в ${club.TeamName}`} onClose={onClose} width={640}>
@@ -569,7 +574,7 @@ function AddPlayer({ club, participations, defaultLeague, onClose, onDone }) {
         <div className="row2">
           <Field label="Ігровий номер">
             <input type="number" min="0" max="99" value={values.Number} onChange={set('Number')} aria-invalid={!!зайнято} />
-            {зайнято && <div className="error-text">№{values.Number} уже в {personName(зайнято._people)} у цьому турнірі</div>}
+            {зайнято && <div className="error-text">№{values.Number} уже в {personName(зайнято._people)} у чинному складі клубу</div>}
           </Field>
           <Field label="Дата заявки">
             <input type="date" value={values.Date} onChange={set('Date')} required />
@@ -599,7 +604,7 @@ function EditRosterRow({ row, onClose, onDone }) {
   const dicts = useQuery({ queryKey: ['dicts'], queryFn: () => crm.get('/positions') });
   const { values, set } = useForm({ Number: row.Number ?? '', positions_id: row.positions_id || '', Captain: !!row.Captain });
   const склад = useActiveRoster(row.teaminfo_id);
-  const зайнято = хтоМаєНомер(склад.data, row.leagues_id, values.Number, row.id);
+  const зайнято = хтоМаєНомер(склад.data, values.Number, row.id, row.player_id);
   const save = useMutation({
     mutationFn: () =>
       crm.patch(`/roster/${row.id}`, { Number: toInt(values.Number) ?? 0, positions_id: Number(values.positions_id), Captain: values.Captain }),
@@ -620,7 +625,7 @@ function EditRosterRow({ row, onClose, onDone }) {
         <div className="row2">
           <Field label="Ігровий номер">
             <input type="number" min="0" max="99" value={values.Number} onChange={set('Number')} autoFocus aria-invalid={!!зайнято} />
-            {зайнято && <div className="error-text">№{values.Number} уже в {personName(зайнято._people)} у цьому турнірі</div>}
+            {зайнято && <div className="error-text">№{values.Number} уже в {personName(зайнято._people)} у чинному складі клубу</div>}
           </Field>
           <Field label="Амплуа">
             <select value={values.positions_id} onChange={set('positions_id')}>

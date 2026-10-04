@@ -83,9 +83,11 @@ function SquadEditor({ matchId, teaminfoId, назва }) {
     const заНомером = {};
     for (const r of активні) {
       if (!обрані[r.id] || !Number(r.Number)) continue;
-      (заНомером[r.Number] ||= []).push(personName(r._people) || `гравець ${r.player_id}`);
+      (заНомером[r.Number] ||= new Map()).set(r.player_id, personName(r._people) || `гравець ${r.player_id}`);
     }
-    return Object.entries(заНомером).filter(([, імена]) => імена.length > 1);
+    return Object.entries(заНомером)
+      .filter(([, гравці]) => гравці.size > 1)
+      .map(([n, гравці]) => [n, [...гравці.values()]]);
   }, [активні, обрані]);
 
   const перемкнути = (id, стан) => setОбрані((s) => ({ ...s, [id]: s[id] === стан ? undefined : стан }));
