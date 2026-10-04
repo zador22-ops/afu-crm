@@ -63,7 +63,7 @@ query "matches/{match_id}/squad" verb=PUT {
           unique: new Set(гравці.map((p) => p.team_id)).size === гравці.length,
           foreign: гравці.some((p) => !свої.has(p.team_id)) || штаб.some((id) => !свійШтаб.has(id)),
           first5: гравці.filter((p) => p.first5).length,
-          // R51 (Андрій 04.10): у заявленому складі рівно 5 стартових.
+          // R50б (Андрій 04.10): у заявленому складі рівно 5 стартових.
           // Порожня заявка дозволена — так команду знімають зі складу матчу.
           start_ok: гравці.length === 0 || гравці.filter((p) => p.first5).length === 5,
           start_message: `У стартовій пʼятірці має бути рівно 5 гравців, зараз ${гравці.filter((p) => p.first5).length}`,

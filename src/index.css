@@ -1310,7 +1310,7 @@ input[type='radio'] {
   text-transform: none;
 }
 
-/* R51: попередження (жовте) — не помилка, але треба виправити */
+/* R50б: попередження (жовте) — не помилка, але треба виправити */
 .warn-box {
   background: var(--warn-soft);
   color: var(--warn);
