@@ -75,6 +75,10 @@ function "Push v2 deliver" {
       timeout = 10
     } as $plan
 
+    var $expo {
+      value = []
+    }
+
     conditional {
       if ($plan.skip == false) {
         foreach ($plan.expo) {
@@ -84,6 +88,9 @@ function "Push v2 deliver" {
               method = "POST"
               params = $m
             } as $sent
+            var.update $expo {
+              value = $expo|push:$sent.response.result
+            }
           }
         }
 
@@ -98,6 +105,7 @@ function "Push v2 deliver" {
             title     : $plan.title
             body      : $plan.body
             data      : $plan.data
+            expo      : $expo
           }
         } as $log
       }
