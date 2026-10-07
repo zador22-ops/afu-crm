@@ -52,14 +52,16 @@ const токен = () => {
  */
 export const мета = async (метод, шлях, тіло, тип) => {
   const рядкове = typeof тіло === 'string';
+  // FormData (завантаження файлу у vault) — fetch сам ставить multipart із межею
+  const форма = typeof FormData !== 'undefined' && тіло instanceof FormData;
   const contentType = рядкове ? тип || 'text/plain' : 'application/json';
   const res = await fetch(БАЗА + шлях, {
     method: метод,
     headers: {
       Authorization: `Bearer ${токен()}`,
-      ...(тіло != null ? { 'Content-Type': contentType } : {}),
+      ...(тіло != null && !форма ? { 'Content-Type': contentType } : {}),
     },
-    ...(тіло != null ? { body: рядкове ? тіло : JSON.stringify(тіло) } : {}),
+    ...(тіло != null ? { body: рядкове || форма ? тіло : JSON.stringify(тіло) } : {}),
   });
   const текст = await res.text();
   let дані;
