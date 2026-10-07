@@ -17,6 +17,9 @@ import { мета } from '../meta.mjs';
 
 const XANO = 'https://xdeg-kg7i-jjtu.f2.xano.io';
 const ЗАПИС = process.argv.includes('--write');
+// --from=2026-08-01 — лише новини, опубліковані від цієї дати (за Києвом, 00:00)
+const ВІД = (process.argv.find((a) => a.startsWith('--from=')) || '').split('=')[1];
+const МЕЖА = ВІД ? Date.parse(`${ВІД}T00:00:00+03:00`) : 0;
 const ФАЙЛ = /(https?:)?\/\/(www\.)?(futsal\.com\.ua|wptest\.initservices\.com\.ua)\/wp-content\/uploads\/[^"'\s)<>]+/gi;
 const СТОРІНКА = /href="(https?:)?\/\/(www\.)?futsal\.com\.ua\/(?!wp-content)[^"]*"/gi;
 
@@ -36,6 +39,7 @@ const лік = { новин: 0, зФайлами: 0, посилань: 0, уні
 const унікальні = new Map();
 for await (const пачка of новини()) {
   for (const n of пачка) {
+    if (МЕЖА && !(n.published_at >= МЕЖА)) continue;
     лік.новин++;
     const html = n.body_html || '';
     const знайдені = [...new Set((html.match(ФАЙЛ) || []))];
