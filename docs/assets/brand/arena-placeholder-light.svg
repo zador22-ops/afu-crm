@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 160 160" width="160" height="160" role="img" aria-label="Арена">
+  <defs>
+    <clipPath id="c"><rect x="26" y="70" width="108" height="62" rx="4"/></clipPath>
+  </defs>
+  <rect width="160" height="160" rx="28" fill="#E8F1F9"/>
+  <path d="M22 62 Q80 18 138 62" fill="none" stroke="#1676BC" stroke-width="7" stroke-linecap="round"/>
+  <path d="M80 30 V46" stroke="#F2C400" stroke-width="7" stroke-linecap="round"/>
+  <rect x="26" y="70" width="108" height="62" rx="4" fill="none" stroke="#1676BC" stroke-width="5"/>
+  <line x1="80" y1="70" x2="80" y2="132" stroke="#1676BC" stroke-width="4"/>
+  <circle cx="80" cy="101" r="12" fill="none" stroke="#1676BC" stroke-width="4"/>
+  <g clip-path="url(#c)">
+    <circle cx="26" cy="101" r="18" fill="none" stroke="#1676BC" stroke-width="4"/>
+    <circle cx="134" cy="101" r="18" fill="none" stroke="#1676BC" stroke-width="4"/>
+  </g>
+  <circle cx="80" cy="101" r="4.5" fill="#F2C400"/>
+</svg>
