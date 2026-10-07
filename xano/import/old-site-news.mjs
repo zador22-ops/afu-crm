@@ -47,8 +47,10 @@ const чисто = (html) =>
 const текст = (html) => {
   const d = window.document.createElement('div');
   d.innerHTML = html || '';
-  return (d.textContent || '').replace(/ /g, ' ').replace(/\s+/g, ' ').trim();
+  return (d.textContent || '').replace(/ /g, ' ').replace(/\s+/g, ' ').trim().toWellFormed();
 };
+// Обрізка за символами, а не UTF-16 одиницями: інакше емодзі ріжеться навпіл і Xano не приймає JSON
+const обрізати = (t, n) => Array.from(t).slice(0, n).join('');
 
 // Рубрики: як на старому сайті, сезонні «Перша ліга 2022/23» і «2023/24» — у наявну «Перша ліга»
 const РУБРИКИ = [
@@ -87,11 +89,22 @@ const файл = async (src, meta) => {
   if (!кеш[src]) {
     const res = await fetch(src);
     if (!res.ok) return null;
-    const blob = new Blob([await res.arrayBuffer()], { type: res.headers.get('content-type') || 'image/jpeg' });
+    const mime = (res.headers.get('content-type') || 'image/jpeg').split(';')[0];
+    const blob = new Blob([await res.arrayBuffer()], { type: mime });
+    // Xano відкидає файли з незвичним розширенням — ім'я з розширенням за типом
+    const РОЗШ = { 'image/jpeg': 'jpg', 'image/png': 'png', 'image/webp': 'webp', 'image/gif': 'gif' };
+    let імя = decodeURIComponent(src.split('/').pop().split('?')[0]).replace(/[^\w.\-]+/g, '-');
+    if (!/\.(jpe?g|png|webp|gif)$/i.test(імя)) імя = імя.replace(/\.[^.]*$/, '') + '.' + (РОЗШ[mime] || 'jpg');
     const f = new FormData();
-    f.append('content', blob, decodeURIComponent(src.split('/').pop().split('?')[0]));
+    f.append('content', blob, імя);
     f.append('type', 'image');
-    const r = await мета('POST', '/workspace/1/file', f);
+    let r;
+    try {
+      r = await мета('POST', '/workspace/1/file', f);
+    } catch (e) {
+      console.error(`  ! файл не прийнято (${src}): ${e.message} — без цього зображення`);
+      return null;
+    }
     кеш[src] = { access: 'public', path: r.path, name: r.name, type: r.type, size: r.size, mime: r.mime, ...(meta ? { meta } : {}), url: XANO + r.path };
     fs.writeFileSync(КЕШ, JSON.stringify(кеш, null, 1));
   }
@@ -142,11 +155,11 @@ for await (const { сторінка, усього, пачка } of пости())
     try {
       const cover = великий ? await файл(великий.source_url, { width: великий.width, height: великий.height }) : null;
       const cover_thumb = малий ? await файл(малий.source_url, { width: малий.width, height: малий.height }) : null;
-      const lead = текст(p.excerpt?.rendered).replace(/\s*\[…\]\s*$|\s*\[&hellip;\]\s*$|\s*…\s*$/, '').slice(0, 300) || текст(p.title?.rendered);
+      const lead = текст(p.excerpt?.rendered).replace(/\s*\[…\]\s*$|\s*\[&hellip;\]\s*$|\s*…\s*$/, ''); const leadCut = обрізати(lead, 300) || текст(p.title?.rendered);
       const r = await мета('POST', '/workspace/1/table/71/content', {
         created_at: Date.now(), updated_at: Date.now(),
-        title: текст(p.title?.rendered), slug: p.slug, category_id: idРубрики[рубрика], lead,
-        body_html: чисто(p.content?.rendered), cover, cover_alt: текст(fm?.alt_text || '') || текст(p.title?.rendered),
+        title: текст(p.title?.rendered), slug: p.slug, category_id: idРубрики[рубрика], lead: leadCut,
+        body_html: чисто(p.content?.rendered).toWellFormed(), cover, cover_alt: текст(fm?.alt_text || '') || текст(p.title?.rendered),
         cover_thumb, gallery: null, video_url: null, is_featured: false, status: 'published',
         published_at: Date.parse(p.date_gmt + 'Z'), created_by: null, updated_by: null, source_url,
       });
