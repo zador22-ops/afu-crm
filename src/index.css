@@ -1452,3 +1452,10 @@ input[type='radio'] {
 .ver-hint {
   flex-basis: 100%;
 }
+
+/* «Влуч у ворота»: підтвердження прямо в рядку */
+.confirm-inline {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
