@@ -18,6 +18,18 @@ query "people/{person_id}" verb=GET {
       return = {type: "list"}
       output = ["teaminfo_id", "leagues_id", "Number", "Date", "End_date", "Relevance_of_the_record"]
     } as $career
+    // afu-crm#10 п.5: історія у штабі клубів (Administration of teams)
+    db.query "Administration of teams" {
+      where = $db.Administration_of_teams.people_id == $input.person_id
+      return = {type: "list"}
+      output = ["teaminfo_id", "leagues_id", "positions_id", "Date", "end_date", "Relevance_of_the_record"]
+    } as $staffCareer
+
+    db.query Positions {
+      return = {type: "list"}
+      output = ["id", "Position"]
+    } as $positions
+
     db.query Season {
       return = {type: "list"}
       output = ["id", "name"]
@@ -55,7 +67,10 @@ query "people/{person_id}" verb=GET {
         const T = byId($var.teams), L = byId($var.tournaments), SE = byId($var.seasons);
         const career = ($var.career || []).map((r) => { const l = L[r.leagues_id]; return { club: club(T[r.teaminfo_id]), league: l ? { id: l.id, name: l.League } : null, season: l && SE[l.season_id] ? { id: l.season_id, name: SE[l.season_id].name } : null, number: r.Number ?? null, date_from: r.Date || null, date_to: r.End_date || null, current: Boolean(r.Relevance_of_the_record) }; })
           .sort((a, b) => String(b.date_from || '').localeCompare(String(a.date_from || '')));
-        return { ...personFull(p), Growth: p.Growth || null, Weight: p.Weight || null, career };
+        const POS = Object.fromEntries(($var.positions || []).map((x) => [x.id, x.Position]));
+        const staff_career = ($var.staffCareer || []).map((r) => { const l = L[r.leagues_id]; return { club: club(T[r.teaminfo_id]), league: l ? { id: l.id, name: l.League } : null, season: l && SE[l.season_id] ? { id: l.season_id, name: SE[l.season_id].name } : null, position: POS[r.positions_id] || null, date_from: r.Date || null, date_to: r.end_date || null, current: r.Relevance_of_the_record !== false }; })
+          .sort((a, b) => Number(b.current) - Number(a.current) || String(b.date_from || '').localeCompare(String(a.date_from || '')));
+        return { ...personFull(p), Growth: p.Growth || null, Weight: p.Weight || null, career, staff_career };
       """
       timeout = 15
     } as $out

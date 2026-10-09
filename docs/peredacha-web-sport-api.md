@@ -179,3 +179,18 @@ https://xdeg-kg7i-jjtu.f2.xano.io/api:tqrLXZWT
 
 Списки відповідають за 0,1–0,3 с, картка матчу — за 0,4–0,7 с. Кешуйте їх на боці сайту, як
 новини.
+
+## Агрегати статистики (afu-crm#10, 09.10.2026)
+
+Голи й незабиті пенальті серії (хвилина 51) не рахуються як голи матчу ніде, як у R24.
+
+- `GET /leagues/{id}/scorers` — `[{player:{id,first_name,last_name,photo}, club, goals, penalty_goals, double_penalty_goals, matches}]`, без автоголів.
+- `GET /leagues/{id}/cards?type=yellow|red` — `[{player, club, count, matches}]`; `red` = червоні + жовто-червоні.
+- `GET /leagues/{id}/penalties?type=penalty|double` — `[{player, club, scored, missed}]`.
+- `GET /leagues/{id}/team-stats` — `[{club, played, won, drawn, lost, goals_for, goals_against, penalty_goals, own_goals_for, yellow_cards, red_cards, fifth_fouls, shootout_won, shootout_lost}]`, лише зіграні матчі.
+- `GET /people/{id}/stats` — `{person_id, total:{matches, goals, own_goals, yellow_cards, red_cards}, by_league:[{league:{id,name}, …}]}`.
+- `GET /people/{id}` — додано `staff_career: [{club, league, season, position, date_from, date_to, current}]`.
+- `GET /people` — `[{id, first_name, last_name, updated_at}]` для sitemap; лише ті, хто є в заявці клубу або в штабі. `updated_at` — дата створення запису, бо окремої дати зміни немає.
+- `/matches` і `/matches/{id}`: `result` — рахунок матчу без серії, `penalty: [p1, p2] | null` — серія. У подіях `shootout: true` для голів і незабитих серії.
+- `GET /matches?venue_id=` — матчі арени.
+- `/matches/{id}`: `photo {url,width,height}` у `lineups[].player`, `events[].player` і `assist`, `staff[].person`.

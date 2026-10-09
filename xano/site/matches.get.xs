@@ -8,6 +8,8 @@ query matches verb=GET {
     int league_id?=0
     int tour_id?=0
     int club_id?=0
+    // afu-crm#10 п.7: матчі арени
+    int venue_id?=0
     text date_from? filters=trim
     text date_to? filters=trim
     int page?=1
@@ -19,6 +21,18 @@ query matches verb=GET {
       return = {type: "list"}
       output = ["id", "TimeOfMatch", "team1_id", "Result_team1", "fouls1_team1", "fouls2_team1", "team2_id", "Result_team2", "fouls1_team2", "fouls2_team2", "leagues_id", "tours_id", "venues_id", "match_status_id", "referee1_id", "referee2_id", "referee3_id", "VideoID", "match_number", "num_of_spectators", "minute_break_1_1", "minute_break_1_2", "minute_break_2_1", "minute_break_2_2", "is_top"]
     } as $matches
+
+    // afu-crm#10 п.6: голи серії пенальті (хв. 51) окремо від рахунку матчу.
+    // Result у базі містить і серію (його пише CRM table recalc / ADMIN з усіх голів).
+    db.direct_query {
+      sql = """
+        SELECT s.match_id, t.teaminfo_id, COUNT(*) AS n
+          FROM x1_11 s JOIN x1_7 t ON t.id = s.team_id
+         WHERE s.minute = 51 AND s.types_of_match_events_id = 1
+         GROUP BY s.match_id, t.teaminfo_id
+        """
+      response_type = "list"
+    } as $shootout
     db.query TeamInfo {
       return = {type: "list"}
       output = ["id", "TeamName", "TeamLogo", "TeamInfo", "Relevance", "parent_teaminfo_id", "founded_year", "home_venues_id", "colors", "team_kind", "country", "leagues_id", "kit_color_primary", "kit_color_secondary"]
@@ -71,6 +85,15 @@ query matches verb=GET {
         const T = byId($var.teams), V = byId($var.venues), J = byId($var.judges), TR = byId($var.tours), ST = byId($var.stages), L = byId($var.tournaments);
         const S = Object.fromEntries(($var.statuses || []).map((s) => [s.id, s.Status]));
         const live = (m) => L[m.leagues_id] && L[m.leagues_id].Relevance === true;
+        const СЕРІЯ = {};
+        for (const s of $var.shootout || []) (СЕРІЯ[s.match_id] ||= {})[s.teaminfo_id] = Number(s.n);
+        // result — рахунок матчу без серії; penalty — серія [команда1, команда2] або null
+        const рахунок = (m) => {
+          if (!(m.match_status_id > 2)) return { result: null, penalty: null };
+          const s = СЕРІЯ[m.id];
+          const p1 = s ? s[m.team1_id] || 0 : 0, p2 = s ? s[m.team2_id] || 0 : 0;
+          return { result: [Math.max(0, (m.Result_team1 ?? 0) - p1), Math.max(0, (m.Result_team2 ?? 0) - p2)], penalty: s ? [p1, p2] : null };
+        };
         const shape = (m) => {
           const tr = TR[m.tours_id]; const st = tr && ST[tr.league_stage_id];
           return {
@@ -79,7 +102,7 @@ query matches verb=GET {
             stage: st ? { id: st.id, name: st.stage_name, type: st.stage_type } : null,
             match_number: m.match_number || null,
             teams: [club(T[m.team1_id]), club(T[m.team2_id])],
-            result: m.match_status_id > 2 ? [m.Result_team1 ?? 0, m.Result_team2 ?? 0] : null,
+            ...рахунок(m),
             fouls: { team1: [Boolean(m.fouls1_team1), Boolean(m.fouls2_team1)], team2: [Boolean(m.fouls1_team2), Boolean(m.fouls2_team2)] },
             status: { id: m.match_status_id, name: S[m.match_status_id] || null },
             venue: venue(V[m.venues_id]),
@@ -95,6 +118,7 @@ query matches verb=GET {
           .filter((m) => !lg || m.leagues_id === lg)
           .filter((m) => !tr || m.tours_id === tr)
           .filter((m) => !cl || m.team1_id === cl || m.team2_id === cl)
+          .filter((m) => !Number($input.venue_id) || m.venues_id === Number($input.venue_id))
           .filter((m) => from === null || (m.TimeOfMatch || 0) >= from)
           .filter((m) => to === null || (m.TimeOfMatch || 0) <= to)
           .sort((a, b) => (a.TimeOfMatch || 0) - (b.TimeOfMatch || 0) || a.id - b.id);

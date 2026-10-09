@@ -13,6 +13,18 @@ query "matches/{match_id}" verb=GET {
       return = {type: "list"}
       output = ["id", "TimeOfMatch", "team1_id", "Result_team1", "fouls1_team1", "fouls2_team1", "team2_id", "Result_team2", "fouls1_team2", "fouls2_team2", "leagues_id", "tours_id", "venues_id", "match_status_id", "referee1_id", "referee2_id", "referee3_id", "VideoID", "match_number", "num_of_spectators", "minute_break_1_1", "minute_break_1_2", "minute_break_2_1", "minute_break_2_2", "is_top"]
     } as $matches
+
+    // afu-crm#10 п.6: голи серії пенальті (хв. 51) окремо від рахунку матчу.
+    // Result у базі містить і серію (його пише CRM table recalc / ADMIN з усіх голів).
+    db.direct_query {
+      sql = """
+        SELECT s.match_id, t.teaminfo_id, COUNT(*) AS n
+          FROM x1_11 s JOIN x1_7 t ON t.id = s.team_id
+         WHERE s.minute = 51 AND s.types_of_match_events_id = 1
+         GROUP BY s.match_id, t.teaminfo_id
+        """
+      response_type = "list"
+    } as $shootout
     db.query Statistic {
       where = $db.Statistic.match_id == $input.match_id
       return = {type: "list"}
@@ -108,6 +120,15 @@ query "matches/{match_id}" verb=GET {
         const T = byId($var.teams), V = byId($var.venues), J = byId($var.judges), TR = byId($var.tours), ST = byId($var.stages), L = byId($var.tournaments);
         const S = Object.fromEntries(($var.statuses || []).map((s) => [s.id, s.Status]));
         const live = (m) => L[m.leagues_id] && L[m.leagues_id].Relevance === true;
+        const СЕРІЯ = {};
+        for (const s of $var.shootout || []) (СЕРІЯ[s.match_id] ||= {})[s.teaminfo_id] = Number(s.n);
+        // result — рахунок матчу без серії; penalty — серія [команда1, команда2] або null
+        const рахунок = (m) => {
+          if (!(m.match_status_id > 2)) return { result: null, penalty: null };
+          const s = СЕРІЯ[m.id];
+          const p1 = s ? s[m.team1_id] || 0 : 0, p2 = s ? s[m.team2_id] || 0 : 0;
+          return { result: [Math.max(0, (m.Result_team1 ?? 0) - p1), Math.max(0, (m.Result_team2 ?? 0) - p2)], penalty: s ? [p1, p2] : null };
+        };
         const shape = (m) => {
           const tr = TR[m.tours_id]; const st = tr && ST[tr.league_stage_id];
           return {
@@ -116,7 +137,7 @@ query "matches/{match_id}" verb=GET {
             stage: st ? { id: st.id, name: st.stage_name, type: st.stage_type } : null,
             match_number: m.match_number || null,
             teams: [club(T[m.team1_id]), club(T[m.team2_id])],
-            result: m.match_status_id > 2 ? [m.Result_team1 ?? 0, m.Result_team2 ?? 0] : null,
+            ...рахунок(m),
             fouls: { team1: [Boolean(m.fouls1_team1), Boolean(m.fouls2_team1)], team2: [Boolean(m.fouls1_team2), Boolean(m.fouls2_team2)] },
             status: { id: m.match_status_id, name: S[m.match_status_id] || null },
             venue: venue(V[m.venues_id]),
@@ -129,19 +150,22 @@ query "matches/{match_id}" verb=GET {
         if (!m || !live(m)) return null;
         const R = byId($var.roster), A = byId($var.admins), P = byId($var.people), POS = byId($var.positions);
         const E = byId($var.etypes), CT = byId($var.ctypes), GT = byId($var.gtypes);
-        const player = (row) => (row ? { ...person(P[row.player_id]), number: row.Number ?? null, team_id: row.teaminfo_id } : null);
+        // afu-crm#10 п.9: фото осіб у матчі, як у /clubs/{id}/squad
+        const personPhoto = (p) => (p ? { ...person(p), photo: img(p.Photo || p.photo) } : null);
+        const player = (row) => (row ? { ...personPhoto(P[row.player_id]), number: row.Number ?? null, team_id: row.teaminfo_id } : null);
         const events = ($var.events || []).map((e) => {
           const r = R[e.team_id];
           return {
             id: e.id, minute: e.minute ?? null,
+            shootout: e.minute === 51 && (e.types_of_match_events_id === 1 || e.types_of_match_events_id === 3),
             type_id: e.types_of_match_events_id || null, type_name: E[e.types_of_match_events_id] ? E[e.types_of_match_events_id].Event : null,
             card: e.types_of_cards_id ? { id: e.types_of_cards_id, name: CT[e.types_of_cards_id] ? CT[e.types_of_cards_id].Type : null } : null,
             goal: e.types_of_goals_id ? { id: e.types_of_goals_id, name: GT[e.types_of_goals_id] ? GT[e.types_of_goals_id].Type : null } : null,
             team_id: r ? r.teaminfo_id : null, player: player(r), assist: player(R[e.asustent_team_id]),
           };
         }).sort((a, b) => (a.minute ?? 999) - (b.minute ?? 999) || a.id - b.id);
-        const lineups = ($var.lineup || []).map((z) => { const r = R[z.team_id]; if (!r) return null; return { team_id: r.teaminfo_id, player: person(P[r.player_id]), number: r.Number ?? null, position: POS[r.positions_id] ? POS[r.positions_id].Position : null, is_captain: Boolean(r.Captain), starting: Boolean(z.First5) }; }).filter(Boolean);
-        const staff = ($var.staffRows || []).map((s) => { const a = A[s.administration_of_teams_id]; if (!a) return null; return { team_id: a.teaminfo_id, person: person(P[a.people_id]), position: POS[a.positions_id] ? POS[a.positions_id].Position : null }; }).filter(Boolean);
+        const lineups = ($var.lineup || []).map((z) => { const r = R[z.team_id]; if (!r) return null; return { team_id: r.teaminfo_id, player: personPhoto(P[r.player_id]), number: r.Number ?? null, position: POS[r.positions_id] ? POS[r.positions_id].Position : null, is_captain: Boolean(r.Captain), starting: Boolean(z.First5) }; }).filter(Boolean);
+        const staff = ($var.staffRows || []).map((s) => { const a = A[s.administration_of_teams_id]; if (!a) return null; return { team_id: a.teaminfo_id, person: personPhoto(P[a.people_id]), position: POS[a.positions_id] ? POS[a.positions_id].Position : null }; }).filter(Boolean);
         return { ...shape(m), events, lineups, staff };
       """
       timeout = 15
