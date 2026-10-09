@@ -2,7 +2,7 @@ query "leagues/{league_id}/cards" verb=GET {
   api_group = "site"
 
   // afu-crm#10 п.2. Картки гравців турніру. type=yellow — жовті; type=red — червоні
-  // плюс жовто-червоні (друга жовта гравця в тому самому матчі). Без карток штабу.
+  // плюс жовто-червоні (тип картки 3 або друга жовта в тому самому матчі). Без карток штабу.
   // Порядок: кількість ↓, менше матчів ↑.
   input {
     int league_id
@@ -69,7 +69,8 @@ query "leagues/{league_id}/cards" verb=GET {
         for (const e of $var.events || []) {
           if (Number(e.ev) !== 2) continue;
           if (Number(e.card) === 2) (жовті[key(e) + ':' + e.match_id] ||= { e, n: 0 }).n++;
-          if (Number(e.card) === 1 && $input.type === 'red') { const r = рядок(e); r.count = (r.count || 0) + 1; }
+          // червона (1) і жовто-червона (3) — як у Default cards_v2 / byTeam (R24б)
+          if ((Number(e.card) === 1 || Number(e.card) === 3) && $input.type === 'red') { const r = рядок(e); r.count = (r.count || 0) + 1; }
         }
         for (const { e, n } of Object.values(жовті)) {
           if ($input.type === 'red' && n >= 2) { const r = рядок(e); r.count = (r.count || 0) + 1; }

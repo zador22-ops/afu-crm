@@ -101,13 +101,14 @@ fs.writeFileSync(new URL('leagues-id-scorers.get.xs', OUT), head('leagues/{leagu
 
 fs.writeFileSync(new URL('leagues-id-cards.get.xs', OUT), head('leagues/{league_id}/cards',
 `afu-crm#10 п.2. Картки гравців турніру. type=yellow — жовті; type=red — червоні
-плюс жовто-червоні (друга жовта гравця в тому самому матчі). Без карток штабу.
+плюс жовто-червоні (тип картки 3 або друга жовта в тому самому матчі). Без карток штабу.
 Порядок: кількість ↓, менше матчів ↑.`, `    text type?=yellow filters=trim\n`) + tail(`
         const жовті = {};
         for (const e of $var.events || []) {
           if (Number(e.ev) !== 2) continue;
           if (Number(e.card) === 2) (жовті[key(e) + ':' + e.match_id] ||= { e, n: 0 }).n++;
-          if (Number(e.card) === 1 && $input.type === 'red') { const r = рядок(e); r.count = (r.count || 0) + 1; }
+          // червона (1) і жовто-червона (3) — як у Default cards_v2 / byTeam (R24б)
+          if ((Number(e.card) === 1 || Number(e.card) === 3) && $input.type === 'red') { const r = рядок(e); r.count = (r.count || 0) + 1; }
         }
         for (const { e, n } of Object.values(жовті)) {
           if ($input.type === 'red' && n >= 2) { const r = рядок(e); r.count = (r.count || 0) + 1; }
@@ -168,7 +169,7 @@ fs.writeFileSync(new URL('leagues-id-team-stats.get.xs', OUT), head('leagues/{le
           }
           if (!m) continue;
           if (Number(e.ev) === 2 && Number(e.card) === 2) st(e.teaminfo_id).yellow_cards++;
-          if (Number(e.ev) === 2 && Number(e.card) === 1) st(e.teaminfo_id).red_cards++;
+          if (Number(e.ev) === 2 && (Number(e.card) === 1 || Number(e.card) === 3)) st(e.teaminfo_id).red_cards++;
           if (Number(e.ev) === 4) st(e.teaminfo_id).fifth_fouls++;
         }
         const серія = {};

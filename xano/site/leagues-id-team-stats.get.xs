@@ -98,7 +98,7 @@ query "leagues/{league_id}/team-stats" verb=GET {
           }
           if (!m) continue;
           if (Number(e.ev) === 2 && Number(e.card) === 2) st(e.teaminfo_id).yellow_cards++;
-          if (Number(e.ev) === 2 && Number(e.card) === 1) st(e.teaminfo_id).red_cards++;
+          if (Number(e.ev) === 2 && (Number(e.card) === 1 || Number(e.card) === 3)) st(e.teaminfo_id).red_cards++;
           if (Number(e.ev) === 4) st(e.teaminfo_id).fifth_fouls++;
         }
         const серія = {};

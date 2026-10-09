@@ -55,7 +55,7 @@ query "people/{person_id}/stats" verb=GET {
           const r = рядок(e.leagues_id);
           if (Number(e.ev) === 1 && Number(e.goal) === 2) { total.own_goals++; r.own_goals++; }
           else if (Number(e.ev) === 1) { total.goals++; r.goals++; }
-          if (Number(e.ev) === 2 && Number(e.card) === 1) { total.red_cards++; r.red_cards++; }
+          if (Number(e.ev) === 2 && (Number(e.card) === 1 || Number(e.card) === 3)) { total.red_cards++; r.red_cards++; }
           if (Number(e.ev) === 2 && Number(e.card) === 2) { total.yellow_cards++; r.yellow_cards++; (жовті[e.match_id] ||= { l: e.leagues_id, n: 0 }).n++; }
         }
         for (const { l, n } of Object.values(жовті)) if (n >= 2) { total.red_cards++; рядок(l).red_cards++; }
