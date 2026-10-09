@@ -3,6 +3,7 @@ import { useQuery } from '@tanstack/react-query';
 import { crm } from '../api/client.js';
 import { Empty, ErrorBox, Field, PageHeader } from '../components/ui.jsx';
 import TournamentMatches from './TournamentMatches.jsx';
+import { kyivDateTimeString } from '../utils/kyivTime.js';
 
 /**
  * Календар: єдиний вхід до матчів.
@@ -56,6 +57,7 @@ export default function CalendarPage() {
         subtitle="Матчі турніру: створення, перенесення, протокол. Турнір обирається зверху — матч завжди належить конкретному турніру сезону"
       />
       <ErrorBox error={seasons.error || tournaments.error} />
+      <TopList />
       <div className="row2">
         <Field label="Сезон">
           <select value={season} onChange={(e) => setSeason(e.target.value)}>
@@ -79,5 +81,43 @@ export default function CalendarPage() {
       {!свої.length && <Empty>У цьому сезоні ще немає турнірів — заведіть їх у розділі «Сезони»</Empty>}
       {турнір && <TournamentMatches tid={Number(tid)} participants={participants.data} />}
     </div>
+  );
+}
+
+// R60а: усі топ-матчі з усіх турнірів — рівно те, що Головна застосунку бере з
+// Default `matches/top/list` (київський день ≥ сьогодні, за часом). Галочку
+// ставлять і знімають у списку матчів турніру нижче.
+function TopList() {
+  const q = useQuery({
+    queryKey: ['top-list'],
+    queryFn: async () => {
+      const r = await fetch('https://xdeg-kg7i-jjtu.f2.xano.io/api:DSaYr0P-/matches/top/list');
+      if (!r.ok) throw new Error('Не вдалося отримати топ-матчі');
+      return r.json();
+    },
+  });
+  const list = q.data || [];
+  return (
+    <section className="card-form">
+      <h3>Топ-матчі на Головній застосунку</h3>
+      <ErrorBox error={q.error} />
+      {q.data && list.length === 0 && <div className="muted small-text">Зараз жодного. Позначте «Топ» у списку матчів турніру — їх може бути кілька</div>}
+      {list.length > 0 && (
+        <table className="table compact">
+          <tbody>
+            {list.map((m) => (
+              <tr key={m.id}>
+                <td className="nowrap">{kyivDateTimeString(m.TimeOfMatch)}</td>
+                <td className="strong">
+                  {m._teaminfo1?.TeamName || '—'} — {m._teaminfo2?.TeamName || '—'}
+                </td>
+                <td className="muted">{m._league?.League}</td>
+                <td className="muted">{m._match_status?.Status}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
+    </section>
   );
 }

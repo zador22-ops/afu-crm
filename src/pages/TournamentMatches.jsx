@@ -37,6 +37,7 @@ const зафіксований = (m) => Number(m?.match_status_id) > 2;
 export default function TournamentMatches({ tid, participants }) {
   const qc = useQueryClient();
   const [tour, setTour] = useState('');
+  const [лишеТоп, setЛишеТоп] = useState(false);
   const [editing, setEditing] = useState(null);
 
   const matches = useQuery({
@@ -84,6 +85,9 @@ export default function TournamentMatches({ tid, participants }) {
             </option>
           ))}
         </select>
+        <label className="ver-force">
+          <input type="checkbox" checked={лишеТоп} onChange={(e) => setЛишеТоп(e.target.checked)} /> лише топ-матчі
+        </label>
         <span className="muted">Рахунок і статус «Зіграний» поки ставляться в ADMIN: від них залежать рядки таблиці</span>
         <button className="btn primary" onClick={() => setEditing({})} disabled={команди.length < 2 || !tours.data?.length}>
           Новий матч
@@ -108,7 +112,7 @@ export default function TournamentMatches({ tid, participants }) {
             </tr>
           </thead>
           <tbody>
-            {matches.data.map((m) => (
+            {matches.data.filter((m) => !лишеТоп || m.is_top).map((m) => (
               <tr key={m.id}>
                 <td>{дата(m.TimeOfMatch)}</td>
                 <td className="muted">{m._tour?.TourName || '—'}</td>
