@@ -14,6 +14,7 @@ export default function GamePage() {
   return (
     <div className="page">
       <PageHeader title="Влуч у ворота" subtitle="Міні-гра в застосунку: рейтинг місяця, переможці, скарги на ніки й захист від накруток" />
+      <GameSwitch />
       <Tabs
         value={tab}
         onChange={setTab}
@@ -30,6 +31,45 @@ export default function GamePage() {
       {tab === 'reports' && <Reports />}
       {tab === 'rejected' && <Rejected />}
       {tab === 'words' && <Words />}
+    </div>
+  );
+}
+
+// Вимикач гри (13.10): рядок game_config #1, той самий, що читають game/start і game/me
+// застосунку. Діє одразу, без деплою; підтвердження — у рядку, як у решті дій.
+function GameSwitch() {
+  const qc = useQueryClient();
+  const q = useQuery({ queryKey: ['game-config'], queryFn: () => crm.get('/game-admin/config') });
+  const save = useMutation({
+    mutationFn: (enabled) => crm.patch('/game-admin/config', { enabled }),
+    onSuccess: (d) => qc.setQueryData(['game-config'], d),
+  });
+  const [ask, setAsk] = useState(false);
+  const on = q.data?.enabled;
+  const busy = q.isLoading || save.isPending;
+  return (
+    <div className={on === false ? 'warn-box' : 'muted-box'}>
+      <div className="section-bar" style={{ marginBottom: 4 }}>
+        <label className="toggle">
+          <input type="checkbox" checked={on ?? true} disabled={busy || q.isError || ask} onChange={() => setAsk(true)} aria-label="Гра увімкнена" />
+          <span className="strong">Гра увімкнена</span>
+        </label>
+        {q.isLoading && <span className="muted small-text">завантаження…</span>}
+        {on === false && <span className="badge warn">гру вимкнено</span>}
+        {ask && (
+          <span className="confirm-inline">
+            <span className="small-text">{on ? 'Вимкнути гру для всіх користувачів?' : 'Увімкнути гру?'}</span>
+            <button className={`btn small ${on ? 'danger' : 'primary'}`} disabled={busy} onClick={() => { setAsk(false); save.mutate(!on); }}>
+              Так
+            </button>
+            <button className="btn small" onClick={() => setAsk(false)}>
+              Ні
+            </button>
+          </span>
+        )}
+      </div>
+      <div className="small-text">Вимкнена гра: користувачі замість поля бачать «Гра тимчасово недоступна», рахунки не зараховуються</div>
+      <ErrorBox error={q.error || save.error} />
     </div>
   );
 }
