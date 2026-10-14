@@ -5,6 +5,7 @@ import { crm } from '../api/client.js';
 import { Empty, ErrorBox, Field, Modal, PageHeader, Tabs, Toggle, dayBefore, fmtDate, personName, toInt, today, useForm } from '../components/ui.jsx';
 import { PersonForm, PersonPicker } from './PeoplePage.jsx';
 import PhotoCropper from '../components/PhotoCropper.jsx';
+import { описСтиснення, стиснутиФото } from '../utils/compressImage.js';
 
 export default function ClubPage() {
   const { id } = useParams();
@@ -312,25 +313,34 @@ function ImageSlot({ label, url, onFile, busy, wide, кадрувати }) {
   // команди кадрування нема сенсу — квадрат зʼїв би половину шеренги.
   const [файл, setФайл] = useState(null);
   const [кадруємо, setКадруємо] = useState(false);
+  // Широке фото йде без кадрування — тож саме тут його й стискаємо
+  const [стискаємо, setСтискаємо] = useState(false);
+  const [опис, setОпис] = useState(null);
   return (
     <div className="image-slot">
       <div className="field-label">{label}</div>
       {url ? <img src={url} alt="" className={wide ? 'img-wide' : 'img-logo'} /> : <div className={`img-empty ${wide ? 'wide' : ''}`}>немає</div>}
       <div className="club-cell">
         <label className="btn small file-btn">
-          {busy ? 'Завантажуємо…' : url ? 'Замінити' : 'Завантажити'}
+          {стискаємо ? 'Стискаємо…' : busy ? 'Завантажуємо…' : url ? 'Замінити' : 'Завантажити'}
           <input
             type="file"
             accept="image/*"
             hidden
-            onChange={(e) => {
+            disabled={стискаємо || busy}
+            onChange={async (e) => {
               const f = e.target.files?.[0];
+              e.target.value = '';
               if (!f) return;
               if (кадрувати) {
                 setФайл(f);
                 setКадруємо(true);
               } else {
-                onFile(f);
+                setСтискаємо(true);
+                const r = await стиснутиФото(f);
+                setСтискаємо(false);
+                setОпис(описСтиснення(r));
+                onFile(r.file);
               }
             }}
           />
@@ -341,6 +351,7 @@ function ImageSlot({ label, url, onFile, busy, wide, кадрувати }) {
           </button>
         )}
       </div>
+      {опис && !busy && <div className="muted small-text">Стиснуто: {опис}</div>}
       {кадруємо && (
         <PhotoCropper
           file={файл}

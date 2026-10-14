@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { crm } from '../api/client.js';
 import { Empty, ErrorBox, Field, Modal, PageHeader, Toggle } from '../components/ui.jsx';
 import { makeSlug, slugValid } from '../utils/slug.js';
+import { useСтисненеФото } from '../utils/useCompressedPhoto.js';
 
 // Органи управління АФУ (afu-crm#6): Президія, Виконавчий комітет, комітети,
 // Виконавча дирекція — і склад кожного. У складі лише ім'я, прізвище, посада
@@ -163,8 +164,7 @@ function Members({ body, onChange }) {
 
 function MemberForm({ item, body, onClose, onSave }) {
   const [v, setV] = useState({ first_name: item.first_name || '', last_name: item.last_name || '', position: item.position || '' });
-  const [photo, setPhoto] = useState(null);
-  const [прев, setПрев] = useState(null);
+  const фото = useСтисненеФото();
   const set = (k) => (e) => setV((s) => ({ ...s, [k]: e.target.value }));
   return (
     <Modal title={item.id ? `${item.first_name} ${item.last_name}` : `Новий у складі: ${body.name}`} onClose={onClose}>
@@ -172,7 +172,7 @@ function MemberForm({ item, body, onClose, onSave }) {
         className="form"
         onSubmit={(e) => {
           e.preventDefault();
-          onSave.mutate({ id: item.id, photo, data: { first_name: v.first_name.trim(), last_name: v.last_name.trim(), position: v.position.trim() } });
+          onSave.mutate({ id: item.id, photo: фото.file, data: { first_name: v.first_name.trim(), last_name: v.last_name.trim(), position: v.position.trim() } });
         }}
       >
         <div className="row2">
@@ -188,17 +188,11 @@ function MemberForm({ item, body, onClose, onSave }) {
         </Field>
         <Field label="Фото" hint="Необов'язково">
           <div className="club-cell">
-            {(прев || item.photo?.url) && <img src={прев || item.photo.url} alt="" className="avatar" />}
-            <input
-              type="file"
-              accept="image/*"
-              onChange={(e) => {
-                const f = e.target.files?.[0] || null;
-                setPhoto(f);
-                setПрев(f ? URL.createObjectURL(f) : null);
-              }}
-            />
+            {(фото.прев || item.photo?.url) && <img src={фото.прев || item.photo.url} alt="" className="avatar" />}
+            <input type="file" accept="image/*" onChange={(e) => фото.вибрати(e.target.files?.[0] || null)} />
           </div>
+          {фото.стискаємо && <div className="muted small-text">Стискаємо фото…</div>}
+          {фото.опис && <div className="muted small-text">Стиснуто: {фото.опис}</div>}
         </Field>
         <p className="muted small-text">По батькові, телефонів і особистої пошти тут немає навмисно: на сайті вони не показуються.</p>
         <ErrorBox error={onSave.error} />
@@ -207,7 +201,7 @@ function MemberForm({ item, body, onClose, onSave }) {
           <button type="button" className="btn" onClick={onClose}>
             Скасувати
           </button>
-          <button className="btn primary" disabled={onSave.isPending}>
+          <button className="btn primary" disabled={onSave.isPending || фото.стискаємо}>
             Зберегти
           </button>
         </div>

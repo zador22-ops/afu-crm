@@ -7,6 +7,8 @@ import NewsEditor from '../components/NewsEditor.jsx';
 import { cleanNewsHtml } from '../utils/cleanHtml.js';
 import { makeSlug, slugValid } from '../utils/slug.js';
 import { makeThumb } from '../utils/thumb.js';
+import { стиснутиФото } from '../utils/compressImage.js';
+import { useСтисненеФото } from '../utils/useCompressedPhoto.js';
 import { fromKyivInputValue, kyivDateTimeString, toKyivInputValue } from '../utils/kyivTime.js';
 import { стан } from '../utils/newsStatus.js';
 
@@ -77,8 +79,7 @@ export default function NewsEditPage() {
 
   const [v, setV] = useState(ПОРОЖНЯ);
   const [slugРучний, setSlugРучний] = useState(false);
-  const [cover, setCover] = useState(null); // файл, ще не завантажений
-  const [coverПрев, setCoverПрев] = useState(null);
+  const обкладинка = useСтисненеФото(); // файл, ще не завантажений, уже стиснутий
   const [повідомлення, setПовідомлення] = useState('');
   const [видаляємо, setВидаляємо] = useState(false); // підтвердження у формі: window.confirm блокують вбудовані браузери
   const [помилкаФото, setПомилкаФото] = useState('');
@@ -113,12 +114,12 @@ export default function NewsEditPage() {
   const зберегти = async () => {
     const body = доСервера(v);
     let saved = нова ? await crm.post('/news', body) : await crm.patch(`/news/${nid}`, body);
-    if (cover) {
+    if (обкладинка.file) {
       const form = new FormData();
-      form.append('image', cover);
-      form.append('thumb', await makeThumb(cover));
+      form.append('image', обкладинка.file);
+      form.append('thumb', await makeThumb(обкладинка.file));
       saved = await crm.upload(`/news/${saved.id}/cover`, form);
-      setCover(null);
+      обкладинка.скинути();
     }
     return saved;
   };
@@ -159,13 +160,13 @@ export default function NewsEditPage() {
 
   const n = item.data;
   const s = n ? стан(n) : { key: 'draft', label: 'нова' };
-  const зайнято = save.isPending || publish.isPending || setStatus.isPending || remove.isPending;
+  const зайнято = save.isPending || publish.isPending || setStatus.isPending || remove.isPending || обкладинка.стискаємо;
   const помилка = save.error || publish.error || setStatus.error || remove.error;
   const чиннаОбкладинка = n?.cover?.url || null;
 
   const галерея = async (file) => {
     const form = new FormData();
-    form.append('image', file);
+    form.append('image', (await стиснутиФото(file)).file);
     const img = await crm.upload('/news/images', form);
     setV((st) => ({ ...st, gallery: [...st.gallery, { image: img, alt: '', caption: '' }] }));
   };
@@ -259,17 +260,11 @@ export default function NewsEditPage() {
 
         <Field label="Обкладинка" hint="Мініатюру до 400 px для списків CRM зробить сама">
           <div className="club-cell">
-            {(coverПрев || чиннаОбкладинка) && <img src={coverПрев || чиннаОбкладинка} alt="" className="news-cover-prev" />}
-            <input
-              type="file"
-              accept="image/*"
-              onChange={(e) => {
-                const f = e.target.files?.[0] || null;
-                setCover(f);
-                setCoverПрев(f ? URL.createObjectURL(f) : null);
-              }}
-            />
+            {(обкладинка.прев || чиннаОбкладинка) && <img src={обкладинка.прев || чиннаОбкладинка} alt="" className="news-cover-prev" />}
+            <input type="file" accept="image/*" onChange={(e) => обкладинка.вибрати(e.target.files?.[0] || null)} />
           </div>
+          {обкладинка.стискаємо && <div className="muted small-text">Стискаємо фото…</div>}
+          {обкладинка.опис && <div className="muted small-text">Стиснуто: {обкладинка.опис}</div>}
         </Field>
         <Field label="Опис обкладинки" hint="Що зображено — для людей з вадами зору. Обов'язковий, якщо є обкладинка">
           <input value={v.cover_alt} onChange={set('cover_alt')} />

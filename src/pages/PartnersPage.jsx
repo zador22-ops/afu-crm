@@ -2,6 +2,8 @@ import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { crm } from '../api/client.js';
 import { Empty, ErrorBox, Field, Modal, PageHeader, Toggle } from '../components/ui.jsx';
+import { ЛОГО } from '../utils/compressImage.js';
+import { useСтисненеФото } from '../utils/useCompressedPhoto.js';
 
 // Партнери для футера сайту (afu-crm#5). Порядок — стрілками, зберігається в
 // sort_order одним запитом /partners/reorder. «Приховати» — is_active = false:
@@ -130,8 +132,7 @@ function PartnerForm({ item, onClose, onSave }) {
     category: item.category || '',
     is_active: item.is_active ?? true,
   });
-  const [logo, setLogo] = useState(null);
-  const [прев, setПрев] = useState(null);
+  const лого = useСтисненеФото(ЛОГО);
   const чинний = item.logo?.url || null;
   const set = (k) => (e) => setV((s) => ({ ...s, [k]: e.target.value }));
 
@@ -143,7 +144,7 @@ function PartnerForm({ item, onClose, onSave }) {
           e.preventDefault();
           onSave.mutate({
             id: item.id,
-            logo,
+            logo: лого.file,
             data: { name: v.name.trim(), url: v.url.trim(), category: v.category.trim(), is_active: v.is_active },
           });
         }}
@@ -151,19 +152,13 @@ function PartnerForm({ item, onClose, onSave }) {
         <Field label="Назва" hint="Показується як підказка й опис логотипа для людей з вадами зору">
           <input value={v.name} onChange={set('name')} required autoFocus />
         </Field>
-        <Field label="Логотип" hint="Бажано PNG з прозорим тлом. Завантажується як є, без кадрування">
+        <Field label="Логотип" hint="Бажано PNG з прозорим тлом. Без кадрування; завеликий зменшиться до 1000 px, прозорість лишиться">
           <div className="club-cell">
-            {(прев || чинний) && <img src={прев || чинний} alt="" className="partner-logo big" />}
-            <input
-              type="file"
-              accept="image/png,image/jpeg,image/webp"
-              onChange={(e) => {
-                const f = e.target.files?.[0] || null;
-                setLogo(f);
-                setПрев(f ? URL.createObjectURL(f) : null);
-              }}
-            />
+            {(лого.прев || чинний) && <img src={лого.прев || чинний} alt="" className="partner-logo big" />}
+            <input type="file" accept="image/png,image/jpeg,image/webp" onChange={(e) => лого.вибрати(e.target.files?.[0] || null)} />
           </div>
+          {лого.стискаємо && <div className="muted small-text">Стискаємо логотип…</div>}
+          {лого.опис && <div className="muted small-text">Стиснуто: {лого.опис}</div>}
         </Field>
         <Field label="Сайт партнера" hint="Необов'язково; лише https://">
           <input value={v.url} onChange={set('url')} placeholder="https://…" />
@@ -184,7 +179,7 @@ function PartnerForm({ item, onClose, onSave }) {
           <button type="button" className="btn" onClick={onClose}>
             Скасувати
           </button>
-          <button className="btn primary" disabled={onSave.isPending || !httpsOk(v.url.trim())}>
+          <button className="btn primary" disabled={onSave.isPending || лого.стискаємо || !httpsOk(v.url.trim())}>
             Зберегти
           </button>
         </div>

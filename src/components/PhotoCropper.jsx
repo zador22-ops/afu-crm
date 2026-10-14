@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Modal } from './ui.jsx';
+import { ЯКІСТЬ_КАДРУ } from '../utils/compressImage.js';
 
 /**
  * Кадрування фото — як у соцмережах: кругле вікно, перетягування, зум.
@@ -131,7 +132,7 @@ export default function PhotoCropper({ file, url, size = 600, прозоро = f
     const k = size / ВІКНО;
     ctx.drawImage(img, зсув.x * k, зсув.y * k, ширина * k, висота * k);
     const blob = await new Promise((r) =>
-      прозоро ? c.toBlob(r, 'image/png') : c.toBlob(r, 'image/jpeg', 0.92)
+      прозоро ? c.toBlob(r, 'image/png') : c.toBlob(r, 'image/jpeg', ЯКІСТЬ_КАДРУ)
     );
     onDone(blob, URL.createObjectURL(blob));
   };

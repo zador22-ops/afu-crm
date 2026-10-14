@@ -5,6 +5,7 @@ import Image from '@tiptap/extension-image';
 import Youtube from '@tiptap/extension-youtube';
 import { TableKit } from '@tiptap/extension-table';
 import { crm } from '../api/client.js';
+import { стиснутиФото } from '../utils/compressImage.js';
 import { Modal } from './ui.jsx';
 
 // Редактор тексту новини з обмеженим набором форматування (afu-crm#1):
@@ -132,7 +133,7 @@ export default function NewsEditor({ value, onChange, disabled }) {
   const фото = async (file) => {
     setПомилка('');
     const form = new FormData();
-    form.append('image', file);
+    form.append('image', (await стиснутиФото(file)).file);
     const img = await crm.upload('/news/images', form);
     setDialog({ kind: 'alt', value: '', img });
   };

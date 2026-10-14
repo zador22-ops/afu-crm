@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { crm } from '../api/client.js';
 import { ErrorBox, Toggle } from '../components/ui.jsx';
+import { стиснутиФото } from '../utils/compressImage.js';
 
 /**
  * Організація матчу: чекліст делегата.
@@ -34,9 +35,9 @@ export default function MatchOrganization({ matchId }) {
     onSuccess: () => qc.invalidateQueries({ queryKey: ['organization', matchId] }),
   });
   const upload = useMutation({
-    mutationFn: ({ id, file }) => {
+    mutationFn: async ({ id, file }) => {
       const form = new FormData();
-      form.append('image', file);
+      form.append('image', (await стиснутиФото(file)).file);
       return crm.upload(`/organization/${id}/photo`, form);
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: ['organization', matchId] }),
