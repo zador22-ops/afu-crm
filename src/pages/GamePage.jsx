@@ -1,16 +1,25 @@
 import { Fragment, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { crm } from '../api/client.js';
 import { Empty, ErrorBox, PageHeader, Tabs } from '../components/ui.jsx';
 import { kyivDateTimeString } from '../utils/kyivTime.js';
+import { useСкаргиГри } from '../components/GameReports.jsx';
 
 // «Влуч у ворота», 4.2 (ТЗ docs/proposals/mini-game.md, розділ 11) на ендпоінтах
 // game-admin/* (право 20). Модерація ніків і результатів, переможці, скарги,
 // відхилені захистом партії, заборонені слова. Підтвердження — у самій сторінці:
 // вбудований браузер блокує window.confirm.
 
+const ВКЛАДКИ = ['month', 'winners', 'reports', 'rejected', 'words'];
+
 export default function GamePage() {
-  const [tab, setTab] = useState('month');
+  // Вкладка — в адресі (?tab=reports): на «Скарги» ведуть лічильник у меню й
+  // плашка на головній, і перехід по ним має відкривати саме її
+  const [params, setParams] = useSearchParams();
+  const tab = ВКЛАДКИ.includes(params.get('tab')) ? params.get('tab') : 'month';
+  const setTab = (t) => setParams(t === 'month' ? {} : { tab: t }, { replace: true });
+  const скарги = useСкаргиГри();
   return (
     <div className="page">
       <PageHeader title="Влуч у ворота" subtitle="Міні-гра в застосунку: рейтинг місяця, переможці, скарги на ніки й захист від накруток" />
@@ -21,7 +30,7 @@ export default function GamePage() {
         tabs={[
           { key: 'month', label: 'Місяць' },
           { key: 'winners', label: 'Переможці і Зал слави' },
-          { key: 'reports', label: 'Скарги' },
+          { key: 'reports', label: 'Скарги', count: скарги || null },
           { key: 'rejected', label: 'Відхилені партії' },
           { key: 'words', label: 'Заборонені слова' },
         ]}

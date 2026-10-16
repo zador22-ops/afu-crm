@@ -1459,3 +1459,55 @@ input[type='radio'] {
   align-items: center;
   gap: 6px;
 }
+
+/* Скарги на ніки гри (бриф vluch-push-moderation, Г): число біля «Налаштування»
+   і пункту «Влуч у ворота», плашка на головній. Червоне — бо чекає людину;
+   білий на --danger дає контраст 6,5:1. */
+.count-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  border-radius: 999px;
+  background: var(--danger);
+  color: #fff;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1;
+  letter-spacing: 0;
+  text-transform: none;
+}
+.topbar-dropdown a .count-badge {
+  margin-left: auto;
+}
+.reports-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  /* по краю контенту .page: відступи ті самі 28/32 px, низ — уже відступ .page */
+  max-width: calc(1200px - 64px);
+  margin: 28px 32px -12px;
+  padding: 10px 14px;
+  border-radius: var(--radius);
+  background: var(--danger-soft);
+  border: 1px solid color-mix(in srgb, var(--danger) 30%, transparent);
+  color: var(--danger);
+  font-weight: 500;
+}
+.reports-banner:hover {
+  text-decoration: none;
+  border-color: var(--danger);
+}
+.reports-banner-go {
+  font-weight: 600;
+  white-space: nowrap;
+}
+@media (max-width: 900px) {
+  .reports-banner {
+    margin: 18px 16px -6px;
+  }
+}

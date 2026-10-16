@@ -16,6 +16,8 @@ import FansPage from './pages/FansPage.jsx';
 import ClientErrorsPage from './pages/ClientErrorsPage.jsx';
 import PushPage from './pages/PushPage.jsx';
 import GamePage from './pages/GamePage.jsx';
+import { useСкаргиГри, ReportsBadge, ReportsBanner } from './components/GameReports.jsx';
+import { ДО_СКАРГ } from './utils/gameReports.js';
 // Новини тягнуть редактор TipTap (~сотні КБ) — вантажимо лише коли відкрили
 const NewsPage = lazy(() => import('./pages/NewsPage.jsx'));
 const NewsEditPage = lazy(() => import('./pages/NewsEditPage.jsx'));
@@ -108,6 +110,9 @@ function SettingsMenu() {
   const ref = useRef(null);
   const location = useLocation();
   const активне = НАЛАШТУВАННЯ.some((n) => location.pathname.startsWith(n.to));
+  // Скарги на ніки гри: число видно на закритому меню, щоб модератор не мусив
+  // його відкривати (бриф vluch-push-moderation, Г)
+  const скарги = useСкаргиГри();
   useEffect(() => {
     if (!open) return undefined;
     const onDown = (e) => ref.current && !ref.current.contains(e.target) && setOpen(false);
@@ -130,23 +135,38 @@ function SettingsMenu() {
       >
         {ІКОНКИ.settings}
         <span>Налаштування</span>
+        <ReportsBadge n={скарги} />
       </button>
       {open && (
         <div className="topbar-dropdown" role="menu">
-          {НАЛАШТУВАННЯ.map((n) => (
-            <NavLink key={n.to} to={n.to} role="menuitem" className={({ isActive }) => (isActive ? 'active' : '')} onClick={() => setOpen(false)}>
-              {ІКОНКИ[n.icon]}
-              <span>{n.label}</span>
-            </NavLink>
-          ))}
+          {НАЛАШТУВАННЯ.map((n) => {
+            const гра = n.to === '/game';
+            return (
+              <NavLink
+                key={n.to}
+                to={гра && скарги ? ДО_СКАРГ : n.to}
+                role="menuitem"
+                className={({ isActive }) => (isActive ? 'active' : '')}
+                onClick={() => setOpen(false)}
+              >
+                {ІКОНКИ[n.icon]}
+                <span>{n.label}</span>
+                {гра && <ReportsBadge n={скарги} />}
+              </NavLink>
+            );
+          })}
         </div>
       )}
     </div>
   );
 }
 
+// Куди веде вхід і «/»: головна сторінка CRM
+const ГОЛОВНА = '/seasons';
+
 function Shell({ children }) {
   const { user, logout } = useAuth();
+  const location = useLocation();
   return (
     <div className="shell">
       <aside className="sidebar">
@@ -179,7 +199,10 @@ function Shell({ children }) {
             </button>
           </div>
         </header>
-        <main>{children}</main>
+        <main>
+          {location.pathname === ГОЛОВНА && <ReportsBanner />}
+          {children}
+        </main>
       </div>
     </div>
   );
@@ -201,9 +224,9 @@ export default function App() {
   return (
     <Shell>
       <Routes>
-        <Route path="/" element={<Navigate to="/seasons" replace />} />
-        <Route path="/login" element={<Navigate to="/seasons" replace />} />
-        <Route path="/seasons" element={<SeasonsPage />} />
+        <Route path="/" element={<Navigate to={ГОЛОВНА} replace />} />
+        <Route path="/login" element={<Navigate to={ГОЛОВНА} replace />} />
+        <Route path={ГОЛОВНА} element={<SeasonsPage />} />
         <Route path="/calendar" element={<CalendarPage />} />
         <Route path="/seasons/:id" element={<SeasonPage />} />
         <Route path="/tournaments/:id" element={<TournamentPage />} />
