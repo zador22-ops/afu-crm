@@ -4,6 +4,11 @@ query "game-admin/fans/{fans_id}/nick-reset" verb=POST {
 
   // Скинути нік гравця: game_nick і game_nick_key — null, НІКОЛИ не "" (на ключі
   // унікальний індекс, два порожні рядки — уже дубль). Гравець обере новий.
+  // 16.10: після скидання — пуш «Влуч у ворота: оберіть новий нікнейм»
+  // (функція Backend «Game push nick reset», docs/xano/game-api.md, «Для CRM»).
+  // Лише якщо нік справді був: функція не відсіює повтори («кожне скидання —
+  // своє сповіщення»), а повторне натискання на вже скинутому ніку — не скидання.
+  // Резервна копія до цієї правки: xano/backups/game-admin-fans-id-nick-reset.post.2026-10-16.rollback.xs
   input {
     int fans_id filters=min:1
   }
@@ -32,6 +37,22 @@ query "game-admin/fans/{fans_id}/nick-reset" verb=POST {
       field_value = $input.fans_id
       data = {game_nick: null, game_nick_key: null}
     } as $row
+
+    conditional {
+      if ($was.game_nick != null && $was.game_nick != "") {
+        // Пуш не має ламати скидання: помилка розсилки не повертається клієнту.
+        // Режим (test/dry/live), нічну тишу й умови отримувача функція бере на себе.
+        try_catch {
+          try {
+              function.run "Game push nick reset" {
+                input = {fans_id: $input.fans_id}
+              } as $push
+          }
+          catch {
+          }
+        }
+      }
+    }
   }
 
   response = {fans_id: $input.fans_id, previous_nick: $was.game_nick, nick: null}
