@@ -191,20 +191,24 @@ function TemplateForm({ t, onClose }) {
             required
           />
         </Field>
-        <div>
-          <div className="field-label">Змінні — клік вставляє в {поле === 'title_template' ? 'заголовок' : 'текст'}</div>
-          <div className="chips">
-            {Object.entries(змінні).map(([k, опис]) => (
-              <button type="button" key={k} className="chip" onClick={() => вставити(k)} title={`${опис}: ${приклад[k]}`}>
-                {`{${k}}`} <span className="muted">{опис}</span>
-              </button>
-            ))}
+        {Object.keys(змінні).length === 0 ? (
+          <div className="muted small-text">У цьому пуші змінних немає — текст іде як є</div>
+        ) : (
+          <div>
+            <div className="field-label">Змінні — клік вставляє в {поле === 'title_template' ? 'заголовок' : 'текст'}</div>
+            <div className="chips">
+              {Object.entries(змінні).map(([k, опис]) => (
+                <button type="button" key={k} className="chip" onClick={() => вставити(k)} title={`${опис}: ${приклад[k]}`}>
+                  {`{${k}}`} <span className="muted">{опис}</span>
+                </button>
+              ))}
+            </div>
+            {!чиГра(t.kind) && <div className="muted small-text">Якщо змінної для цього пуша немає (у штабу немає хвилини), вона зникає разом із зайвою комою</div>}
           </div>
-          <div className="muted small-text">Якщо змінної для цього пуша немає (у штабу немає хвилини), вона зникає разом із зайвою комою</div>
-        </div>
+        )}
         {невідомі.length > 0 && <div className="error-box">Невідома змінна {`{${невідомі[0]}}`} — сервер такий текст не прийме</div>}
         <div>
-          <div className="field-label">Прев'ю на матчі Авалон — СкайАп</div>
+          <div className="field-label">{чиГра(t.kind) ? "Прев'ю на вигаданих даних гри" : "Прев'ю на матчі Авалон — СкайАп"}</div>
           <PushPreview title={заповнити(v.title_template, приклад)} body={заповнити(v.body_template, приклад)} />
         </div>
         <Toggle checked={v.enabled} onChange={(x) => setV((s) => ({ ...s, enabled: x }))} label="Надсилати цей пуш" />
