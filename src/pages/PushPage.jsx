@@ -3,61 +3,14 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { crm } from '../api/client.js';
 import { Empty, ErrorBox, Field, Modal, PageHeader, Toggle } from '../components/ui.jsx';
 import { kyivDateTimeString } from '../utils/kyivTime.js';
+import { заповнити, змінніДля, невідоміЗмінні, чиГра } from '../utils/pushVars.js';
 
 // R55. Тексти пушів застосунку «Футзал АФУ» — шаблони зі змінними, які
 // підставляє сервер (функція «Push v2 render»). Тут же журнал відправлень.
-// Підстановка в прев'ю — та сама, що на сервері: порожня змінна зникає разом
-// із зайвими «, » і «·».
-
-const ЗМІННІ = {
-  home: 'господарі',
-  away: 'гості',
-  competition: 'змагання',
-  tour: 'тур',
-  score: 'рахунок',
-  player: 'прізвище',
-  team: 'команда',
-  minute: 'хвилина',
-  half: 'тайм',
-  time: 'новий час',
-  title: 'заголовок новини',
-  lead: 'анонс новини',
-  version: 'версія',
-  store: 'магазин',
-  note: 'що нового',
-};
-
-// Справжній матч 509 (Авалон — СкайАп, 03.10), остання новина і версія — для прев'ю
-const ПРИКЛАД = {
-  home: 'Авалон',
-  away: 'СкайАп',
-  competition: 'Екстра-ліга',
-  tour: '6-й тур',
-  score: '1:5',
-  player: 'Ліфер',
-  team: 'СкайАп',
-  minute: '7′',
-  half: '1-й тайм',
-  time: 'сб, 3 жовтня, 17:00',
-  title: 'Призначення офіційних осіб на 6-й тур',
-  lead: 'Комітет арбітражу АФУ оприлюднив призначення на матчі 6-го туру Екстра-ліги',
-  version: '1.56.0',
-  store: 'Google Play',
-  note: 'Матчі більше не закриваються під час онлайну.',
-};
+// Змінні, приклад для прев'ю і підстановка — utils/pushVars.js. Пуші гри
+// «Влуч у ворота» (kind game_*) — окремою групою зі своїми змінними.
 
 const РЕЖИМИ = { live: 'справжнім', test: 'тестовим', dry: 'перевірка', silent: 'зафіксовано без розсилки' };
-
-export const заповнити = (шаблон, vars = ПРИКЛАД) =>
-  String(шаблон || '')
-    .replace(/\{(\w+)\}/g, (_, k) => (vars[k] == null ? '' : String(vars[k])))
-    .replace(/\(\s*\)/g, '')
-    .replace(/\s+,/g, ',')
-    .replace(/,\s*(?=·|$)/g, '')
-    .replace(/·\s*(?=·|$)/g, '')
-    .replace(/^\s*·\s*/, '')
-    .replace(/\s{2,}/g, ' ')
-    .trim();
 
 export default function PushPage() {
   const data = useQuery({ queryKey: ['push-templates'], queryFn: () => crm.get('/push-templates') });
@@ -82,36 +35,13 @@ export default function PushPage() {
           )}
         </div>
       )}
-      {d && (
-        <table className="table">
-          <thead>
-            <tr>
-              <th>Пуш</th>
-              <th>Як виглядає</th>
-              <th>Стан</th>
-              <th></th>
-            </tr>
-          </thead>
-          <tbody>
-            {d.templates.map((t) => (
-              <tr key={t.id} className={t.enabled ? '' : 'muted'}>
-                <td>
-                  <span className="strong">{t.label}</span>
-                  <div className="muted small-text">{t.hint}</div>
-                </td>
-                <td>
-                  <PushPreview title={заповнити(t.title_template)} body={заповнити(t.body_template)} />
-                </td>
-                <td>{t.enabled ? 'надсилається' : <span className="badge warn">вимкнено</span>}</td>
-                <td className="row-actions">
-                  <button className="btn small" onClick={() => setEditing(t)}>
-                    Змінити
-                  </button>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+      {d && <Шаблони templates={d.templates.filter((t) => !чиГра(t.kind))} onEdit={setEditing} />}
+      {d?.templates.some((t) => чиГра(t.kind)) && (
+        <>
+          <h3 className="section-title">Влуч у ворота</h3>
+          <p className="muted small-text">Сповіщення міні-гри. Заголовок має починатися з «Влуч у ворота», щоб їх не плутали з реальними матчами.</p>
+          <Шаблони templates={d.templates.filter((t) => чиГра(t.kind))} onEdit={setEditing} />
+        </>
       )}
 
       <h3 className="section-title">Журнал відправлень</h3>
@@ -148,6 +78,43 @@ export default function PushPage() {
       )}
       {editing && <TemplateForm t={editing} onClose={() => setEditing(null)} />}
     </div>
+  );
+}
+
+function Шаблони({ templates, onEdit }) {
+  return (
+    <table className="table">
+      <thead>
+        <tr>
+          <th>Пуш</th>
+          <th>Як виглядає</th>
+          <th>Стан</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        {templates.map((t) => {
+          const { приклад } = змінніДля(t.kind);
+          return (
+            <tr key={t.id} className={t.enabled ? '' : 'muted'}>
+              <td>
+                <span className="strong">{t.label}</span>
+                <div className="muted small-text">{t.hint}</div>
+              </td>
+              <td>
+                <PushPreview title={заповнити(t.title_template, приклад)} body={заповнити(t.body_template, приклад)} />
+              </td>
+              <td>{t.enabled ? 'надсилається' : <span className="badge warn">вимкнено</span>}</td>
+              <td className="row-actions">
+                <button className="btn small" onClick={() => onEdit(t)}>
+                  Змінити
+                </button>
+              </td>
+            </tr>
+          );
+        })}
+      </tbody>
+    </table>
   );
 }
 
@@ -190,9 +157,8 @@ function TemplateForm({ t, onClose }) {
       el?.setSelectionRange(p, p);
     });
   };
-  const невідомі = [v.title_template, v.body_template]
-    .flatMap((s) => [...s.matchAll(/\{(\w*)\}/g)].map((m) => m[1]))
-    .filter((k) => !(k in ЗМІННІ));
+  const { змінні, приклад } = змінніДля(t.kind);
+  const невідомі = невідоміЗмінні([v.title_template, v.body_template], t.kind);
 
   return (
     <Modal title={t.label} onClose={onClose} width={640}>
@@ -228,8 +194,8 @@ function TemplateForm({ t, onClose }) {
         <div>
           <div className="field-label">Змінні — клік вставляє в {поле === 'title_template' ? 'заголовок' : 'текст'}</div>
           <div className="chips">
-            {Object.entries(ЗМІННІ).map(([k, опис]) => (
-              <button type="button" key={k} className="chip" onClick={() => вставити(k)} title={`${опис}: ${ПРИКЛАД[k]}`}>
+            {Object.entries(змінні).map(([k, опис]) => (
+              <button type="button" key={k} className="chip" onClick={() => вставити(k)} title={`${опис}: ${приклад[k]}`}>
                 {`{${k}}`} <span className="muted">{опис}</span>
               </button>
             ))}
@@ -239,7 +205,7 @@ function TemplateForm({ t, onClose }) {
         {невідомі.length > 0 && <div className="error-box">Невідома змінна {`{${невідомі[0]}}`} — сервер такий текст не прийме</div>}
         <div>
           <div className="field-label">Прев'ю на матчі Авалон — СкайАп</div>
-          <PushPreview title={заповнити(v.title_template)} body={заповнити(v.body_template)} />
+          <PushPreview title={заповнити(v.title_template, приклад)} body={заповнити(v.body_template, приклад)} />
         </div>
         <Toggle checked={v.enabled} onChange={(x) => setV((s) => ({ ...s, enabled: x }))} label="Надсилати цей пуш" />
         <ErrorBox error={save.error} />
