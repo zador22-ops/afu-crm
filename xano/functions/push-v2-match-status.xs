@@ -43,10 +43,15 @@ function "Push v2 match status" {
           const час = d.toLocaleTimeString('uk-UA', { hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Kyiv' });
           return `${день}, ${час}`;
         };
+        // «Тепер …» має сенс лише для часу попереду. Матч, перенесений уже
+        // після початку (бриф match-postpone-after-start) чи без нової дати,
+        // має в TimeOfMatch минулий час — «тепер» про нього вводило б в оману.
+        // Нову дату вболівальники отримають пушем time_change, коли її поставлять.
+        const попереду = Number(c.time) > Date.now();
         let kind = '', body = '';
         if (ev === 'status' && c.status === 3) { kind = 'match_start'; body = `🔴 Матч почався · ${змагання}`; }
         else if (ev === 'status' && c.status === 4) { kind = 'match_finish'; body = `🏁 Кінець матчу · ${рахунок}`; }
-        else if (ev === 'status' && c.status === 2) { kind = 'match_postponed'; body = `⏰ Матч перенесено${c.time ? ' · тепер ' + коли(c.time) : ''}`; }
+        else if (ev === 'status' && c.status === 2) { kind = 'match_postponed'; body = `⏰ Матч перенесено · ${попереду ? 'тепер ' + коли(c.time) : 'нову дату повідомимо'}`; }
         else if (ev === 'time_change') { kind = 'time_change'; body = `⏰ Змінено час · тепер ${коли(c.time)}`; }
         else if (ev === 'finish first half') { kind = 'half_time'; body = `⏸ Перерва · ${рахунок}`; }
         else if (ev === 'start second half') { kind = 'second_half'; body = `▶️ Другий тайм · ${рахунок}`; }
@@ -54,7 +59,8 @@ function "Push v2 match status" {
         // Один пуш на матч для подій, які не повторюються; час — щоразу новий
         const once = ['match_start', 'match_finish', 'half_time', 'second_half', 'reminder60'].includes(kind);
         const ref = kind === 'time_change' || kind === 'match_postponed' ? `${c.id}:${c.time}` : String(c.id);
-        const tpl = kind === 'reminder60' && c.is_top ? 'reminder60_top' : kind;
+        // Шаблон без дати — свій. Поки його рядка в push_templates немає, іде текст body вище
+        const tpl = kind === 'reminder60' && c.is_top ? 'reminder60_top' : kind === 'match_postponed' && !попереду ? 'match_postponed_nodate' : kind;
         const vars = { home: c.team1.name, away: c.team2.name, competition: c.competition, tour: c.tour, score: рахунок, time: коли(c.time) };
         return { kind, tpl, vars, ref, once, title: `${c.team1.name} — ${c.team2.name}`, body };
       """

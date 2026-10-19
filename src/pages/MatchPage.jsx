@@ -8,6 +8,7 @@ import MatchSquad from './MatchSquad.jsx';
 import MatchOrganization from './MatchOrganization.jsx';
 import MatchReport from './MatchReport.jsx';
 import { kyivDateTimeString } from '../utils/kyivTime.js';
+import { ПОПЕРЕДЖЕННЯ, можнаПеренести, причинаГодиться } from '../utils/postpone.js';
 
 /**
  * Протокол матчу: події, рахунок, статус, фоли, хвилини перерв.
@@ -64,6 +65,7 @@ export default function MatchPage() {
   const [tab, setTab] = useState('protocol');
   const [cardEditing, setCardEditing] = useState(null);
   const [adding, setAdding] = useState(null);
+  const [переносимо, setПереносимо] = useState(false);
   const оновити = () => {
     qc.invalidateQueries({ queryKey: ['events', mid] });
     qc.invalidateQueries({ queryKey: ['staff-cards', mid] });
@@ -95,6 +97,15 @@ export default function MatchPage() {
   // кінець тайму й початок другого треба натиснути — у базі це окремі рядки
   // «finish first half» і «start second half», інших вона не знає.
   const notify = useMutation({ mutationFn: (type_of_event) => crm.post(`/matches/${mid}/notify`, { type_of_event }) });
+  // Перенесення прибирає рядки турнірної таблиці — тож оновлюємо все, а не
+  // лише матч: таблиця турніру з кешу показала б матч, якого в ній уже немає.
+  const postpone = useMutation({
+    mutationFn: (reason) => crm.post(`/matches/${mid}/postpone`, { reason }),
+    onSuccess: () => {
+      qc.invalidateQueries();
+      setПереносимо(false);
+    },
+  });
 
   const склад = useMemo(() => {
     const за = {};
@@ -162,8 +173,36 @@ export default function MatchPage() {
       {tab === 'protocol' && (
       <>
       <section className="card-form">
-        <h3>Хід матчу</h3>
-        <ResultForm match={m} onSave={saveResult} подій={events.data?.length ?? 0} />
+        <div className="section-bar">
+          <h3>Хід матчу</h3>
+          <span className="spacer" />
+          {/* Окремо від «Зберегти хід матчу» і з підтвердженням: дія прибирає матч із таблиці */}
+          {можнаПеренести(m.match_status_id) && (
+            <button
+              className="btn danger ghost"
+              onClick={() => {
+                postpone.reset();
+                setПереносимо(true);
+              }}
+            >
+              Перенести матч
+            </button>
+          )}
+        </div>
+        {Number(m.match_status_id) === 2 && events.data?.length > 0 && (
+          <div className="warn-box">
+            Матч перенесений. Події протоколу збережено, але в турнірну таблицю й статистику вони не йдуть, доки матч не
+            зіграють. Нову дату — в картці матчу в розкладі турніру; на перегравці продовжте протокол або видаліть зайве.
+          </div>
+        )}
+        {/* Ключ — бо форма тримає власну копію полів: після перенесення стара копія
+            коментаря при «Зберегти хід матчу» стерла б щойно дописану причину */}
+        <ResultForm
+          key={`${m.match_status_id}:${m.other_comments || ''}`}
+          match={m}
+          onSave={saveResult}
+          подій={events.data?.length ?? 0}
+        />
         <div className="section-bar">
           <span className="muted">
             {Number(m.match_status_id) === 3
@@ -298,6 +337,7 @@ export default function MatchPage() {
           onSave={saveCard}
         />
       )}
+      {переносимо && <PostponeDialog match={m} onClose={() => setПереносимо(false)} onSave={postpone} />}
       {adding && (
         <EventForm
           match={m}
@@ -315,6 +355,37 @@ export default function MatchPage() {
         </div>
       )}
     </div>
+  );
+}
+
+function PostponeDialog({ match, onClose, onSave }) {
+  const [причина, setПричина] = useState('');
+  const submit = (e) => {
+    e.preventDefault();
+    if (причинаГодиться(причина)) onSave.mutate(причина.trim());
+  };
+  return (
+    <Modal title="Перенести матч" onClose={onClose}>
+      <form className="form" onSubmit={submit}>
+        <div className="warn-box">{ПОПЕРЕДЖЕННЯ}</div>
+        <Field
+          label="Причина"
+          hint={`Допишеться в коментар матчу з датою; зараз матч «${match._status?.Status || 'Онлайн'}». Уболівальникам піде пуш «Матч перенесено»`}
+        >
+          <textarea rows={3} value={причина} onChange={(e) => setПричина(e.target.value)} required autoFocus />
+        </Field>
+        <ErrorBox error={onSave.error} />
+        <div className="form-actions">
+          <span className="spacer" />
+          <button type="button" className="btn" onClick={onClose}>
+            Скасувати
+          </button>
+          <button className="btn danger" disabled={!причинаГодиться(причина) || onSave.isPending}>
+            Перенести матч
+          </button>
+        </div>
+      </form>
+    </Modal>
   );
 }
 
