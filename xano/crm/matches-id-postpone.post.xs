@@ -2,8 +2,8 @@ query "matches/{match_id}/postpone" verb=POST {
   api_group = "crm"
   auth = "Users"
 
-  // «Онлайн» або «Зіграний» → «Перенесений» (бриф match-postpone-after-start,
-  // слово Андрія 19.10). Матч зникає з турнірної таблиці, події протоколу
+  // «Онлайн», «Зіграний» або «Призупинено» → «Перенесений» (брифи
+  // match-postpone-after-start і match-pause-and-note, слово Андрія 19.10). Матч зникає з турнірної таблиці, події протоколу
   // ЛИШАЮТЬСЯ: під час перегравки делегат сам вирішить, продовжити протокол чи
   // видалити зайве. Статистику гравців перенесення не чіпає: події рахуються
   // за будь-якого статусу (слово Андрія 19.10).
@@ -14,8 +14,8 @@ query "matches/{match_id}/postpone" verb=POST {
   // — з протоколу (/result).
   input {
     int match_id filters=min:1
-    // Обовʼязкова, ≥ 3 символи. Дописується в Match.other_comments з датою за
-    // Києвом. Це поле віддає публічна група Default — без персональних даних.
+    // Обовʼязкова, ≥ 3 символи. Іде в Match.status_note — її бачать
+    // уболівальники — і з датою за Києвом в other_comments. Без персональних даних.
     text reason? filters=trim
   }
 
@@ -40,9 +40,9 @@ query "matches/{match_id}/postpone" verb=POST {
       error_type = "badrequest"
       error = "Матч уже перенесений"
     }
-    precondition ($was.match_status_id == 3 || $was.match_status_id == 4) {
+    precondition ($was.match_status_id == 3 || $was.match_status_id == 4 || $was.match_status_id == 5) {
       error_type = "badrequest"
-      error = "Тут переноситься лише матч «Онлайн» або «Зіграний». Запланований — у картці розкладу"
+      error = "Тут переноситься лише матч «Онлайн», «Призупинено» або «Зіграний». Запланований — у картці розкладу"
     }
 
     // «Перенесено 19.10.2026 18:05 (був «Онлайн»): причина» — новим рядком
@@ -53,10 +53,10 @@ query "matches/{match_id}/postpone" verb=POST {
         const d = new Date();
         const день = d.toLocaleDateString('uk-UA', { day: '2-digit', month: '2-digit', year: 'numeric', timeZone: 'Europe/Kyiv' });
         const час = d.toLocaleTimeString('uk-UA', { hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Kyiv' });
-        const був = { 3: 'Онлайн', 4: 'Зіграний' }[$var.was.match_status_id];
+        const був = { 3: 'Онлайн', 4: 'Зіграний', 5: 'Призупинено' }[$var.was.match_status_id];
         const рядок = `Перенесено ${день} ${час} (був «${був}»): ${причина}`;
         const старий = String($var.was.other_comments || '').trim();
-        return { reason_ok: причина.length >= 3, comment: старий ? `${старий}\n${рядок}` : рядок };
+        return { reason_ok: причина.length >= 3, note: причина, comment: старий ? `${старий}\n${рядок}` : рядок };
       """
       timeout = 10
     } as $plan
@@ -68,7 +68,7 @@ query "matches/{match_id}/postpone" verb=POST {
     db.edit Match {
       field_name = "id"
       field_value = $input.match_id
-      data = {match_status_id: 2, other_comments: $plan.comment}
+      data = {match_status_id: 2, status_note: $plan.note, other_comments: $plan.comment}
     } as $match
 
     // Статус 2 → рядки таблиці цього матчу видаляються (should = false,

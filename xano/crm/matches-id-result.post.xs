@@ -6,6 +6,9 @@ query "matches/{match_id}/result" verb=POST {
     int match_id filters=min:1
     // 3 «Онлайн» або 4 «Зіграний». Повернути матч у «Запланований» звідси не
     // можна: це прибрало б рядки таблиці, а такі відкати мають бути свідомими.
+    // 5 «Призупинено» — лише якщо матч уже призупинений (зберегти фоли чи
+    // коментар, не відновлюючи); призупиняє окремий POST …/pause з причиною.
+    // З 5 сюди: 3 — «Відновити», 4 — «Завершити» (бриф match-pause-and-note).
     int match_status_id filters=min:1
     // Це НЕ кількість фолів, а прапорці «команда набрала 5 фолів у цьому
     // таймі»: у базі всі чотири поля типу bool. Разом із типом події
@@ -34,7 +37,7 @@ query "matches/{match_id}/result" verb=POST {
       error_type = "accessdenied"
       error = "Доступ заборонено"
     }
-    precondition ($input.match_status_id == 3 || $input.match_status_id == 4) {
+    precondition ($input.match_status_id == 3 || $input.match_status_id == 4 || $input.match_status_id == 5) {
       error_type = "badrequest"
       error = "Статус має бути «Онлайн» або «Зіграний»"
     }
@@ -47,6 +50,10 @@ query "matches/{match_id}/result" verb=POST {
       error_type = "notfound"
       error = "Матч не знайдено"
     }
+    precondition ($input.match_status_id != 5 || $was.match_status_id == 5) {
+      error_type = "badrequest"
+      error = "Призупинити матч можна кнопкою «Призупинити»: там вказується причина"
+    }
 
     util.get_raw_input {
       encoding = "json"
@@ -58,6 +65,21 @@ query "matches/{match_id}/result" verb=POST {
       data = `$input|pick:($raw|keys)|unset:"match_id"`
     } as $match
 
+    // Причина для вболівальників (status_note) живе, лише поки матч
+    // перенесений чи призупинений. Онлайн чи зіграний — без неї.
+    conditional {
+      if ($input.match_status_id != 5 && $match.status_note != null && $match.status_note != "") {
+        db.edit Match {
+          field_name = "id"
+          field_value = $input.match_id
+          data = {status_note: ""}
+        } as $cleared
+        var.update $match {
+          value = $cleared
+        }
+      }
+    }
+
     // Після зміни статусу рядки таблиці або зʼявляються, або зникають —
     // залежно від статусу й типу етапу. Рахунок перерахунок теж вирівняє.
     function.run "CRM table recalc" {
@@ -67,8 +89,22 @@ query "matches/{match_id}/result" verb=POST {
     // R55: «Матч почався» / «Кінець матчу» — лише коли статус справді змінився.
     // До R55 цей ендпоінт пушів не слав, тож без старого формату (legacy false):
     // поки push_config.live = false, новий формат іде лише на тестові токени.
+    // З «Призупинено» в «Онлайн» — не «Матч почався» (він і так іде раз на
+    // матч), а «Матч відновлено».
     conditional {
-      if ($was.match_status_id != $input.match_status_id) {
+      if ($was.match_status_id == 5 && $input.match_status_id == 3) {
+        // Пуш не має ламати збереження: помилка розсилки не повертається клієнту
+        try_catch {
+          try {
+              function.run "Push v2 match status" {
+                input = {match_id: $input.match_id, type_of_event: "resumed", legacy: false}
+              } as $push
+          }
+          catch {
+          }
+        }
+      }
+      elseif ($was.match_status_id != $input.match_status_id) {
         // Пуш не має ламати збереження: помилка розсилки не повертається клієнту
         try_catch {
           try {

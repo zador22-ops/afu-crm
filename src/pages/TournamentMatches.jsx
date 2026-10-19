@@ -5,6 +5,7 @@ import { crm } from '../api/client.js';
 import { Empty, ErrorBox, Field, Modal, useForm } from '../components/ui.jsx';
 import { kyivDateTimeString, toKyivInputValue, fromKyivInputValue } from '../utils/kyivTime.js';
 import TopMatchToggle from '../components/TopMatchToggle.jsx';
+import { ПУБЛІЧНА, зПричиною, потрібнаПричина, причинаГодиться } from '../utils/postpone.js';
 
 /**
  * Матчі турніру: календар, створення й редагування.
@@ -123,7 +124,10 @@ export default function TournamentMatches({ tid, participants }) {
                 </td>
                 <td>{зафіксований(m) ? `${m.Result_team1 ?? 0} : ${m.Result_team2 ?? 0}` : '—'}</td>
                 <td className="muted">{аренаЗа[m.venues_id] || '—'}</td>
-                <td>{m._status?.Status || '—'}</td>
+                <td>
+                  {m._status?.Status || '—'}
+                  {зПричиною(m.match_status_id) && m.status_note && <div className="muted small-text">{m.status_note}</div>}
+                </td>
                 <td>
                   <TopMatchToggle match={m} compact />
                 </td>
@@ -186,7 +190,11 @@ function MatchForm({ item, tid, tours, команди, onClose, onSave, onDelete
     timekeeper: item.timekeeper || '',
     match_number: item.match_number ?? '',
     num_of_spectators: item.num_of_spectators ?? '',
+    reason: '',
   });
+  // Запланований → «Перенесений»: причина обовʼязкова, її побачать уболівальники.
+  // Новий матч сервер створює без причини (POST її не приймає), тож лише для наявного.
+  const потрібнаПричинаТут = !!item.id && !fixed && потрібнаПричина(item.match_status_id, values.match_status_id);
 
   const число = (v) => (v === '' || v == null ? undefined : Number(v));
   const submit = (e) => {
@@ -210,6 +218,10 @@ function MatchForm({ item, tid, tours, команди, onClose, onSave, onDelete
     // Статус зіграного матчу не чіпаємо взагалі — інакше ендпоінт відмовить,
     // і людина не зрозуміє, чому не зберігається правка відео чи глядачів.
     if (!fixed) data.match_status_id = Number(values.match_status_id);
+    if (потрібнаПричинаТут) {
+      if (!причинаГодиться(values.reason)) return;
+      data.reason = values.reason.trim();
+    }
     if (!item.id) data.leagues_id = tid;
     onSave.mutate({ id: item.id, data });
   };
@@ -286,6 +298,14 @@ function MatchForm({ item, tid, tours, команди, onClose, onSave, onDelete
             </select>
           </Field>
         </div>
+        {потрібнаПричинаТут && (
+          <Field label="Причина перенесення" hint={`${ПУБЛІЧНА}. Уболівальникам піде пуш «Матч перенесено»`}>
+            <textarea rows={2} value={values.reason} onChange={set('reason')} required minLength={3} />
+          </Field>
+        )}
+        {!потрібнаПричинаТут && зПричиною(item.match_status_id) && item.status_note && (
+          <div className="muted small-text">Причина для вболівальників: {item.status_note}</div>
+        )}
         <div className="row2">
           <Field label="Арбітр 1">
             <select value={values.referee1_id} onChange={set('referee1_id')}>

@@ -8,7 +8,19 @@ import MatchSquad from './MatchSquad.jsx';
 import MatchOrganization from './MatchOrganization.jsx';
 import MatchReport from './MatchReport.jsx';
 import { kyivDateTimeString } from '../utils/kyivTime.js';
-import { ПОПЕРЕДЖЕННЯ, можнаПеренести, причинаГодиться } from '../utils/postpone.js';
+import {
+  ОНЛАЙН,
+  ПІДКАЗКИ_ПАУЗИ,
+  ПОПЕРЕДЖЕННЯ,
+  ПОПЕРЕДЖЕННЯ_ПАУЗИ,
+  ПРИЗУПИНЕНО,
+  ПУБЛІЧНА,
+  зПричиною,
+  можнаВідновити,
+  можнаПеренести,
+  можнаПризупинити,
+  причинаГодиться,
+} from '../utils/postpone.js';
 
 /**
  * Протокол матчу: події, рахунок, статус, фоли, хвилини перерв.
@@ -65,7 +77,8 @@ export default function MatchPage() {
   const [tab, setTab] = useState('protocol');
   const [cardEditing, setCardEditing] = useState(null);
   const [adding, setAdding] = useState(null);
-  const [переносимо, setПереносимо] = useState(false);
+  // null | 'postpone' | 'pause' — яке вікно з причиною відкрите
+  const [причинаДля, setПричинаДля] = useState(null);
   const оновити = () => {
     qc.invalidateQueries({ queryKey: ['events', mid] });
     qc.invalidateQueries({ queryKey: ['staff-cards', mid] });
@@ -97,15 +110,23 @@ export default function MatchPage() {
   // кінець тайму й початок другого треба натиснути — у базі це окремі рядки
   // «finish first half» і «start second half», інших вона не знає.
   const notify = useMutation({ mutationFn: (type_of_event) => crm.post(`/matches/${mid}/notify`, { type_of_event }) });
-  // Перенесення прибирає рядки турнірної таблиці — тож оновлюємо все, а не
-  // лише матч: таблиця турніру з кешу показала б матч, якого в ній уже немає.
-  const postpone = useMutation({
-    mutationFn: (reason) => crm.post(`/matches/${mid}/postpone`, { reason }),
+  // Перенесення прибирає рядки турнірної таблиці, пауза й відновлення міняють
+  // статус у розкладі — тож оновлюємо все, а не лише матч: таблиця турніру з
+  // кешу показала б матч, якого в ній уже немає.
+  const змінаСтатусу = (шлях) => ({
+    mutationFn: (body) => crm.post(`/matches/${mid}/${шлях}`, body),
     onSuccess: () => {
       qc.invalidateQueries();
-      setПереносимо(false);
+      setПричинаДля(null);
     },
   });
+  const postpone = useMutation(змінаСтатусу('postpone'));
+  const pause = useMutation(змінаСтатусу('pause'));
+  const resume = useMutation(змінаСтатусу('result'));
+  const відкрити = (що) => {
+    (що === 'pause' ? pause : postpone).reset();
+    setПричинаДля(що);
+  };
 
   const склад = useMemo(() => {
     const за = {};
@@ -176,23 +197,40 @@ export default function MatchPage() {
         <div className="section-bar">
           <h3>Хід матчу</h3>
           <span className="spacer" />
+          {можнаВідновити(m.match_status_id) && (
+            <button
+              className="btn primary"
+              disabled={resume.isPending}
+              onClick={() => resume.mutate({ match_status_id: ОНЛАЙН })}
+            >
+              Відновити матч
+            </button>
+          )}
+          {можнаПризупинити(m.match_status_id) && (
+            <button className="btn" onClick={() => відкрити('pause')}>
+              Призупинити
+            </button>
+          )}
           {/* Окремо від «Зберегти хід матчу» і з підтвердженням: дія прибирає матч із таблиці */}
           {можнаПеренести(m.match_status_id) && (
-            <button
-              className="btn danger ghost"
-              onClick={() => {
-                postpone.reset();
-                setПереносимо(true);
-              }}
-            >
+            <button className="btn danger ghost" onClick={() => відкрити('postpone')}>
               Перенести матч
             </button>
           )}
         </div>
-        {Number(m.match_status_id) === 2 && events.data?.length > 0 && (
+        <ErrorBox error={resume.error} />
+        {зПричиною(m.match_status_id) && (
           <div className="warn-box">
-            Матч перенесений. Події протоколу збережено, але в турнірну таблицю вони не йдуть, доки матч не
-            зіграють. Нову дату — в картці матчу в розкладі турніру; на перегравці продовжте протокол або видаліть зайве.
+            {Number(m.match_status_id) === ПРИЗУПИНЕНО
+              ? 'Матч призупинено. У турнірній таблиці — рахунок на момент паузи. «Відновити матч» — продовжити, статус «Зіграний» нижче — завершити.'
+              : events.data?.length > 0
+                ? 'Матч перенесений. Події протоколу збережено, але в турнірну таблицю вони не йдуть, доки матч не зіграють. Нову дату — в картці матчу в розкладі турніру; на перегравці продовжте протокол або видаліть зайве.'
+                : 'Матч перенесений. Нову дату — в картці матчу в розкладі турніру.'}
+            {m.status_note && (
+              <div>
+                Причина для вболівальників: <strong>{m.status_note}</strong>
+              </div>
+            )}
           </div>
         )}
         {/* Ключ — бо форма тримає власну копію полів: після перенесення стара копія
@@ -337,7 +375,28 @@ export default function MatchPage() {
           onSave={saveCard}
         />
       )}
-      {переносимо && <PostponeDialog match={m} onClose={() => setПереносимо(false)} onSave={postpone} />}
+      {причинаДля === 'postpone' && (
+        <ReasonDialog
+          title="Перенести матч"
+          warning={ПОПЕРЕДЖЕННЯ}
+          hint={`Зараз матч «${m._status?.Status || '—'}». ${ПУБЛІЧНА}. Уболівальникам піде пуш «Матч перенесено»`}
+          submitLabel="Перенести матч"
+          danger
+          onClose={() => setПричинаДля(null)}
+          onSave={postpone}
+        />
+      )}
+      {причинаДля === 'pause' && (
+        <ReasonDialog
+          title="Призупинити матч"
+          warning={ПОПЕРЕДЖЕННЯ_ПАУЗИ}
+          hint={`${ПУБЛІЧНА}. Уболівальникам піде пуш «Матч призупинено» з причиною`}
+          підказки={ПІДКАЗКИ_ПАУЗИ}
+          submitLabel="Призупинити"
+          onClose={() => setПричинаДля(null)}
+          onSave={pause}
+        />
+      )}
       {adding && (
         <EventForm
           match={m}
@@ -358,20 +417,28 @@ export default function MatchPage() {
   );
 }
 
-function PostponeDialog({ match, onClose, onSave }) {
+// Перенесення чи пауза: причина обовʼязкова, її побачать уболівальники
+// (Match.status_note) і вона ж із датою допишеться в коментар матчу.
+function ReasonDialog({ title, warning, hint, підказки = [], submitLabel, danger = false, onClose, onSave }) {
   const [причина, setПричина] = useState('');
   const submit = (e) => {
     e.preventDefault();
-    if (причинаГодиться(причина)) onSave.mutate(причина.trim());
+    if (причинаГодиться(причина)) onSave.mutate({ reason: причина.trim() });
   };
   return (
-    <Modal title="Перенести матч" onClose={onClose}>
+    <Modal title={title} onClose={onClose}>
       <form className="form" onSubmit={submit}>
-        <div className="warn-box">{ПОПЕРЕДЖЕННЯ}</div>
-        <Field
-          label="Причина"
-          hint={`Допишеться в коментар матчу з датою; зараз матч «${match._status?.Status || 'Онлайн'}». Уболівальникам піде пуш «Матч перенесено»`}
-        >
+        <div className="warn-box">{warning}</div>
+        {підказки.length > 0 && (
+          <div className="club-cell">
+            {підказки.map((п) => (
+              <button key={п} type="button" className="btn small" onClick={() => setПричина(п)}>
+                {п}
+              </button>
+            ))}
+          </div>
+        )}
+        <Field label="Причина" hint={hint}>
           <textarea rows={3} value={причина} onChange={(e) => setПричина(e.target.value)} required autoFocus />
         </Field>
         <ErrorBox error={onSave.error} />
@@ -380,8 +447,8 @@ function PostponeDialog({ match, onClose, onSave }) {
           <button type="button" className="btn" onClick={onClose}>
             Скасувати
           </button>
-          <button className="btn danger" disabled={!причинаГодиться(причина) || onSave.isPending}>
-            Перенести матч
+          <button className={danger ? 'btn danger' : 'btn primary'} disabled={!причинаГодиться(причина) || onSave.isPending}>
+            {submitLabel}
           </button>
         </div>
       </form>
@@ -432,6 +499,9 @@ function ResultForm({ match, onSave, подій }) {
       <div className="row2">
         <Field label="Статус">
           <select value={values.match_status_id} onChange={set('match_status_id')}>
+            {/* «Призупинено» лише для вже призупиненого: зберегти фоли, не відновлюючи.
+                Призупиняє кнопка «Призупинити» — з причиною */}
+            {Number(match.match_status_id) === ПРИЗУПИНЕНО && <option value={ПРИЗУПИНЕНО}>Призупинено</option>}
             <option value={3}>Онлайн</option>
             <option value={4}>Зіграний</option>
           </select>

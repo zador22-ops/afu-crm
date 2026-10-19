@@ -48,7 +48,8 @@ function "Push v2 audience" {
           let ok = false;
           if (kind === 'news') ok = on('news');
           else if (kind === 'update') ok = on('updates') && f.platform === $input.platform;
-          else if (kind === 'match_start') ok = (fav && on('favorites')) || on('live');
+          // Пауза й відновлення — тим самим, кому «Матч почався» (бриф match-pause-and-note)
+          else if (kind === 'match_start' || kind === 'match_paused' || kind === 'match_resumed') ok = (fav && on('favorites')) || on('live');
           else if (kind === 'reminder60') ok = (fav && on('favorites')) || ($input.is_top === true && on('top'));
           else ok = fav && on('favorites');
           if (!ok) continue;

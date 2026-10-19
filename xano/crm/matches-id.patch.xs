@@ -20,6 +20,10 @@ query "matches/{match_id}" verb=PATCH {
     text timekeeper? filters=trim
     int match_number?
     int num_of_spectators?
+    // Обовʼязкова при переході в «Перенесений» (≥ 3 символи): іде в
+    // Match.status_note, яку бачать уболівальники, і з датою в other_comments.
+    // В інших випадках не потрібна й ігнорується. Без персональних даних.
+    text reason? filters=trim
   }
 
   stack {
@@ -51,14 +55,43 @@ query "matches/{match_id}" verb=PATCH {
       error = "Результат і статус — на сторінці матчу: від них залежать рядки турнірної таблиці"
     }
 
-    // Статус матчу «Онлайн»/«Зіграний» звідси не міняється взагалі. Перенести
-    // його — кнопкою «Перенести матч» (POST …/postpone): там обовʼязкова
-    // причина, і вона лишається в коментарі матчу. Інакше перенесення без
-    // причини йшло б в обхід, а відкат у «Запланований» стирав би рядки
-    // таблиці мовчки.
-    precondition ($input.match_status_id == null || ($was.match_status_id != 3 && $was.match_status_id != 4)) {
+    // Статус матчу «Онлайн»/«Зіграний»/«Призупинено» звідси не міняється
+    // взагалі. Перенести його — кнопкою «Перенести матч» (POST …/postpone):
+    // там обовʼязкова причина. Інакше перенесення без причини йшло б в обхід,
+    // а відкат у «Запланований» стирав би рядки таблиці мовчки (з 5 у 1 —
+    // заборонено брифом match-pause-and-note).
+    precondition ($input.match_status_id == null || ($was.match_status_id != 3 && $was.match_status_id != 4 && $was.match_status_id != 5)) {
       error_type = "badrequest"
-      error = "Матч уже онлайн чи зіграний: перенести його можна кнопкою «Перенести матч» на сторінці матчу"
+      error = "Матч уже онлайн, призупинений чи зіграний: перенести його можна кнопкою «Перенести матч» на сторінці матчу"
+    }
+
+    // Причина для вболівальників (status_note): при переході в «Перенесений»
+    // — обовʼязкова й пишеться; при поверненні в «Запланований» — стирається.
+    // note: null — поле не чіпати.
+    api.lambda {
+      code = """
+        const до = Number($var.was.match_status_id);
+        const у = $input.match_status_id == null ? до : Number($input.match_status_id);
+        const причина = String($input.reason || '').trim();
+        const переносимо = у === 2 && до !== 2;
+        if (переносимо) {
+          const d = new Date();
+          const день = d.toLocaleDateString('uk-UA', { day: '2-digit', month: '2-digit', year: 'numeric', timeZone: 'Europe/Kyiv' });
+          const час = d.toLocaleTimeString('uk-UA', { hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Kyiv' });
+          const рядок = `Перенесено ${день} ${час} (був «Запланований»): ${причина}`;
+          const старий = String($var.was.other_comments || '').trim();
+          return { reason_ok: причина.length >= 3, touch: true, note: причина, comment: старий ? `${старий}\n${рядок}` : рядок };
+        }
+        if (у !== 2 && String($var.was.status_note || '') !== '') {
+          return { reason_ok: true, touch: true, note: '', comment: $var.was.other_comments };
+        }
+        return { reason_ok: true, touch: false, note: null, comment: null };
+      """
+      timeout = 10
+    } as $plan
+    precondition ($plan.reason_ok) {
+      error_type = "badrequest"
+      error = "Вкажіть причину перенесення (щонайменше 3 символи): її побачать уболівальники"
     }
 
     // Перенесення в інший турнір безпечне лише поки матч не має рядків
@@ -83,8 +116,21 @@ query "matches/{match_id}" verb=PATCH {
     db.patch Match {
       field_name = "id"
       field_value = $input.match_id
-      data = `$input|pick:($raw|keys)|unset:"match_id"`
+      data = `$input|pick:($raw|keys)|unset:"match_id"|unset:"reason"`
     } as $match
+
+    conditional {
+      if ($plan.touch) {
+        db.edit Match {
+          field_name = "id"
+          field_value = $input.match_id
+          data = {status_note: $plan.note, other_comments: $plan.comment}
+        } as $noted
+        var.update $match {
+          value = $noted
+        }
+      }
+    }
 
     // Правка теж може змінити рядки таблиці: повернення статусу в
     // «Запланований» має їх прибрати, зміна туру — перенести в інший етап.

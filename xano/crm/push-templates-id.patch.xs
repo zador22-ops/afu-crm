@@ -40,7 +40,7 @@ query "push-templates/{push_templates_id}" verb=PATCH {
 
     api.lambda {
       code = """
-        const МАТЧ = ['home', 'away', 'competition', 'tour', 'score', 'player', 'team', 'minute', 'half', 'time', 'title', 'lead', 'version', 'store', 'note'];
+        const МАТЧ = ['home', 'away', 'competition', 'tour', 'score', 'player', 'team', 'minute', 'half', 'time', 'title', 'lead', 'version', 'store', 'note', 'reason'];
         const ГРА = {
           game_overtaken: ['nick', 'place', 'month_in'],
           game_month_end_soon: ['place', 'target_place', 'gap'],

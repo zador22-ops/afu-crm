@@ -6,7 +6,7 @@ function "Push v2 match status" {
   input {
     int match_id
     // status (за поточним статусом матчу), finish first half, start second half,
-    // reminder60, time_change
+    // reminder60, time_change, resumed (з «Призупинено» в «Онлайн»)
     text type_of_event filters=trim
     bool dry_run?=false
     // false — не дублювати старим форматом (#8): виклики, які до R55 пушів не слали
@@ -52,6 +52,9 @@ function "Push v2 match status" {
         if (ev === 'status' && c.status === 3) { kind = 'match_start'; body = `🔴 Матч почався · ${змагання}`; }
         else if (ev === 'status' && c.status === 4) { kind = 'match_finish'; body = `🏁 Кінець матчу · ${рахунок}`; }
         else if (ev === 'status' && c.status === 2) { kind = 'match_postponed'; body = `⏰ Матч перенесено · ${попереду ? 'тепер ' + коли(c.time) : 'нову дату повідомимо'}`; }
+        // Статус 5 «Призупинено» (бриф match-pause-and-note): пауза може бути не одна за матч, тож не once
+        else if (ev === 'status' && c.status === 5) { kind = 'match_paused'; body = `⏸ Матч призупинено · ${c.note}`; }
+        else if (ev === 'resumed') { kind = 'match_resumed'; body = `▶️ Матч відновлено · ${рахунок}`; }
         else if (ev === 'time_change') { kind = 'time_change'; body = `⏰ Змінено час · тепер ${коли(c.time)}`; }
         else if (ev === 'finish first half') { kind = 'half_time'; body = `⏸ Перерва · ${рахунок}`; }
         else if (ev === 'start second half') { kind = 'second_half'; body = `▶️ Другий тайм · ${рахунок}`; }
@@ -61,7 +64,7 @@ function "Push v2 match status" {
         const ref = kind === 'time_change' || kind === 'match_postponed' ? `${c.id}:${c.time}` : String(c.id);
         // Шаблон без дати — свій. Поки його рядка в push_templates немає, іде текст body вище
         const tpl = kind === 'reminder60' && c.is_top ? 'reminder60_top' : kind === 'match_postponed' && !попереду ? 'match_postponed_nodate' : kind;
-        const vars = { home: c.team1.name, away: c.team2.name, competition: c.competition, tour: c.tour, score: рахунок, time: коли(c.time) };
+        const vars = { home: c.team1.name, away: c.team2.name, competition: c.competition, tour: c.tour, score: рахунок, time: коли(c.time), reason: c.note };
         return { kind, tpl, vars, ref, once, title: `${c.team1.name} — ${c.team2.name}`, body };
       """
       timeout = 10

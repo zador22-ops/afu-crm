@@ -10,7 +10,7 @@ function "Push v2 match context" {
     db.get Match {
       field_name = "id"
       field_value = $input.match_id
-      output = ["id", "TimeOfMatch", "team1_id", "team2_id", "Result_team1", "Result_team2", "match_status_id", "leagues_id", "tours_id", "is_top"]
+      output = ["id", "TimeOfMatch", "team1_id", "team2_id", "Result_team1", "Result_team2", "match_status_id", "leagues_id", "tours_id", "is_top", "status_note"]
     } as $m
 
     db.get TeamInfo {
@@ -53,6 +53,8 @@ function "Push v2 match context" {
           id: m.id,
           time: m.TimeOfMatch,
           status: m.match_status_id,
+          // Причина перенесення чи призупинення для вболівальників (бриф match-pause-and-note)
+          note: String(m.status_note || '').trim(),
           is_top: m.is_top === true,
           team1: { id: m.team1_id, name: ($var.t1 && $var.t1.TeamName) || 'Команда 1', logo: url($var.t1 && $var.t1.TeamLogo) },
           team2: { id: m.team2_id, name: ($var.t2 && $var.t2.TeamName) || 'Команда 2', logo: url($var.t2 && $var.t2.TeamLogo) },
