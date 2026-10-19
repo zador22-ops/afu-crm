@@ -4,6 +4,7 @@ import { crm } from '../api/client.js';
 import { Empty, ErrorBox, Field, Modal, PageHeader, Toggle } from '../components/ui.jsx';
 import { kyivDateTimeString } from '../utils/kyivTime.js';
 import { заповнити, змінніДля, невідоміЗмінні, чиГра } from '../utils/pushVars.js';
+import { джерелоЗбою, розділитиЖурнал } from '../utils/pushLog.js';
 
 // R55. Тексти пушів застосунку «Футзал АФУ» — шаблони зі змінними, які
 // підставляє сервер (функція «Push v2 render»). Тут же журнал відправлень.
@@ -16,6 +17,8 @@ export default function PushPage() {
   const data = useQuery({ queryKey: ['push-templates'], queryFn: () => crm.get('/push-templates') });
   const [editing, setEditing] = useState(null);
   const d = data.data;
+  // Збої сповіщень гри (game_error) — окремим блоком, щоб не плутати з розсилками
+  const { збої, розсилки } = розділитиЖурнал(d?.log);
 
   return (
     <div className="page">
@@ -44,9 +47,38 @@ export default function PushPage() {
         </>
       )}
 
+      {збої.length > 0 && (
+        <>
+          <h3 className="section-title">Збої сповіщень гри</h3>
+          <p className="muted small-text">
+            Розсилка гри не вдалася. Партію й закриття місяця це не ламає; якщо збої повторюються — передайте Backend.
+          </p>
+          <table className="table compact">
+            <thead>
+              <tr>
+                <th>Коли</th>
+                <th>Де</th>
+                <th>Що сталося</th>
+              </tr>
+            </thead>
+            <tbody>
+              {збої.map((r) => (
+                <tr key={r.id}>
+                  <td className="nowrap muted">{kyivDateTimeString(r.sent_at)}</td>
+                  <td className="nowrap">
+                    <span className="badge danger">Збій</span> {джерелоЗбою(r.title)}
+                  </td>
+                  <td>{r.body || '—'}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </>
+      )}
+
       <h3 className="section-title">Журнал відправлень</h3>
-      {d && d.log.length === 0 && <Empty>Ще нічого не надсилалось</Empty>}
-      {d?.log.length > 0 && (
+      {d && розсилки.length === 0 && <Empty>Ще нічого не надсилалось</Empty>}
+      {розсилки.length > 0 && (
         <table className="table compact">
           <thead>
             <tr>
@@ -57,7 +89,7 @@ export default function PushPage() {
             </tr>
           </thead>
           <tbody>
-            {d.log.map((r) => (
+            {розсилки.map((r) => (
               <tr key={r.id}>
                 <td className="nowrap muted">{kyivDateTimeString(r.sent_at)}</td>
                 <td>

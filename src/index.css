@@ -291,6 +291,12 @@ h3 {
   background: var(--warn-soft);
   color: var(--warn);
 }
+/* Збій розсилки (журнал «Пуші») */
+.badge.danger {
+  margin-left: 0;
+  background: var(--danger-soft);
+  color: var(--danger);
+}
 .badge.brand {
   /* Бренд-жовтий лише як фон із темним текстом — білий текст на жовтому не
      проходить контраст (той самий висновок, що в docs/audit/visual-audit
