@@ -458,7 +458,10 @@ function ReasonDialog({ title, warning, hint, підказки = [], submitLabel
 
 function ResultForm({ match, onSave, подій }) {
   const { values, set } = useForm({
-    match_status_id: match.match_status_id > 2 ? match.match_status_id : 4,
+    // Запланований чи перенесений матч делегат відкриває, щоб ПОЧАТИ його: за
+    // замовчуванням «Онлайн». Раніше тут було «Зіграний», і одне «Зберегти»
+    // на старті закривало матч — рядки таблиці й пуш «Кінець матчу».
+    match_status_id: match.match_status_id > 2 ? match.match_status_id : 3,
     fouls1_team1: !!match.fouls1_team1,
     fouls2_team1: !!match.fouls2_team1,
     fouls1_team2: !!match.fouls1_team2,
@@ -506,8 +509,11 @@ function ResultForm({ match, onSave, подій }) {
             <option value={4}>Зіграний</option>
           </select>
         </Field>
+        {/* Багаторядкове: пауза й перенесення дописують сюди історію рядками з
+            датою, а однорядкове поле мовчки зливає рядки, і «Зберегти» записало б
+            «…тривогаПеренесено…» */}
         <Field label="Коментар до матчу">
-          <input value={values.other_comments} onChange={set('other_comments')} />
+          <textarea rows={2} value={values.other_comments} onChange={set('other_comments')} />
         </Field>
       </div>
       {технічний && (

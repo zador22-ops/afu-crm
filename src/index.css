@@ -491,6 +491,10 @@ input[type='radio'] {
   inset: 0;
   background: rgba(16, 24, 40, 0.45);
   display: grid;
+  /* Колонка на всю ширину: без цього автоколонка сітки росте під ширину
+     вікна (style width: 520/640), і max-width: 100% її не стримує — на
+     телефоні вікно вилазило за екран разом із кнопкою «Зберегти» */
+  grid-template-columns: minmax(0, 1fr);
   place-items: center;
   padding: 20px;
   z-index: 50;
@@ -674,8 +678,26 @@ input[type='radio'] {
   .sidebar nav a {
     flex: none;
   }
+  /* clip, а не hidden: hidden-контейнер браузер усе одно прокручує вбік,
+     коли фокус іде на кнопку, — сторінка зʼїжджала на телефоні після
+     натискання «Зберегти» чи «Додати подію» */
   .content {
-    overflow-x: hidden;
+    overflow-x: clip;
+  }
+  /* Вкладки (Протокол, Заявка, Організація, Рапорт) — стрічка з прокруткою,
+     як меню: на 375 px вони ширші за екран */
+  .tabs {
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+  .tab {
+    flex: none;
+  }
+  /* Заголовок секції, пояснення й кнопки — у кілька рядків, а не в одну
+     колонку завширшки зі слово */
+  .section-bar {
+    flex-wrap: wrap;
+    gap: 8px 12px;
   }
   .page {
     padding: 18px 16px 40px;
