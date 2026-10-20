@@ -289,7 +289,9 @@ function MatchForm({ item, tid, tours, команди, onClose, onSave, onDelete
           <Field label="Статус">
             <select value={values.match_status_id} onChange={set('match_status_id')} disabled={fixed}>
               {(statuses.data || [])
-                .filter((s) => fixed || s.id <= 2)
+                // Новий — лише «Запланований»: перенесення потребує причини, а її
+                // сервер приймає лише для наявного матчу (POST matches дає 400 на 2)
+                .filter((s) => fixed || (item.id ? s.id <= 2 : s.id === 1))
                 .map((s) => (
                   <option key={s.id} value={s.id}>
                     {s.Status}

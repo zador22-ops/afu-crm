@@ -77,6 +77,12 @@
   перенесення (щонайменше 3 символи): її побачать уболівальники»). Повернення в 1 стирає `status_note`.
 - Текст помилки статусів 3/4 у PATCH: «Результат і статус — на сторінці матчу…» замість «…в ADMIN».
 
+## `POST crm/matches` (новий матч у CRM) — що змінилось
+
+Створюється лише зі статусом 1: на 2 — 400 «Новий матч створюється лише запланованим. Перенести його можна
+після створення, вказавши причину». Перенесення потребує причини, а її пишуть лише PATCH розкладу й
+`…/postpone` (PM 2, 20.10).
+
 Повтор безпечний: другий запит pause/postpone нічого не змінить і поверне 400 «уже…». Кнопку на час
 запиту вимикати, щоб не було двох пушів від одночасних запитів.
 
@@ -96,12 +102,12 @@
 
 Після Backend п. 1 (статус 5, `status_note`):
 `node xano/deploy.mjs` по одному з фільтрами `matches-id-pause`, `matches-id-postpone`, `matches-id-result`,
-`matches-id.patch`, `push-templates-id.patch`; `node xano/deploy-fn.mjs` з `match-status`, `match-context`,
+`matches-id.patch`, `matches.post`, `push-templates-id.patch`; `node xano/deploy-fn.mjs` з `match-status`, `match-context`,
 `audience`; потім `node xano/push-templates-add.mjs`. Ширших фільтрів не брати: Xano переформатовує код, і
 `--check` показує «змінені» файли, яких ніхто не чіпав.
 
 ## Відкат
 
 Нові ендпоінти postpone і pause — видалити в Xano. Решта — `xano/backups/*.2026-10-19.rollback.xs`
-(PATCH матчу, result, push-templates PATCH, функції match status, match context, audience). Рядки
+(PATCH матчу, result, POST matches — `.2026-10-20`, push-templates PATCH, функції match status, match context, audience). Рядки
 шаблонів — видалити.

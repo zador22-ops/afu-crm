@@ -115,3 +115,9 @@ test('пуші паузи й відновлення: тексти функції
   for (const [kind, текст] of шаблони) assert.deepEqual(невідоміЗмінні([текст, '{home} — {away}'], kind), [], kind);
   assert.equal(заповнити(шаблони[0][1]), '⏸ Матч призупинено · Повітряна тривога');
 });
+
+test('новий матч — лише «Запланований»: POST matches не приймає 2', () => {
+  const p = xs('crm/matches.post.xs');
+  assert.match(p, /precondition \(\$input\.match_status_id == 1\) \{/);
+  assert.doesNotMatch(p, /match_status_id == 2/);
+});
