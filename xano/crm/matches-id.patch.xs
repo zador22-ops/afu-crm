@@ -67,7 +67,8 @@ query "matches/{match_id}" verb=PATCH {
 
     // Причина для вболівальників (status_note): при переході в «Перенесений»
     // — обовʼязкова й пишеться; при поверненні в «Запланований» — стирається.
-    // note: null — поле не чіпати.
+    // touch: false — поле не чіпати; note: null — стерти (контракт Backend:
+    // null означає «причини немає»).
     api.lambda {
       code = """
         const до = Number($var.was.match_status_id);
@@ -83,7 +84,7 @@ query "matches/{match_id}" verb=PATCH {
           return { reason_ok: причина.length >= 3, touch: true, note: причина, comment: старий ? `${старий}\n${рядок}` : рядок };
         }
         if (у !== 2 && String($var.was.status_note || '') !== '') {
-          return { reason_ok: true, touch: true, note: '', comment: $var.was.other_comments };
+          return { reason_ok: true, touch: true, note: null, comment: $var.was.other_comments };
         }
         return { reason_ok: true, touch: false, note: null, comment: null };
       """

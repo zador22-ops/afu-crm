@@ -66,13 +66,14 @@ query "matches/{match_id}/result" verb=POST {
     } as $match
 
     // Причина для вболівальників (status_note) живе, лише поки матч
-    // перенесений чи призупинений. Онлайн чи зіграний — без неї.
+    // перенесений чи призупинений. Онлайн чи зіграний — без неї (null, як
+    // у контракті Backend 20.10: null — причини немає).
     conditional {
       if ($input.match_status_id != 5 && $match.status_note != null && $match.status_note != "") {
         db.edit Match {
           field_name = "id"
           field_value = $input.match_id
-          data = {status_note: ""}
+          data = {status_note: null}
         } as $cleared
         var.update $match {
           value = $cleared

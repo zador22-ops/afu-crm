@@ -91,7 +91,7 @@ test('pause: лише з «Онлайн», причина ≥ 3 в status_note, 
 test('result: 5 — лише для вже призупиненого, причина стирається, з 5 у 3 — «відновлено»', () => {
   const r = xs('crm/matches-id-result.post.xs');
   assert.match(r, /\$input\.match_status_id != 5 \|\| \$was\.match_status_id == 5/);
-  assert.match(r, /data = \{status_note: ""\}/);
+  assert.match(r, /data = \{status_note: null\}/);
   assert.match(r, /\$was\.match_status_id == 5 && \$input\.match_status_id == 3[\s\S]*?type_of_event: "resumed"/);
 });
 
