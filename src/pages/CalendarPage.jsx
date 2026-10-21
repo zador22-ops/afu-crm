@@ -3,6 +3,8 @@ import { useQuery } from '@tanstack/react-query';
 import { crm } from '../api/client.js';
 import { Empty, ErrorBox, Field, PageHeader } from '../components/ui.jsx';
 import TournamentMatches from './TournamentMatches.jsx';
+import { useAuth } from '../auth/AuthContext.jsx';
+import { чиДелегат } from '../utils/myMatches.js';
 import { kyivDateTimeString } from '../utils/kyivTime.js';
 
 /**
@@ -18,6 +20,7 @@ import { kyivDateTimeString } from '../utils/kyivTime.js';
  * щоб правки не доводилось робити двічі.
  */
 export default function CalendarPage() {
+  const делегат = чиДелегат(useAuth().user);
   const seasons = useQuery({ queryKey: ['seasons'], queryFn: () => crm.get('/seasons') });
   const tournaments = useQuery({ queryKey: ['tournaments', 'all'], queryFn: () => crm.get('/tournaments') });
 
@@ -57,7 +60,8 @@ export default function CalendarPage() {
         subtitle="Матчі турніру: створення, перенесення, протокол. Турнір обирається зверху — матч завжди належить конкретному турніру сезону"
       />
       <ErrorBox error={seasons.error || tournaments.error} />
-      <TopList />
+      {/* Топ-матчі на Головній застосунку — редакційне, не делегатське */}
+      {!делегат && <TopList />}
       <div className="row2">
         <Field label="Сезон">
           <select value={season} onChange={(e) => setSeason(e.target.value)}>

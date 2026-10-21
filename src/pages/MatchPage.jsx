@@ -8,6 +8,8 @@ import MatchSquad from './MatchSquad.jsx';
 import MatchOrganization from './MatchOrganization.jsx';
 import MatchReport from './MatchReport.jsx';
 import { kyivDateTimeString } from '../utils/kyivTime.js';
+import { useAuth } from '../auth/AuthContext.jsx';
+import { чиДелегат } from '../utils/myMatches.js';
 import {
   ОНЛАЙН,
   ПІДКАЗКИ_ПАУЗИ,
@@ -42,6 +44,9 @@ export default function MatchPage() {
   const { id } = useParams();
   const mid = Number(id);
   const qc = useQueryClient();
+  // Делегат приходить сюди з «Моїх матчів» і туди ж повертається; «Топ-матч»
+  // — редакційне, не його (PM 2, 21.10)
+  const делегат = чиДелегат(useAuth().user);
 
   const match = useQuery({ queryKey: ['match', mid], queryFn: () => crm.get(`/matches/${mid}`) });
   const events = useQuery({ queryKey: ['events', mid], queryFn: () => crm.get(`/matches/${mid}/events`) });
@@ -150,9 +155,15 @@ export default function MatchPage() {
     <div className="page">
       <PageHeader
         back={
-          <Link to={`/tournaments/${m.leagues_id}`} className="back">
-            ← Турнір
-          </Link>
+          делегат ? (
+            <Link to="/my-matches" className="back">
+              ← Мої матчі
+            </Link>
+          ) : (
+            <Link to={`/tournaments/${m.leagues_id}`} className="back">
+              ← Турнір
+            </Link>
+          )
         }
         title={
           <span>
@@ -170,7 +181,7 @@ export default function MatchPage() {
           .join(' · ')}
         actions={
           <>
-            <TopMatchToggle match={m} />
+            {!делегат && <TopMatchToggle match={m} />}
             <span className="score-big">
               {m.Result_team1 ?? 0} : {m.Result_team2 ?? 0}
             </span>

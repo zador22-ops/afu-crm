@@ -18,6 +18,7 @@ import PushPage from './pages/PushPage.jsx';
 import GamePage from './pages/GamePage.jsx';
 import { useСкаргиГри, ReportsBadge, ReportsBanner } from './components/GameReports.jsx';
 import { ДО_СКАРГ } from './utils/gameReports.js';
+import { чиДелегат } from './utils/myMatches.js';
 // Новини тягнуть редактор TipTap (~сотні КБ) — вантажимо лише коли відкрили
 const NewsPage = lazy(() => import('./pages/NewsPage.jsx'));
 const NewsEditPage = lazy(() => import('./pages/NewsEditPage.jsx'));
@@ -28,6 +29,7 @@ import VenuesPage from './pages/VenuesPage.jsx';
 import MatchPage from './pages/MatchPage.jsx';
 import UsersPage from './pages/UsersPage.jsx';
 import CalendarPage from './pages/CalendarPage.jsx';
+import MyMatchesPage from './pages/MyMatchesPage.jsx';
 import SettingsPage from './pages/SettingsPage.jsx';
 
 const NAV = [
@@ -43,6 +45,14 @@ const NAV = [
   { to: '/people', label: 'Особи' },
   { to: '/judges', label: 'Судді' },
   { to: '/venues', label: 'Арени' },
+];
+
+// Делегат веде матчі, більше нічого (PM 2, 21.10): решту розділів він на
+// сервері однаково не змінить — без прав там лише 403. Це меню, а не захист:
+// маршрути лишаються, права перевіряє сервер.
+const NAV_ДЕЛЕГАТА = [
+  { to: '/my-matches', label: 'Мої матчі' },
+  { to: '/calendar', label: 'Календар' },
 ];
 
 // Користувачі й службове — у верхній смузі поруч із профілем, як в Alliance CRM:
@@ -161,12 +171,14 @@ function SettingsMenu() {
   );
 }
 
-// Куди веде вхід і «/»: головна сторінка CRM
+// Куди веде вхід і «/»: головна сторінка CRM; у делегата — його матчі
 const ГОЛОВНА = '/seasons';
+const ГОЛОВНА_ДЕЛЕГАТА = '/my-matches';
 
 function Shell({ children }) {
   const { user, logout } = useAuth();
   const location = useLocation();
+  const делегат = чиДелегат(user);
   return (
     <div className="shell">
       <aside className="sidebar">
@@ -176,7 +188,7 @@ function Shell({ children }) {
           <span className="brand-sub">CRM</span>
         </div>
         <nav>
-          {NAV.map((n) => (
+          {(делегат ? NAV_ДЕЛЕГАТА : NAV).map((n) => (
             <NavLink key={n.to} to={n.to} className={({ isActive }) => (isActive ? 'active' : '')}>
               {n.label}
             </NavLink>
@@ -185,7 +197,8 @@ function Shell({ children }) {
       </aside>
       <div className="content">
         <header className="topbar">
-          <SettingsMenu />
+          {/* Налаштування CRM (користувачі, пуші, гра…) делегату ні до чого */}
+          {!делегат && <SettingsMenu />}
           <div className="topbar-user">
             <div className="topbar-user-text">
               <div className="user-name">{user?.Name || `Користувач ${user?.id ?? ''}`}</div>
@@ -221,11 +234,13 @@ export default function App() {
       </Routes>
     );
   }
+  const головна = чиДелегат(user) ? ГОЛОВНА_ДЕЛЕГАТА : ГОЛОВНА;
   return (
     <Shell>
       <Routes>
-        <Route path="/" element={<Navigate to={ГОЛОВНА} replace />} />
-        <Route path="/login" element={<Navigate to={ГОЛОВНА} replace />} />
+        <Route path="/" element={<Navigate to={головна} replace />} />
+        <Route path="/login" element={<Navigate to={головна} replace />} />
+        <Route path={ГОЛОВНА_ДЕЛЕГАТА} element={<MyMatchesPage />} />
         <Route path={ГОЛОВНА} element={<SeasonsPage />} />
         <Route path="/calendar" element={<CalendarPage />} />
         <Route path="/seasons/:id" element={<SeasonPage />} />

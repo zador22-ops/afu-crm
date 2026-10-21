@@ -18,7 +18,7 @@ export default function LoginPage() {
     setBusy(true);
     try {
       await login(id, password);
-      nav(loc.state?.from && loc.state.from !== '/login' ? loc.state.from : '/seasons', { replace: true });
+      nav(loc.state?.from && loc.state.from !== '/login' ? loc.state.from : '/', { replace: true });
     } catch (err) {
       // Xano на невірний пароль відповідає «Invalid Credentials.» зі статусом 500, не 401
       const invalid = /invalid credentials/i.test(err.message || '') || err.status === 401 || err.status === 403;

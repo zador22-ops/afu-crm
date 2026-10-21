@@ -5,6 +5,8 @@ import { crm } from '../api/client.js';
 import { Empty, ErrorBox, Field, Modal, useForm } from '../components/ui.jsx';
 import { kyivDateTimeString, toKyivInputValue, fromKyivInputValue } from '../utils/kyivTime.js';
 import TopMatchToggle from '../components/TopMatchToggle.jsx';
+import { useAuth } from '../auth/AuthContext.jsx';
+import { чиДелегат } from '../utils/myMatches.js';
 import { ПУБЛІЧНА, зПричиною, потрібнаПричина, причинаГодиться } from '../utils/postpone.js';
 
 /**
@@ -35,6 +37,10 @@ const зафіксований = (m) => Number(m?.match_status_id) > 2;
 
 export default function TournamentMatches({ tid, participants }) {
   const qc = useQueryClient();
+  // Делегат розклад не веде: ні «Новий матч», ні «Редагувати», ні «Топ» —
+  // лише перехід на сторінку матчу (PM 2, 21.10). Сервер права однаково
+  // перевіряє; це про те, щоб не натиснути зайвого з телефона.
+  const розклад = !чиДелегат(useAuth().user);
   const [tour, setTour] = useState('');
   const [лишеТоп, setЛишеТоп] = useState(false);
   const [editing, setEditing] = useState(null);
@@ -88,9 +94,11 @@ export default function TournamentMatches({ tid, participants }) {
           <input type="checkbox" checked={лишеТоп} onChange={(e) => setЛишеТоп(e.target.checked)} /> лише топ-матчі
         </label>
         <span className="muted">Результат і статус «Онлайн» чи «Зіграний» — на сторінці матчу: від них залежать рядки таблиці</span>
-        <button className="btn primary" onClick={() => setEditing({})} disabled={команди.length < 2 || !tours.data?.length}>
-          Новий матч
-        </button>
+        {розклад && (
+          <button className="btn primary" onClick={() => setEditing({})} disabled={команди.length < 2 || !tours.data?.length}>
+            Новий матч
+          </button>
+        )}
       </div>
       <ErrorBox error={matches.error} />
       {команди.length < 2 && <Empty>Спершу додайте щонайменше дві команди у вкладці «Учасники»</Empty>}
@@ -106,7 +114,7 @@ export default function TournamentMatches({ tid, participants }) {
               <th>Рахунок</th>
               <th>Арена</th>
               <th>Стан</th>
-              <th>Топ</th>
+              {розклад && <th>Топ</th>}
               <th></th>
             </tr>
           </thead>
@@ -128,16 +136,20 @@ export default function TournamentMatches({ tid, participants }) {
                   {m._status?.Status || '—'}
                   {зПричиною(m.match_status_id) && m.status_note && <div className="muted small-text">{m.status_note}</div>}
                 </td>
-                <td>
-                  <TopMatchToggle match={m} compact />
-                </td>
+                {розклад && (
+                  <td>
+                    <TopMatchToggle match={m} compact />
+                  </td>
+                )}
                 <td className="row-actions">
                   <Link className="btn small primary" to={`/matches/${m.id}`}>
                     Керувати матчем
                   </Link>
-                  <button className="btn small" onClick={() => setEditing(m)}>
-                    Редагувати
-                  </button>
+                  {розклад && (
+                    <button className="btn small" onClick={() => setEditing(m)}>
+                      Редагувати
+                    </button>
+                  )}
                 </td>
               </tr>
             ))}
