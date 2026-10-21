@@ -474,7 +474,11 @@ function ResultForm({ match, onSave, подій }) {
     Result_team2: match.Result_team2 ?? 0,
     other_comments: match.other_comments || '',
   });
-  const технічний = подій === 0;
+  // Технічний результат (рахунок руками) — лише зіграний матч без подій:
+  // неявка, знята команда. В «Онлайн» чи «Призупинено» без подій це просто
+  // початок гри, і поля рахунку спокушали б вписати рахунок замість голів
+  // (PM 2, 21.10). Сервер у /result теж не приймає рахунок для 3 і 5.
+  const технічний = подій === 0 && Number(values.match_status_id) === 4;
   const submit = (e) => {
     e.preventDefault();
     const body = {

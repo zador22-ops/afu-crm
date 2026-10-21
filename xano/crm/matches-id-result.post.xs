@@ -23,7 +23,9 @@ query "matches/{match_id}/result" verb=POST {
     int minute_break_2_2?
     // Технічний результат: рахунок руками, коли подій немає (неявка, знята
     // команда). Якщо в матчі є події-голи, ці поля ігноруються — рахунок
-    // рахується з подій, інакше протокол і таблиця розійшлися б.
+    // рахується з подій, інакше протокол і таблиця розійшлися б. Лише разом
+    // зі статусом 4: для «Онлайн» і «Призупинено» — 400 (PM 2, 21.10), бо
+    // рахунок ідучого матчу — це голи в протоколі.
     int Result_team1?
     int Result_team2?
     text other_comments? filters=trim
@@ -59,6 +61,17 @@ query "matches/{match_id}/result" verb=POST {
       encoding = "json"
       exclude_middleware = false
     } as $raw
+    api.lambda {
+      code = """
+        const keys = Object.keys($var.raw || {});
+        return keys.includes('Result_team1') || keys.includes('Result_team2');
+      """
+      timeout = 10
+    } as $score_sent
+    precondition (!$score_sent || $input.match_status_id == 4) {
+      error_type = "badrequest"
+      error = "Рахунок вручну — лише для зіграного матчу без подій (технічний результат). У матчі, що йде, рахунок — це голи в протоколі"
+    }
     db.patch Match {
       field_name = "id"
       field_value = $input.match_id

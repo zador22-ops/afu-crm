@@ -121,3 +121,9 @@ test('новий матч — лише «Запланований»: POST matche
   assert.match(p, /precondition \(\$input\.match_status_id == 1\) \{/);
   assert.doesNotMatch(p, /match_status_id == 2/);
 });
+
+test('result: рахунок руками — лише разом зі статусом 4 (технічний результат)', () => {
+  const r = xs('crm/matches-id-result.post.xs');
+  assert.match(r, /keys\.includes\('Result_team1'\) \|\| keys\.includes\('Result_team2'\)/);
+  assert.match(r, /precondition \(!\$score_sent \|\| \$input\.match_status_id == 4\)/);
+});
