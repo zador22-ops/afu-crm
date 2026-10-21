@@ -384,6 +384,17 @@ h3 {
   gap: 5px;
   min-width: 0;
 }
+/* Вибір команди у вікні події чи картки: дві кнопки, назва переноситься */
+.team-pick {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+.team-pick .btn {
+  white-space: normal;
+  overflow-wrap: anywhere;
+  min-height: 40px;
+}
 .field-label {
   font-size: 12.5px;
   font-weight: 600;
@@ -709,6 +720,62 @@ input[type='radio'] {
   .table {
     display: block;
     overflow-x: auto;
+  }
+}
+
+/* Таблиця .cards на телефоні — картки: подія за подією, кнопки «Змінити» і
+   «Зняти» внизу картки, без гортання таблиці вбік (PM 2, 21.10). Підпис
+   комірки — з data-label; порожня комірка (без деталей) не показується. */
+@media (max-width: 640px) {
+  .table.cards {
+    display: block;
+    overflow: visible;
+    background: none;
+    border: 0;
+  }
+  .table.cards thead {
+    display: none;
+  }
+  .table.cards tbody,
+  .table.cards tr,
+  .table.cards td {
+    display: block;
+  }
+  .table.cards tr {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 10px 14px;
+    margin-bottom: 8px;
+  }
+  .table.cards td,
+  .table.cards tbody tr:last-child td {
+    border: 0;
+    padding: 2px 0;
+  }
+  .table.cards tbody tr:hover td {
+    background: none;
+  }
+  .table.cards td:empty {
+    display: none;
+  }
+  .table.cards td[data-label]::before {
+    content: attr(data-label);
+    display: inline-block;
+    min-width: 72px;
+    color: var(--muted);
+    font-size: 12px;
+    font-weight: 400;
+  }
+  .table.cards td.row-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
+    padding-top: 8px;
+    white-space: normal;
+  }
+  .table.cards .row-actions .btn + .btn {
+    margin-left: 0;
   }
 }
 

@@ -278,8 +278,10 @@ export default function MatchPage() {
         </div>
         <ErrorBox error={events.error || delEvent.error} />
         {events.data?.length === 0 && <Empty>Подій ще немає</Empty>}
+        {/* cards: на телефоні рядки стають картками (index.css), щоб «Змінити»
+            і «Зняти» було видно без гортання таблиці вбік */}
         {events.data?.length > 0 && (
-          <table className="table">
+          <table className="table cards">
             <thead>
               <tr>
                 <th>Хв</th>
@@ -293,13 +295,13 @@ export default function MatchPage() {
             <tbody>
               {events.data.map((e) => (
                 <tr key={e.id}>
-                  <td>{e.minute ?? '—'}</td>
-                  <td className="muted">
+                  <td data-label="Хв">{e.minute ?? '—'}</td>
+                  <td className="muted" data-label="Команда">
                     {e._team?.teaminfo_id === m.team1_id ? m._team1?.TeamName : e._team?.teaminfo_id === m.team2_id ? m._team2?.TeamName : '—'}
                   </td>
                   <td className="strong">{e._event?.Event || '—'}</td>
-                  <td>{гравець(e.team_id)}</td>
-                  <td className="muted">
+                  <td data-label="Гравець">{гравець(e.team_id)}</td>
+                  <td className="muted" data-label="Деталі">
                     {e._goal?.Type}
                     {e.asustent_team_id ? ` · асист: ${гравець(e.asustent_team_id)}` : ''}
                     {e._card?.Type}
@@ -337,12 +339,12 @@ export default function MatchPage() {
         <ErrorBox error={staffCards.error || delCard.error} />
         {staffCards.data?.length === 0 && <Empty>Карток штабу немає</Empty>}
         {staffCards.data?.length > 0 && (
-          <table className="table compact">
+          <table className="table compact cards">
             <tbody>
               {staffCards.data.map((c) => (
                 <tr key={c.id}>
-                  <td>{c.minute ?? '—'}</td>
-                  <td className="muted">
+                  <td data-label="Хв">{c.minute ?? '—'}</td>
+                  <td className="muted" data-label="Команда">
                     {c._staff?.teaminfo_id === m.team1_id ? m._team1?.TeamName : m._team2?.TeamName}
                   </td>
                   <td className="strong">{personName(c._staff?._people) || `особа ${c._staff?.people_id}`}</td>
@@ -568,6 +570,37 @@ function ResultForm({ match, onSave, подій }) {
   );
 }
 
+// Команда матчу — дві кнопки з повними назвами замість списку: у списку
+// довга назва обрізалась на телефоні («Тестова коман…»), а кнопка переносить
+// її в два рядки (PM 2, 21.10). Не <label>: клік по підпису натискав би першу.
+function TeamPick({ match, value, onChange }) {
+  return (
+    <div className="field">
+      <span className="field-label">Команда</span>
+      <div className="team-pick" role="radiogroup" aria-label="Команда">
+        {[
+          [match.team1_id, match._team1?.TeamName],
+          [match.team2_id, match._team2?.TeamName],
+        ].map(([id, назва]) => {
+          const обрана = String(value) === String(id);
+          return (
+            <button
+              key={id}
+              type="button"
+              role="radio"
+              aria-checked={обрана}
+              className={обрана ? 'btn primary' : 'btn'}
+              onClick={() => onChange(String(id))}
+            >
+              {назва || `команда ${id}`}
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 function EventForm({ match, dicts, roster1, roster2, item, onClose, onSave }) {
   const { values, set } = useForm({
     сторона: String(item?._team?.teaminfo_id || match.team1_id),
@@ -606,24 +639,18 @@ function EventForm({ match, dicts, roster1, roster2, item, onClose, onSave }) {
   return (
     <Modal title={item ? 'Змінити подію' : 'Подія матчу'} onClose={onClose}>
       <form className="form" onSubmit={submit}>
-        <div className="row2">
-          <Field label="Команда">
-            <select
-              value={values.сторона}
-              onChange={(e) => {
-                set('сторона')(e);
-                set('team_id')({ target: { value: '' } });
-                set('asustent_team_id')({ target: { value: '' } });
-              }}
-            >
-              <option value={match.team1_id}>{match._team1?.TeamName}</option>
-              <option value={match.team2_id}>{match._team2?.TeamName}</option>
-            </select>
-          </Field>
-          <Field label="Хвилина">
-            <input type="number" value={values.minute} onChange={set('minute')} />
-          </Field>
-        </div>
+        <TeamPick
+          match={match}
+          value={values.сторона}
+          onChange={(v) => {
+            set('сторона')(v);
+            set('team_id')('');
+            set('asustent_team_id')('');
+          }}
+        />
+        <Field label="Хвилина">
+          <input type="number" inputMode="numeric" value={values.minute} onChange={set('minute')} />
+        </Field>
         <Field label="Подія">
           <select value={values.types_of_match_events_id} onChange={set('types_of_match_events_id')}>
             {(dicts?.events || []).map((x) => (
@@ -733,18 +760,14 @@ function StaffCardForm({ match, dicts, staff1, staff2, item, onClose, onSave }) 
       <form className="form" onSubmit={submit}>
         {!item && (
           <>
-            <Field label="Команда">
-              <select
-                value={values.сторона}
-                onChange={(e) => {
-                  set('сторона')(e);
-                  set('administration_of_teams_id')({ target: { value: '' } });
-                }}
-              >
-                <option value={match.team1_id}>{match._team1?.TeamName}</option>
-                <option value={match.team2_id}>{match._team2?.TeamName}</option>
-              </select>
-            </Field>
+            <TeamPick
+              match={match}
+              value={values.сторона}
+              onChange={(v) => {
+                set('сторона')(v);
+                set('administration_of_teams_id')('');
+              }}
+            />
             <Field label="Хто">
               <select value={values.administration_of_teams_id} onChange={set('administration_of_teams_id')} required>
                 <option value="">—</option>
