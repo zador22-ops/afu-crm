@@ -3,8 +3,10 @@
 Від CRM (команда 2), 19.10.2026. Брифи PM 2 `match-postpone-after-start.md` і `match-pause-and-note.md`
 (репо AFU), слово Андрія 19.10. Для CRM і ADMIN 2.0 (Admin АФУ). Логіка — `xano/crm/matches-id-*.xs`.
 
-**Стан: чернетка, НЕ задеплоєно.** Статус 5 і поле `Match.status_note` додає Backend (п. 1 брифа паузи);
-до того ендпоінти, що пишуть `status_note`, на живому сервері не запрацюють.
+**Стан: розгорнуто 21.10.2026, прогін пройдено.** Нові ендпоінти: #766 `postpone`, #767 `pause`; оновлено
+`/result` #487, PATCH #475, POST `matches` #477, `push-templates` PATCH #635, функції Push v2 match status #16,
+match context #14, audience #13; шаблони #30 `match_paused`, #31 `match_resumed`, #32 `match_postponed_nodate`.
+Статус 5 і `Match.status_note` — від Backend.
 
 Група `crm` (`api:6HPZ3cxp`), заголовок `Authorization` як для решти `crm`. Право 2 (делегат і адмін),
 те саме, що для `…/result`. Помилки — `{ message }`, текст для людини, показувати як є.
@@ -101,7 +103,7 @@
 - пауза: «Матч лишиться в турнірній таблиці з рахунком на момент паузи. Далі — «Відновити матч»,
   «Зіграний» або «Перенести матч».»
 
-## Розгортання (лише після приймання PM 2 і підтвердження Андрія)
+## Розгортання (виконано 21.10 за словом Андрія; так само — для повторного)
 
 Після Backend п. 1 (статус 5, `status_note`):
 `node xano/deploy.mjs` по одному з фільтрами `matches-id-pause`, `matches-id-postpone`, `matches-id-result`,
