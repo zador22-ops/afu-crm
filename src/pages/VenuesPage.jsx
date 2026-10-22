@@ -2,11 +2,17 @@ import { useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { crm } from '../api/client.js';
 import { Empty, ErrorBox, Field, Modal, PageHeader, useForm } from '../components/ui.jsx';
+import { підказкаДоЗбереження, статусАрени } from '../utils/venueMap.js';
 
 /**
  * Арени. Одне поле `Venues.City`, у якому живуть і місто, і об'єкт одним рядком
  * («м. Бровари, БФСК»). Розділяти його не можна: у такому вигляді арену показує
  * фанатський застосунок у картці матчу, і на нього ж дивиться ADMIN.
+ *
+ * Посилання з Google Карт (бриф arena-map, п. 2): за ним застосунок показує
+ * арену на карті. Координати з посилання дістає сервер — і з короткого
+ * maps.app.goo.gl теж, — тож статус у списку береться з Venues.lat/lng, а
+ * не з розбору в браузері (src/utils/venueMap.js).
  */
 export default function VenuesPage() {
   const qc = useQueryClient();
@@ -47,10 +53,11 @@ export default function VenuesPage() {
       </div>
       {list.data && rows.length === 0 && <Empty>{q ? 'Нічого не знайшлось' : 'Арен ще немає'}</Empty>}
       {rows.length > 0 && (
-        <table className="table">
+        <table className="table cards">
           <thead>
             <tr>
               <th>Арена</th>
+              <th>Посилання з Google Карт</th>
               <th></th>
             </tr>
           </thead>
@@ -58,6 +65,9 @@ export default function VenuesPage() {
             {rows.map((v) => (
               <tr key={v.id}>
                 <td className="strong">{v.City}</td>
+                <td data-label="Карта">
+                  <MapStatus {...статусАрени(v)} />
+                </td>
                 <td className="row-actions">
                   <button className="btn small" onClick={() => setEditing(v)}>
                     Редагувати
@@ -73,11 +83,32 @@ export default function VenuesPage() {
   );
 }
 
+// ✓ точку знайдено · ⚠ пошук чи не знайдено · порожнє — як у мокапі
+function MapStatus({ тон, текст, href }) {
+  return (
+    <span className={`map-status ${тон}`}>
+      {тон === 'ok' ? '✓ ' : тон === 'warn' ? '⚠ ' : ''}
+      {текст}
+      {href && (
+        <>
+          {' · '}
+          <a href={href} target="_blank" rel="noreferrer">
+            Відкрити
+          </a>
+        </>
+      )}
+    </span>
+  );
+}
+
 function VenueForm({ item, onClose, onSave }) {
-  const { values, set } = useForm({ City: item.City || '' });
+  const { values, set } = useForm({ City: item.City || '', map_url: item.map_url || '' });
+  const url = values.map_url.trim();
+  // Не змінили посилання — показуємо, що вже знайшов сервер; змінили — підказку до збереження
+  const статус = item.id && url === String(item.map_url || '').trim() ? статусАрени(item) : підказкаДоЗбереження(url);
   const submit = (e) => {
     e.preventDefault();
-    onSave.mutate({ id: item.id, data: { City: values.City.trim() } });
+    onSave.mutate({ id: item.id, data: { City: values.City.trim(), map_url: url } });
   };
   return (
     <Modal title={item.id ? item.City : 'Нова арена'} onClose={onClose}>
@@ -85,6 +116,16 @@ function VenueForm({ item, onClose, onSave }) {
         <Field label="Назва" hint="Місто й обʼєкт одним рядком: «м. Бровари, БФСК», «м. Львів, ПС «Галичина»»">
           <input value={values.City} onChange={set('City')} required autoFocus />
         </Field>
+        <Field label="Посилання з Google Карт" hint="У Google Картах відкрийте арену → «Поділитися» → «Копіювати посилання». Порожнє — застосунок шукатиме арену за назвою">
+          <input
+            type="url"
+            inputMode="url"
+            value={values.map_url}
+            onChange={set('map_url')}
+            placeholder="https://maps.app.goo.gl/…"
+          />
+        </Field>
+        <MapStatus {...статус} />
         <ErrorBox error={onSave.error} />
         <div className="form-actions">
           <button type="button" className="btn" onClick={onClose}>
