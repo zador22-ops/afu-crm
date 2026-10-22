@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { crm } from '../api/client.js';
 import { Empty, ErrorBox, Field, Modal, PageHeader, useForm } from '../components/ui.jsx';
-import { підказкаДоЗбереження, статусАрени } from '../utils/venueMap.js';
+import { підказкаДоЗбереження, статусАрени, статусЗСервера } from '../utils/venueMap.js';
 
 /**
  * Арени. Одне поле `Venues.City`, у якому живуть і місто, і об'єкт одним рядком
@@ -22,11 +22,12 @@ export default function VenuesPage() {
 
   const save = useMutation({
     mutationFn: (v) => (v.id ? crm.patch(`/venues/${v.id}`, v.data) : crm.post('/venues', v.data)),
+    // Закриває форму сама форма: якщо точку не знайдено, вона лишається
+    // відкритою з поясненням сервера
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['venues'] });
       // Довідник арен читає ще й форма матчу — щоб нова арена з'явилась там одразу
       qc.invalidateQueries({ queryKey: ['dicts'] });
-      setEditing(null);
     },
   });
 
@@ -104,11 +105,30 @@ function MapStatus({ тон, текст, href }) {
 function VenueForm({ item, onClose, onSave }) {
   const { values, set } = useForm({ City: item.City || '', map_url: item.map_url || '' });
   const url = values.map_url.trim();
-  // Не змінили посилання — показуємо, що вже знайшов сервер; змінили — підказку до збереження
-  const статус = item.id && url === String(item.map_url || '').trim() ? статусАрени(item) : підказкаДоЗбереження(url);
+  // Що відповів сервер на щойно збережене посилання: { url, map }
+  const [збережено, setЗбережено] = useState(null);
+  // Пріоритет: відповідь сервера на саме це посилання → збережений стан арени
+  // (посилання не міняли) → підказка до збереження
+  const статус =
+    збережено && збережено.url === url
+      ? статусЗСервера(збережено.map)
+      : item.id && url === String(item.map_url || '').trim()
+        ? статусАрени(item)
+        : підказкаДоЗбереження(url);
   const submit = (e) => {
     e.preventDefault();
-    onSave.mutate({ id: item.id, data: { City: values.City.trim(), map_url: url } });
+    onSave.mutate(
+      { id: item.id, data: { City: values.City.trim(), map_url: url } },
+      {
+        onSuccess: (venue) => {
+          const kind = venue?._map?.kind;
+          // Точку знайдено чи посилання порожнє — готово. Інакше лишаємо форму з
+          // причиною від сервера: «Поділитися» з телефона часто без координат.
+          if (!kind || kind === 'place' || kind === 'empty') onClose();
+          else setЗбережено({ url, map: venue._map });
+        },
+      }
+    );
   };
   return (
     <Modal title={item.id ? item.City : 'Нова арена'} onClose={onClose}>
@@ -126,6 +146,12 @@ function VenueForm({ item, onClose, onSave }) {
           />
         </Field>
         <MapStatus {...статус} />
+        {збережено && збережено.url === url && (
+          <div className="muted small-text">
+            Назву й посилання збережено. Застосунок відкриватиме саме це посилання, без вбудованої карти. Можна вставити
+            інше й зберегти ще раз.
+          </div>
+        )}
         <ErrorBox error={onSave.error} />
         <div className="form-actions">
           <button type="button" className="btn" onClick={onClose}>
