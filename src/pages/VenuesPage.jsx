@@ -157,8 +157,10 @@ function VenueForm({ item, onClose, onSave }) {
           <button type="button" className="btn" onClick={onClose}>
             Скасувати
           </button>
+          {/* Коротке посилання сервер розгортає запитами до Google — до кількох
+              секунд (контракт Backend: до 3 кроків по ≤ 8 с, зазвичай < 1 с) */}
           <button className="btn primary" disabled={onSave.isPending}>
-            Зберегти
+            {onSave.isPending ? (url ? 'Перевіряємо посилання…' : 'Зберігаємо…') : 'Зберегти'}
           </button>
         </div>
       </form>
