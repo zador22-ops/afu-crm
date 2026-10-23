@@ -154,6 +154,15 @@ query "data-issues" verb=GET {
         const турнір = (l, вкладка) => ({ type: 'tournament', id: l.id, label: l.League || ('турнір ' + l.id), link: '/tournaments/' + l.id + (вкладка ? '?tab=' + вкладка : '') });
         const особа = (p, sub) => ({ type: 'person', id: p.id, label: ім(p) || ('особа ' + p.id), sub, link: '/people?q=' + encodeURIComponent(ім(p)) });
 
+        // Порядок (PM 2, 23.10): майбутні — найближчі зверху; зіграні й минулі —
+        // найсвіжіші зверху; гравці й штаб — за клубом і прізвищем; решта — за назвою
+        const вгору = (a, b) => (a.TimeOfMatch || Infinity) - (b.TimeOfMatch || Infinity);
+        const вниз = (a, b) => (b.TimeOfMatch || 0) - (a.TimeOfMatch || 0);
+        const абетка = (a, b) => String(a || '').localeCompare(String(b || ''), 'uk');
+        const заНазвою = (a, b) => абетка(a.label, b.label);
+        const заКлубом = (клубA, імA, клубB, імB) => абетка(назваКлубу(клубA), назваКлубу(клубB)) || абетка(імA, імB);
+        const впоряд = (масив, порівняння) => масив.slice().sort(порівняння);
+
         const checks = [];
         const перевірка = (code, level, title, seen, fix, items, total) => {
           checks.push({ code, level, title, seen, fix, count: items.length, total: total === undefined ? null : total, truncated: items.length > МАКС, items: items.slice(0, МАКС) });
@@ -163,40 +172,40 @@ query "data-issues" verb=GET {
         перевірка('played_no_protocol', 'critical', 'Зіграний матч без протоколу',
           'Рахунок без авторів голів, порожні склади й хронологія',
           'Внесіть заявку й події на сторінці матчу',
-          зіграні.filter((m) => !подіїЗа.get(m.id) && !заявкиЗа.get(m.id)).map((m) => матч(m)), зіграні.length);
+          впоряд(зіграні.filter((m) => !подіїЗа.get(m.id) && !заявкиЗа.get(m.id)), вниз).map((m) => матч(m)), зіграні.length);
 
         перевірка('past_not_played', 'critical', 'Матч у минулому досі «Запланований» чи «Перенесений» без нової дати',
           'Висить як майбутній, без рахунку',
           'Внесіть результат на сторінці матчу або поставте нову дату в розкладі',
-          матчі.filter((m) => m.TimeOfMatch && ((m.match_status_id === 1 && зараз - m.TimeOfMatch > 3 * 3600000) || (m.match_status_id === 2 && m.TimeOfMatch < зараз))).map((m) => матч(m)));
+          впоряд(матчі.filter((m) => m.TimeOfMatch && ((m.match_status_id === 1 && зараз - m.TimeOfMatch > 3 * 3600000) || (m.match_status_id === 2 && m.TimeOfMatch < зараз))), вниз).map((m) => матч(m)));
 
         const скоро = майбутні.filter((m) => m.TimeOfMatch && m.TimeOfMatch - зараз <= 14 * ДЕНЬ);
         перевірка('future_no_delegate_soon', 'critical', 'Матч найближчих 14 днів без делегата',
           'Делегат не побачить матч у «Моїх матчах» — у CRM і ADMIN 2.0',
           'Призначте делегата в картці матчу в розкладі турніру',
-          скоро.filter((m) => !є(m.users_idDelegat)).map((m) => матч(m, true)), скоро.length);
+          впоряд(скоро.filter((m) => !є(m.users_idDelegat)), вгору).map((m) => матч(m, true)), скоро.length);
 
         перевірка('live_too_long', 'critical', '«Онлайн» чи «Призупинено» довше 3 годин',
           'У застосунку матч «іде» годинами',
           'Завершіть або перенесіть матч на сторінці матчу',
-          матчі.filter((m) => [3, 5].includes(m.match_status_id) && m.TimeOfMatch && зараз - m.TimeOfMatch > 3 * 3600000).map((m) => матч(m)));
+          впоряд(матчі.filter((m) => [3, 5].includes(m.match_status_id) && m.TimeOfMatch && зараз - m.TimeOfMatch > 3 * 3600000), вниз).map((m) => матч(m)));
 
         // ——— Важливо ———
         const пізніше = майбутні.filter((m) => !(m.TimeOfMatch && m.TimeOfMatch - зараз <= 14 * ДЕНЬ));
         перевірка('future_no_delegate_later', 'important', 'Майбутній матч без делегата (далі ніж 14 днів)',
           'Поки нічого; за два тижні до гри стане критичним',
           'Призначте делегата в картці матчу в розкладі турніру',
-          пізніше.filter((m) => !є(m.users_idDelegat)).map((m) => матч(m, true)), пізніше.length);
+          впоряд(пізніше.filter((m) => !є(m.users_idDelegat)), вгору).map((m) => матч(m, true)), пізніше.length);
 
         перевірка('future_no_referee', 'important', 'Майбутній матч без суддів',
           'На «Інфо» матчу немає арбітрів',
           'Призначте арбітрів у картці матчу в розкладі турніру',
-          майбутні.filter((m) => !є(m.referee1_id)).map((m) => матч(m, true)), майбутні.length);
+          впоряд(майбутні.filter((m) => !є(m.referee1_id)), вгору).map((m) => матч(m, true)), майбутні.length);
 
         перевірка('future_no_time', 'important', 'Майбутній матч без часу',
           'Дата без години',
           'Поставте час у картці матчу в розкладі турніру',
-          майбутні.filter((m) => !m.TimeOfMatch || київГодина(m.TimeOfMatch) === '00:00').map((m) => матч(m, true)), майбутні.length);
+          впоряд(майбутні.filter((m) => !m.TimeOfMatch || київГодина(m.TimeOfMatch) === '00:00'), вгору).map((m) => матч(m, true)), майбутні.length);
 
         const гравець = (k) => {
           const p = людина.get(k.player_id);
@@ -205,7 +214,7 @@ query "data-issues" verb=GET {
         перевірка('card_no_number', 'important', 'Гравець у складі без номера',
           'У складі — без кружечка з номером',
           'Внесіть номер у складі клубу',
-          картки.filter((k) => !є(k.Number)).map(гравець), картки.length);
+          впоряд(картки.filter((k) => !є(k.Number)), (a, b) => заКлубом(a.teaminfo_id, ім(людина.get(a.player_id)), b.teaminfo_id, ім(людина.get(b.player_id)))).map(гравець), картки.length);
 
         const дублі = [];
         {
@@ -225,14 +234,14 @@ query "data-issues" verb=GET {
         перевірка('number_duplicate', 'important', 'Однаковий номер у двох гравців клубу',
           'У складі двоє з тим самим номером',
           'Змініть номер одному з гравців у складі клубу',
-          дублі);
+          впоряд(дублі, заНазвою));
 
         const аренаМайбутніх = new Set(майбутні.map((m) => m.venues_id).filter((x) => x > 0));
         const безПосилання = (a) => !String(a.map_url || '').trim();
         перевірка('venue_future_no_map', 'important', 'Арена майбутніх матчів без посилання на карту',
           'Замість карти — «Знайти на картах» (пошук за назвою)',
           'Вставте посилання з Google Карт на сторінці «Арени»',
-          список($var.venues).filter((a) => аренаМайбутніх.has(a.id) && безПосилання(a)).map(арена),
+          впоряд(список($var.venues).filter((a) => аренаМайбутніх.has(a.id) && безПосилання(a)).map(арена), заНазвою),
           список($var.venues).filter((a) => аренаМайбутніх.has(a.id)).length);
 
         const учасниківЗа = (id) => new Set(учасники.filter((u) => u.leagues_id === id).map((u) => u.teaminfo_id));
@@ -240,7 +249,8 @@ query "data-issues" verb=GET {
           'Порожній турнір у списку змагань',
           'Додайте учасників і матчі або сховайте змагання в розділі «Змагання»',
           ліги.filter((l) => (змагання.get(l.league_id) || {}).show_in_app !== false && (учасниківЗа(l.id).size === 0 || !матчі.some((m) => m.leagues_id === l.id)))
-            .map((l) => ({ ...турнір(l, 'participants'), sub: 'учасників ' + учасниківЗа(l.id).size + ', матчів ' + матчі.filter((m) => m.leagues_id === l.id).length })));
+            .map((l) => ({ ...турнір(l, 'participants'), sub: 'учасників ' + учасниківЗа(l.id).size + ', матчів ' + матчі.filter((m) => m.leagues_id === l.id).length }))
+            .sort(заНазвою));
 
         перевірка('table_stage_no_zones', 'important', 'Табличний етап без зон',
           'Таблиця без кольорових зон (плей-оф, виліт)',
@@ -248,7 +258,7 @@ query "data-issues" verb=GET {
           ліги.filter((l) => {
             const табличні = [...new Set(список($var.tours).filter((t) => t.leagues_id === l.id).map((t) => t.league_stage_id))].filter((id) => id > 0 && (етап.get(id) || {}).stage_type === 'таблиця');
             return табличні.some((id) => !список($var.zones).some((z) => z.leagues_id === l.id && z.league_stage_id === id));
-          }).map((l) => турнір(l, 'zones')));
+          }).map((l) => турнір(l, 'zones')).sort(заНазвою));
 
         // Лише турніри, де таблиця вже є: до першого зіграного матчу рядків немає, і це не помилка
         перевірка('participants_vs_table', 'important', 'Учасники турніру не збігаються з таблицею',
@@ -262,23 +272,23 @@ query "data-issues" verb=GET {
             const зайві = [...вТаблиці].filter((x) => !уч.has(x));
             if (!нема.length && !зайві.length) return null;
             return { ...турнір(l, 'participants'), sub: 'учасників ' + уч.size + ', у таблиці ' + вТаблиці.size + (нема.length ? '; немає в таблиці: ' + нема.map(назваКлубу).join(', ') : '') + (зайві.length ? '; зайві в таблиці: ' + зайві.map(назваКлубу).join(', ') : '') };
-          }).filter(Boolean));
+          }).filter(Boolean).sort(заНазвою));
 
         // ——— Рекомендація ———
         перевірка('club_no_home_venue', 'advice', 'Клуб-учасник без домашньої арени',
           'На сторінці клубу немає рядка домашньої арени',
           'Оберіть домашню арену в картці клубу',
-          клуби.filter((k) => !є(k.home_venues_id)).map((k) => клубОб(k)), клуби.length);
+          впоряд(клуби.filter((k) => !є(k.home_venues_id)).map((k) => клубОб(k)), заНазвою), клуби.length);
 
         перевірка('venue_no_map', 'advice', 'Інша арена без посилання на карту',
           'Замість карти — «Знайти на картах»',
           'Вставте посилання з Google Карт на сторінці «Арени»',
-          список($var.venues).filter((a) => !аренаМайбутніх.has(a.id) && безПосилання(a)).map(арена));
+          впоряд(список($var.venues).filter((a) => !аренаМайбутніх.has(a.id) && безПосилання(a)).map(арена), заНазвою));
 
         перевірка('played_no_officials', 'advice', 'Зіграний матч без делегата чи суддів',
           'На «Інфо» матчу немає рядка «Делегат» чи арбітрів',
           'Внесіть делегата й арбітрів у картці матчу в розкладі турніру',
-          зіграні.filter((m) => !є(m.users_idDelegat) || !є(m.referee1_id)).map((m) => ({ ...матч(m, true), sub: [(ліга.get(m.leagues_id) || {}).League, !є(m.users_idDelegat) ? 'без делегата' : '', !є(m.referee1_id) ? 'без суддів' : ''].filter(Boolean).join(' · ') })), зіграні.length);
+          впоряд(зіграні.filter((m) => !є(m.users_idDelegat) || !є(m.referee1_id)), вниз).map((m) => ({ ...матч(m, true), sub: [(ліга.get(m.leagues_id) || {}).League, !є(m.users_idDelegat) ? 'без делегата' : '', !є(m.referee1_id) ? 'без суддів' : ''].filter(Boolean).join(' · ') })), зіграні.length);
 
         const гравціСезону = [...new Set(картки.map((k) => k.player_id))].map((id) => людина.get(id)).filter(Boolean);
         const безПозиції = new Set(картки.filter((k) => !є(k.positions_id)).map((k) => k.player_id));
@@ -286,13 +296,15 @@ query "data-issues" verb=GET {
           'Заглушка замість фото, немає віку чи амплуа',
           'Доповніть картку особи (фото, дата народження) або позицію в складі клубу',
           гравціСезону.filter((p) => !фото(p.Photo) || !p.Date_of_birth || безПозиції.has(p.id))
-            .map((p) => особа(p, [!фото(p.Photo) ? 'без фото' : '', !p.Date_of_birth ? 'без дати народження' : '', безПозиції.has(p.id) ? 'без позиції' : ''].filter(Boolean).join(', '))),
+            .map((p) => особа(p, [!фото(p.Photo) ? 'без фото' : '', !p.Date_of_birth ? 'без дати народження' : '', безПозиції.has(p.id) ? 'без позиції' : ''].filter(Boolean).join(', ')))
+            .sort(заНазвою),
           гравціСезону.length);
 
         перевірка('staff_incomplete', 'advice', 'Штаб без фото чи ролі',
           'Заглушка замість фото чи немає посади',
           'Доповніть фото особи або роль у штабі клубу',
-          штаб.filter((a) => !фото((людина.get(a.people_id) || {}).Photo) || !є(a.positions_id) || (позиція.get(a.positions_id) || {}).Player_position === true)
+          впоряд(штаб.filter((a) => !фото((людина.get(a.people_id) || {}).Photo) || !є(a.positions_id) || (позиція.get(a.positions_id) || {}).Player_position === true),
+            (a, b) => заКлубом(a.teaminfo_id, ім(людина.get(a.people_id)), b.teaminfo_id, ім(людина.get(b.people_id))))
             .map((a) => {
               const p = людина.get(a.people_id);
               const роль = !є(a.positions_id) ? 'без ролі' : (позиція.get(a.positions_id) || {}).Player_position === true ? 'роль гравця замість посади' : '';
@@ -304,7 +316,7 @@ query "data-issues" verb=GET {
           'Заглушка замість емблеми чи немає міста',
           'Доповніть картку клубу',
           клуби.filter((k) => !фото(k.TeamLogo) || !String(k.TeamInfo || '').trim())
-            .map((k) => ({ ...клубОб(k), sub: [!фото(k.TeamLogo) ? 'без логотипа' : '', !String(k.TeamInfo || '').trim() ? 'без міста' : ''].filter(Boolean).join(', ') })), клуби.length);
+            .map((k) => ({ ...клубОб(k), sub: [!фото(k.TeamLogo) ? 'без логотипа' : '', !String(k.TeamInfo || '').trim() ? 'без міста' : ''].filter(Boolean).join(', ') })).sort(заНазвою), клуби.length);
 
         const призначені = new Map();
         for (const m of майбутні) if (є(m.users_idDelegat)) призначені.set(m.users_idDelegat, (призначені.get(m.users_idDelegat) || 0) + 1);
@@ -312,7 +324,8 @@ query "data-issues" verb=GET {
           'Делегат не зможе увійти й вести матч',
           'Призначте іншого делегата або поверніть запис у «Користувачах»',
           список($var.users).filter((u) => призначені.has(u.id) && (u.Relevance === false || ![1, 2].includes(u.types_of_user_roles_id)))
-            .map((u) => ({ type: 'user', id: u.id, label: u.Name || ('користувач ' + u.id), sub: 'майбутніх матчів: ' + призначені.get(u.id) + (u.Relevance === false ? ' · неактуальний' : ' · не делегат'), link: '/users' })));
+            .map((u) => ({ type: 'user', id: u.id, label: u.Name || ('користувач ' + u.id), sub: 'майбутніх матчів: ' + призначені.get(u.id) + (u.Relevance === false ? ' · неактуальний' : ' · не делегат'), link: '/users' }))
+            .sort(заНазвою));
 
         return { season: { id: сезон.id, name: сезон.name }, checked_at: зараз, checks };
       """

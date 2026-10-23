@@ -116,9 +116,9 @@ test('склади: без номера (0 = немає), дублі, неакт
     { id: 15, player_id: 4, teaminfo_id: 2, Number: null, leagues_id: 10, positions_id: null, Relevance_of_the_record: true },
   ];
   const r = виконати(v);
-  assert.deepEqual(ids(r, 'card_no_number'), [11, 15]);
+  assert.deepEqual(ids(r, 'card_no_number'), [15, 11]); // за клубом: «Захід» раніше за «Схід»
   assert.equal(перевірка(r, 'card_no_number').total, 4);
-  assert.equal(перевірка(r, 'card_no_number').items[0].link, '/clubs/1?tab=roster');
+  assert.equal(перевірка(r, 'card_no_number').items[1].link, '/clubs/1?tab=roster');
   const д = перевірка(r, 'number_duplicate');
   assert.equal(д.count, 1);
   assert.equal(д.items[0].label, 'Схід: №7');
@@ -188,4 +188,37 @@ test('00:00 після переходу на зимовий час — теж «
   // 01.11.2026 00:00 за Києвом = 31.10 22:00 UTC (UTC+2)
   v.matches = [матч(1, { TimeOfMatch: Date.UTC(2026, 9, 31, 22, 0) }), матч(2, { TimeOfMatch: Date.UTC(2026, 9, 31, 21, 0) })];
   assert.deepEqual(ids(виконати(v), 'future_no_time'), [1]);
+});
+
+test('порядок: майбутні — найближчі зверху, зіграні — свіжі зверху, гравці — клуб і прізвище, арени — за назвою', () => {
+  const v = база();
+  v.clubs.push({ id: 3, TeamName: 'Альфа', TeamLogo: ФОТО, TeamInfo: 'Дніпро', home_venues_id: 1 });
+  v.matches = [
+    матч(1, { users_idDelegat: null, TimeOfMatch: о18(2) }),
+    матч(2, { users_idDelegat: null, TimeOfMatch: о18(1) }),
+    матч(3, { users_idDelegat: null, TimeOfMatch: о18(1) + ГОД }),
+    матч(4, { match_status_id: 4, TimeOfMatch: о18(-9) }),
+    матч(5, { match_status_id: 4, TimeOfMatch: о18(-2) }),
+    матч(6, { match_status_id: 4, TimeOfMatch: о18(-5) }),
+  ];
+  v.people = [
+    { id: 1, prizvushche: 'Яковенко', Name: 'А' },
+    { id: 2, prizvushche: 'Іваненко', Name: 'Б' },
+    { id: 3, prizvushche: 'Бондар', Name: 'В' },
+  ];
+  v.cards = [
+    { id: 11, player_id: 1, teaminfo_id: 1, Number: 0, leagues_id: 10, positions_id: 1 }, // Схід, Яковенко
+    { id: 12, player_id: 2, teaminfo_id: 1, Number: 0, leagues_id: 10, positions_id: 1 }, // Схід, Іваненко
+    { id: 13, player_id: 3, teaminfo_id: 3, Number: 0, leagues_id: 10, positions_id: 1 }, // Альфа, Бондар
+  ];
+  v.venues = [
+    { id: 7, City: 'м. Ужгород, Я', map_url: '' },
+    { id: 8, City: 'м. Івано-Франківськ, Б', map_url: '' },
+    { id: 9, City: 'м. Біла Церква, В', map_url: '' },
+  ];
+  const r = виконати(v);
+  assert.deepEqual(ids(r, 'future_no_delegate_soon'), [2, 3, 1]);
+  assert.deepEqual(ids(r, 'played_no_protocol'), [5, 6, 4]);
+  assert.deepEqual(ids(r, 'card_no_number'), [13, 12, 11]); // Альфа; Схід: Іваненко, Яковенко
+  assert.deepEqual(ids(r, 'venue_no_map'), [9, 8, 7]); // Б, І, У — українська абетка (І після И)
 });
