@@ -316,7 +316,9 @@ query "data-issues" verb=GET {
 
         return { season: { id: сезон.id, name: сезон.name }, checked_at: зараз, checks };
       """
-      timeout = 20
+      // Сама лямбда на живих даних 23.10 — 66 мс (504 матчі, 3,7 тис. подій,
+      // 9,5 тис. рядків заявок); таймаут — із запасом на ріст бази
+      timeout = 30
     } as $result
   }
 
