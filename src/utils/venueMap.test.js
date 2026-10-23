@@ -32,6 +32,7 @@ test('розбір: види посилань, як на сервері', () => 
   assert.equal(розібрати(КОРОТКЕ).kind, 'short');
   assert.equal(розібрати(ПОШУК_КАРТ).kind, 'search');
   assert.equal(розібрати(З_ТЕЛЕФОНА).kind, 'no_coords');
+  assert.equal(розібрати('https://www.google.com/search?q=%D0%A1%D0%9A').kind, 'search'); // звичайний пошук Google — як у мокапі
   assert.equal(розібрати('https://yandex.ua/maps/1').kind, 'not_google');
   assert.equal(розібрати('  ').kind, 'empty');
 });

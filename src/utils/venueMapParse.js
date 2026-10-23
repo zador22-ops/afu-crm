@@ -45,6 +45,8 @@ export function розібрати(текст) {
 
   const google = /(^|\.)google\.[a-z]{2,3}(\.[a-z]{2})?$/.test(хост);
   const картиGoogle = google && (/^maps\./.test(хост) || /^\/maps(\/|$)/i.test(шлях) || (хост.startsWith('www.') && шлях === '/' && /[?&](q|ll|cid)=/.test(запит)));
+  // Звичайний пошук Google (google.<домен>/search?q=…) — теж пошук, а не місце.
+  if (google && /^\/search(\/|$)/i.test(шлях)) return результат('search');
   if (!картиGoogle) return результат('not_google');
 
   let розкодоване = url;
