@@ -39,6 +39,15 @@ const ЯК_ЧИТАЄ = {
   6: 'Нижчі версії побачать екран оновлення',
   7: 'Нижчі версії побачать екран оновлення',
 };
+// «Показувати арену в застосунку» (бриф arena-visibility-toggle, слово Андрія
+// 23.10): один прапорець на всі матчі; вимкнено — сервер віддає застосунку
+// _venues: null, і рядка «Арена» на «Інфо» матчу немає. Сайт не змінюється,
+// дані арен — теж. Рядок створює Backend (наступний вільний id — 9); поки його
+// немає, блок не показується. Пояснення рядка звіряємо, щоб не перемкнути
+// чужий рядок, якщо id виявиться інший.
+const АРЕНА_В_ЗАСТОСУНКУ = 9;
+const чиРядокАрени = (v) => !!v && /^арена в застосунку/i.test(String(v.explanatio || '').trim());
+
 const МАГАЗИН = { 'fan:android': 6, 'fan:ios': 7, 'admin:android': 3, 'admin:ios': 5 };
 const ЗАСТОСУНКИ = [
   { app: 'fan', platform: 'android', label: 'Фанатський, Android' },
@@ -76,6 +85,14 @@ export default function SettingsPage() {
               <Blocker key={id} item={рядок(id)} назва={БЛОКУВАННЯ[id]} />
             ))}
           </section>
+
+          {чиРядокАрени(рядок(АРЕНА_В_ЗАСТОСУНКУ)) && (
+            <section className="card-form">
+              <h3>Застосунок уболівальника</h3>
+              {/* Ключ — щоб після збереження перемикач узяв нове значення з сервера */}
+              <ArenaToggle key={String(рядок(АРЕНА_В_ЗАСТОСУНКУ).bool)} item={рядок(АРЕНА_В_ЗАСТОСУНКУ)} />
+            </section>
+          )}
 
           <AppVersions variables={list.data} />
         </>
@@ -116,6 +133,36 @@ function Checklist({ item }) {
         {save.isSuccess && <span className="muted small-text">збережено</span>}
         <button className="btn primary" disabled={save.isPending || пунктів === 0}>
           Зберегти чекліст
+        </button>
+      </div>
+    </form>
+  );
+}
+
+function ArenaToggle({ item }) {
+  const save = useSave(item?.id);
+  // Типово показується (бриф): лише явне false означає «приховано»
+  const було = item.bool !== false;
+  const [on, setOn] = useState(було);
+  return (
+    <form
+      className="form"
+      onSubmit={(e) => {
+        e.preventDefault();
+        save.mutate({ bool: on });
+      }}
+    >
+      <Field
+        label="Показувати арену в застосунку"
+        hint="Вимкнено — у застосунку на сторінці матчу немає рядка «Арена». Сайт не змінюється"
+      >
+        <Toggle checked={on} onChange={setOn} label={on ? 'рядок «Арена» показується' : 'рядок «Арена» приховано в усіх матчах'} />
+      </Field>
+      <ErrorBox error={save.error} />
+      <div className="form-actions">
+        {save.isSuccess && <span className="muted small-text">збережено — у застосунку зміниться протягом хвилини</span>}
+        <button className="btn primary" disabled={save.isPending || було === on}>
+          Зберегти
         </button>
       </div>
     </form>
