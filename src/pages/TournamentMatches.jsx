@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { crm } from '../api/client.js';
 import { Empty, ErrorBox, Field, Modal, useForm } from '../components/ui.jsx';
@@ -44,12 +44,23 @@ export default function TournamentMatches({ tid, participants }) {
   const [tour, setTour] = useState('');
   const [лишеТоп, setЛишеТоп] = useState(false);
   const [editing, setEditing] = useState(null);
+  // ?edit= — посилання з «Проблем з даними» відкривають картку матчу в
+  // розкладі одразу (делегата, суддів, час). Лише раз: після закриття чи
+  // збереження вона за посиланням не повертається.
+  const [params] = useSearchParams();
+  const [закрито, setЗакрито] = useState(false);
+  const закрити = () => {
+    setEditing(null);
+    setЗакрито(true);
+  };
 
   const matches = useQuery({
     queryKey: ['matches', tid, tour],
     queryFn: () => crm.get('/matches', { leagues_id: tid, tours_id: tour || undefined }),
   });
   const tours = useQuery({ queryKey: ['tours', tid], queryFn: () => crm.get(`/tournaments/${tid}/tours`) });
+  const заПосиланням = розклад && !закрито && (matches.data || []).find((m) => String(m.id) === params.get('edit'));
+  const відкрита = editing || заПосиланням || null;
   // Аддона на Venues у Xano немає, тож назву арени підставляємо з довідника
   const venues = useQuery({ queryKey: ['venues'], queryFn: () => crm.get('/venues') });
   const аренаЗа = useMemo(() => Object.fromEntries((venues.data || []).map((v) => [v.id, v.City])), [venues.data]);
@@ -59,7 +70,7 @@ export default function TournamentMatches({ tid, participants }) {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['matches', tid] });
       qc.invalidateQueries({ queryKey: ['tours', tid] });
-      setEditing(null);
+      закрити();
     },
   });
 
@@ -67,7 +78,7 @@ export default function TournamentMatches({ tid, participants }) {
     mutationFn: ({ id, force }) => crm.del(`/matches/${id}${force ? '?force=true' : ''}`),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['matches', tid] });
-      setEditing(null);
+      закрити();
     },
   });
 
@@ -156,13 +167,14 @@ export default function TournamentMatches({ tid, participants }) {
           </tbody>
         </table>
       )}
-      {editing && (
+      {відкрита && (
         <MatchForm
-          item={editing}
+          key={відкрита.id ?? 'new'}
+          item={відкрита}
           tid={tid}
           tours={tours.data || []}
           команди={команди}
-          onClose={() => setEditing(null)}
+          onClose={закрити}
           onSave={save}
           onDelete={remove}
         />

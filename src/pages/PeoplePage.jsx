@@ -1,12 +1,15 @@
 import { useEffect, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useSearchParams } from 'react-router-dom';
 import { crm } from '../api/client.js';
 import PhotoCropper from '../components/PhotoCropper.jsx';
 import { Avatar, Empty, ErrorBox, Field, Modal, PageHeader, fmtDate, personName, toInt, useForm } from '../components/ui.jsx';
 
 export default function PeoplePage() {
-  const [q, setQ] = useState('');
-  const [term, setTerm] = useState('');
+  // ?q= — посилання з «Проблем з даними» відкривають «Особи» з пошуком за людиною
+  const [params] = useSearchParams();
+  const [q, setQ] = useState(params.get('q') || '');
+  const [term, setTerm] = useState((params.get('q') || '').trim());
   const [editing, setEditing] = useState(null);
   useEffect(() => {
     const t = setTimeout(() => setTerm(q.trim()), 300);

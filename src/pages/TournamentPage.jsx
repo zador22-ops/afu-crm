@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { Link, useParams } from 'react-router-dom';
+import { Link, useParams, useSearchParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { crm } from '../api/client.js';
 import { Empty, ErrorBox, Field, Modal, PageHeader, Tabs, Toggle, useForm } from '../components/ui.jsx';
@@ -15,7 +15,9 @@ const суперник = (c) => Boolean(c?.team_kind);
 export default function TournamentPage() {
   const { id } = useParams();
   const tid = Number(id);
-  const [tab, setTab] = useState('participants');
+  // ?tab= — посилання з «Проблем з даними» ведуть одразу на потрібну вкладку
+  const [params] = useSearchParams();
+  const [tab, setTab] = useState(['participants', 'tours', 'matches', 'bracket', 'zones'].includes(params.get('tab')) ? params.get('tab') : 'participants');
 
   const tournaments = useQuery({ queryKey: ['tournaments', 'all'], queryFn: () => crm.get('/tournaments') });
   const seasons = useQuery({ queryKey: ['seasons'], queryFn: () => crm.get('/seasons') });

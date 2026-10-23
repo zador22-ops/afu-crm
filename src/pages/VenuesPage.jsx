@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useSearchParams } from 'react-router-dom';
 import { crm } from '../api/client.js';
 import { Empty, ErrorBox, Field, Modal, PageHeader, useForm } from '../components/ui.jsx';
 import { підказкаДоЗбереження, статусАрени, статусЗСервера } from '../utils/venueMap.js';
@@ -19,6 +20,16 @@ export default function VenuesPage() {
   const list = useQuery({ queryKey: ['venues'], queryFn: () => crm.get('/venues') });
   const [editing, setEditing] = useState(null);
   const [q, setQ] = useState('');
+  // ?edit= — посилання з «Проблем з даними» відкривають форму арени одразу.
+  // Лише раз: після закриття форма за посиланням не повертається.
+  const [params] = useSearchParams();
+  const [закрито, setЗакрито] = useState(false);
+  const заПосиланням = !закрито && (list.data || []).find((v) => String(v.id) === params.get('edit'));
+  const відкрита = editing || заПосиланням || null;
+  const закрити = () => {
+    setEditing(null);
+    setЗакрито(true);
+  };
 
   const save = useMutation({
     mutationFn: (v) => (v.id ? crm.patch(`/venues/${v.id}`, v.data) : crm.post('/venues', v.data)),
@@ -79,7 +90,7 @@ export default function VenuesPage() {
           </tbody>
         </table>
       )}
-      {editing && <VenueForm item={editing} onClose={() => setEditing(null)} onSave={save} />}
+      {відкрита && <VenueForm key={відкрита.id ?? 'new'} item={відкрита} onClose={закрити} onSave={save} />}
     </div>
   );
 }

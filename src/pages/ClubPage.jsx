@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Link, useParams } from 'react-router-dom';
+import { Link, useParams, useSearchParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { crm } from '../api/client.js';
 import { Empty, ErrorBox, Field, Modal, PageHeader, Tabs, Toggle, dayBefore, fmtDate, personName, toInt, today, useForm } from '../components/ui.jsx';
@@ -10,7 +10,9 @@ import { описСтиснення, стиснутиФото } from '../utils/c
 export default function ClubPage() {
   const { id } = useParams();
   const cid = Number(id);
-  const [tab, setTab] = useState('card');
+  // ?tab= — посилання з «Проблем з даними» (склад, штаб) ведуть одразу на вкладку
+  const [params] = useSearchParams();
+  const [tab, setTab] = useState(['card', 'roster', 'staff', 'tournaments'].includes(params.get('tab')) ? params.get('tab') : 'card');
   const club = useQuery({ queryKey: ['club', cid], queryFn: () => crm.get(`/clubs/${cid}`) });
   const c = club.data?.club;
 
