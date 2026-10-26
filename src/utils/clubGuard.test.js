@@ -100,7 +100,7 @@ test('extras токена — лише через |get: при звичайно�
 test('вхід: пароль перевіряється й для невідомої пошти (фіктивний хеш) — однаковий час', () => {
   const s = читати('club-auth-login.post.xs');
   const перевірка = s.indexOf('security.check_password');
-  const відмова = s.indexOf('precondition ($account != null && $pass_ok)');
+  const відмова = s.indexOf('precondition ($account != null && !$attempt.locked && $pass_ok)');
   assert.ok(перевірка > 0 && відмова > перевірка, 'check_password має стояти ДО відмови за відсутньою поштою');
   assert.doesNotMatch(s, /precondition \(\$account != null\) \{/, 'окрема відмова «пошти немає» до перевірки пароля');
   assert.match(s, /hash_password = \$hash/);
@@ -109,4 +109,52 @@ test('вхід: пароль перевіряється й для невідом
 
 test('наявні ендпоінти crm не посилаються на клубні таблиці', () => {
   for (const f of файли.filter((x) => !x.startsWith('club-'))) assert.doesNotMatch(читати(f), /club_account/, f);
+});
+
+// ——— 1.2б: обмеження спроб входу ———
+const вхід = читати('club-auth-login.post.xs');
+const спроби = (() => {
+  // Лямбда саме перед «as $attempt» (перед нею в файлі є ще лямбда фіктивного хешу)
+  const кінець = вхід.indexOf('} as $attempt');
+  const блок = вхід.slice(вхід.lastIndexOf('api.lambda {', кінець), кінець);
+  const код = блок.match(/code = """([\s\S]*?)"""/)[1];
+  return new Function('v', код.replace(/\$var\./g, 'v.'));
+})();
+const ЗАРАЗ = Date.UTC(2026, 9, 26, 12, 0);
+const спроба = (account, pass_ok) => {
+  const справжній = Date.now;
+  Date.now = () => ЗАРАЗ;
+  try {
+    return спроби({ account, pass_ok });
+  } finally {
+    Date.now = справжній;
+  }
+};
+
+test('1.2б: невдалий пароль +1; на 10-й — блок на 15 хв і лічильник 0; вдалий — без запису тут', () => {
+  assert.deepEqual(спроба({ failed_logins: 0, locked_until: null }, false), { locked: false, fail: true, failed_logins: 1, locked_until: null });
+  assert.deepEqual(спроба({ failed_logins: 8, locked_until: null }, false), { locked: false, fail: true, failed_logins: 9, locked_until: null });
+  assert.deepEqual(спроба({ failed_logins: 9, locked_until: null }, false), { locked: false, fail: true, failed_logins: 0, locked_until: ЗАРАЗ + 15 * 60000 });
+  assert.equal(спроба({ failed_logins: 3, locked_until: null }, true).fail, false);
+  // минулий блок не заважає
+  assert.equal(спроба({ failed_logins: 0, locked_until: ЗАРАЗ - 1 }, true).locked, false);
+});
+
+test('1.2б: поки заблоковано — відмова навіть із правильним паролем, спроби не рахуються', () => {
+  const r = спроба({ failed_logins: 0, locked_until: ЗАРАЗ + 60000 }, true);
+  assert.equal(r.locked, true);
+  assert.equal(r.fail, false);
+  assert.match(вхід, /precondition \(\$account != null && !\$attempt\.locked && \$pass_ok\)/);
+});
+
+test('1.2б: невідома пошта — нічого не пишемо', () => {
+  assert.deepEqual(спроба(null, false), { locked: false, fail: false, failed_logins: 0, locked_until: null });
+});
+
+test('1.2б: лічильник пишеться ДО відмови (без транзакції), вдалий вхід скидає', () => {
+  const запис = вхід.indexOf('data = {failed_logins: $attempt.failed_logins, locked_until: $attempt.locked_until}');
+  const відмова = вхід.indexOf('precondition ($account != null && !$attempt.locked && $pass_ok)');
+  assert.ok(запис > 0 && відмова > запис, 'db.edit лічильника має стояти перед відмовою');
+  assert.ok(вхід.indexOf('security.check_password') < вхід.indexOf('} as $attempt'), 'пароль перевіряється до рішення про спробу');
+  assert.match(вхід, /data = \{last_login_at: "now", failed_logins: 0, locked_until: null\}/);
 });

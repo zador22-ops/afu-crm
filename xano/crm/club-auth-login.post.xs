@@ -44,9 +44,43 @@ query "club/auth/login" verb=POST {
       hash_password = $hash
     } as $pass_ok
 
-    // Одне повідомлення на «немає такої пошти» й «не той пароль»: не
-    // підказуємо, які адреси зареєстровані
-    precondition ($account != null && $pass_ok) {
+    // Обмеження спроб (задача 1.2б, PM 2 26.10): 10 невдалих паролів поспіль —
+    // 15 хв відмови з тим самим текстом; успішний вхід скидає лічильник. Поки
+    // заблоковано, спроби не рахуються. Для невідомої пошти нічого не пишемо.
+    api.lambda {
+      code = """
+        const СПРОБ = 10;
+        const БЛОК = 15 * 60 * 1000;
+        const a = $var.account;
+        const зараз = Date.now();
+        if (!a) return { locked: false, fail: false, failed_logins: 0, locked_until: null };
+        const locked = Number(a.locked_until) > зараз;
+        const fail = !locked && !$var.pass_ok;
+        const спроба = (Number(a.failed_logins) || 0) + 1;
+        return {
+          locked,
+          fail,
+          failed_logins: fail ? (спроба >= СПРОБ ? 0 : спроба) : Number(a.failed_logins) || 0,
+          locked_until: fail && спроба >= СПРОБ ? зараз + БЛОК : null,
+        };
+      """
+      timeout = 10
+    } as $attempt
+
+    // Записати ДО відмови: precondition обриває запит, а транзакції немає
+    conditional {
+      if ($attempt.fail) {
+        db.edit club_account {
+          field_name = "id"
+          field_value = $account.id
+          data = {failed_logins: $attempt.failed_logins, locked_until: $attempt.locked_until}
+        } as $failed
+      }
+    }
+
+    // Одне повідомлення на «немає такої пошти», «не той пароль» і «заблоковано»:
+    // не підказуємо, які адреси зареєстровані й що акаунт заблоковано
+    precondition ($account != null && !$attempt.locked && $pass_ok) {
       error_type = "accessdenied"
       error = "Неправильна пошта або пароль"
     }
@@ -67,7 +101,7 @@ query "club/auth/login" verb=POST {
     db.edit club_account {
       field_name = "id"
       field_value = $account.id
-      data = {last_login_at: "now"}
+      data = {last_login_at: "now", failed_logins: 0, locked_until: null}
     } as $touched
 
     // 12 год — як вхід співробітників (auth/login, Users)
