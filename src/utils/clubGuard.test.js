@@ -90,7 +90,21 @@ test('«увійти як клуб» — токен club_account на 1 год �
   assert.match(s, /table = "club_account"/);
   assert.match(s, /extras = \{acted_by_users_id: \$auth\.id\}/);
   assert.match(s, /expiration = 3600/);
-  assert.match(читати('club-me.get.xs'), /acted_by_users_id: \$auth\.extras\.acted_by_users_id/);
+  assert.match(читати('club-me.get.xs'), /value = \$auth\.extras\|get:"acted_by_users_id":null/);
+});
+
+test('extras токена — лише через |get: при звичайному вході extras = {}, і пряме поле дає 500', () => {
+  for (const f of [...клубні, ...акаунтів]) assert.doesNotMatch(читати(f), /\$auth\.extras\./, f);
+});
+
+test('вхід: пароль перевіряється й для невідомої пошти (фіктивний хеш) — однаковий час', () => {
+  const s = читати('club-auth-login.post.xs');
+  const перевірка = s.indexOf('security.check_password');
+  const відмова = s.indexOf('precondition ($account != null && $pass_ok)');
+  assert.ok(перевірка > 0 && відмова > перевірка, 'check_password має стояти ДО відмови за відсутньою поштою');
+  assert.doesNotMatch(s, /precondition \(\$account != null\) \{/, 'окрема відмова «пошти немає» до перевірки пароля');
+  assert.match(s, /hash_password = \$hash/);
+  assert.match(s, /const д = String\.fromCharCode\(36\);\s*return д \+ '2y' \+ д \+ '10' \+ д \+ '[.\/A-Za-z0-9]{53}';/);
 });
 
 test('наявні ендпоінти crm не посилаються на клубні таблиці', () => {

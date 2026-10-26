@@ -17,17 +17,36 @@ query "club/auth/login" verb=POST {
       field_value = $input.email
     } as $account
 
-    // Одне повідомлення на «немає такої пошти» й «не той пароль»: не
-    // підказуємо, які адреси зареєстровані
-    precondition ($account != null) {
-      error_type = "accessdenied"
-      error = "Неправильна пошта або пароль"
+    // Пароль перевіряємо завжди — і коли пошти немає (фіктивним хешем), щоб
+    // за часом відповіді не можна було дізнатися, які адреси зареєстровані
+    // (Backend, 26.10). Фіктивний хеш — bcrypt від випадкового рядка, який
+    // ніхто не знає; «$» складаємо з коду символу, щоб XanoScript не прочитав
+    // його як змінну.
+    api.lambda {
+      code = """
+        const д = String.fromCharCode(36);
+        return д + '2y' + д + '10' + д + 'uWbImdh9EzCPwNo/KG/2UeeaRWQ6VyZKyhHxbzlDlgW8C.8w0ZlaS';
+      """
+      timeout = 10
+    } as $dummy_hash
+    var $hash {
+      value = $dummy_hash
+    }
+    conditional {
+      if ($account != null) {
+        var.update $hash {
+          value = $account.password
+        }
+      }
     }
     security.check_password {
       text_password = $input.password
-      hash_password = $account.password
+      hash_password = $hash
     } as $pass_ok
-    precondition ($pass_ok) {
+
+    // Одне повідомлення на «немає такої пошти» й «не той пароль»: не
+    // підказуємо, які адреси зареєстровані
+    precondition ($account != null && $pass_ok) {
       error_type = "accessdenied"
       error = "Неправильна пошта або пароль"
     }

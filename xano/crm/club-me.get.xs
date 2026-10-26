@@ -41,7 +41,14 @@ query "club/me" verb=GET {
       """
       timeout = 10
     } as $clubs
+
+    // При звичайному вході extras = {}: пряме звернення до поля extras через
+    // крапку дає 500 «Unable to locate var» (Backend перевірив наживо 26.10) —
+    // лише через |get з типовим null
+    var $acted_by {
+      value = $auth.extras|get:"acted_by_users_id":null
+    }
   }
 
-  response = {account: {id: $account.id, name: $account.name, email: $account.email}, acted_by_users_id: $auth.extras.acted_by_users_id, clubs: $clubs}
+  response = {account: {id: $account.id, name: $account.name, email: $account.email}, acted_by_users_id: $acted_by, clubs: $clubs}
 }
