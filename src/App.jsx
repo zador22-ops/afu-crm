@@ -19,6 +19,10 @@ import GamePage from './pages/GamePage.jsx';
 import { useСкаргиГри, ReportsBadge, ReportsBanner } from './components/GameReports.jsx';
 import { ДО_СКАРГ } from './utils/gameReports.js';
 import { чиДелегат } from './utils/myMatches.js';
+import { useClub } from './auth/ClubContext.jsx';
+import { перенаправлення, режим, ВХІД_КЛУБУ } from './auth/clubSession.js';
+import ClubLoginPage from './pages/club/ClubLoginPage.jsx';
+import ClubShell from './pages/club/ClubShell.jsx';
 // Новини тягнуть редактор TipTap (~сотні КБ) — вантажимо лише коли відкрили
 const NewsPage = lazy(() => import('./pages/NewsPage.jsx'));
 const NewsEditPage = lazy(() => import('./pages/NewsEditPage.jsx'));
@@ -222,6 +226,7 @@ function Shell({ children }) {
           </div>
         </header>
         <main>
+          <ClubNotice />
           {location.pathname === ГОЛОВНА && <ReportsBanner />}
           {children}
         </main>
@@ -230,19 +235,37 @@ function Shell({ children }) {
   );
 }
 
+// Повернення з кабінету клубу (вихід чи спливання «як клуб») — пояснення один раз
+function ClubNotice() {
+  const { notice, clearNotice } = useClub();
+  if (!notice) return null;
+  return (
+    <div className="warn-box club-notice">
+      <span>{notice}</span>
+      <button className="btn small" onClick={clearNotice}>
+        Зрозуміло
+      </button>
+    </div>
+  );
+}
+
 export default function App() {
   const { user, ready } = useAuth();
+  const { session } = useClub();
   const location = useLocation();
 
   if (!ready) return <div className="center muted">Завантаження…</div>;
-  if (!user) {
-    return (
-      <Routes>
-        <Route path="/login" element={<LoginPage />} />
-        <Route path="*" element={<Navigate to="/login" replace state={{ from: location.pathname }} />} />
-      </Routes>
-    );
+
+  // Хто за CRM і куди йому можна (src/auth/clubSession.js): представник клубу
+  // не відкриває жодної сторінки АФУ навіть за прямою адресою
+  const реж = режим({ staff: !!user, club: session });
+  const куди = перенаправлення(реж, location.pathname);
+  if (куди && куди !== location.pathname) {
+    return <Navigate to={куди} replace state={реж === 'anon' ? { from: location.pathname } : undefined} />;
   }
+  if (реж === 'club' || реж === 'club-admin') return <ClubShell />;
+  if (location.pathname === ВХІД_КЛУБУ) return <ClubLoginPage />;
+  if (!user) return <LoginPage />;
   const головна = чиДелегат(user) ? ГОЛОВНА_ДЕЛЕГАТА : ГОЛОВНА;
   return (
     <Shell>

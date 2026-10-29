@@ -1,4 +1,6 @@
 import { useMemo, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
+import ClubAccounts from './ClubAccounts.jsx';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { crm } from '../api/client.js';
 import { useAuth } from '../auth/AuthContext.jsx';
@@ -19,7 +21,9 @@ import { Empty, ErrorBox, Field, Modal, PageHeader, Tabs, Toggle, useForm } from
  * довелося б руками в базі.
  */
 export default function UsersPage() {
-  const [tab, setTab] = useState('users');
+  // ?tab=clubs — повернення з кабінету клубу після «Увійти як клуб»
+  const [params] = useSearchParams();
+  const [tab, setTab] = useState(['users', 'roles', 'clubs'].includes(params.get('tab')) ? params.get('tab') : 'users');
   return (
     <div className="page">
       <PageHeader
@@ -32,10 +36,12 @@ export default function UsersPage() {
         tabs={[
           { key: 'users', label: 'Люди' },
           { key: 'roles', label: 'Ролі' },
+          { key: 'clubs', label: 'Акаунти клубів' },
         ]}
       />
       {tab === 'users' && <UsersList />}
       {tab === 'roles' && <RolesEditor />}
+      {tab === 'clubs' && <ClubAccounts />}
     </div>
   );
 }

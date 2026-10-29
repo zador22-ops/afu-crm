@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useLocation, useNavigate } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../auth/AuthContext.jsx';
 import { ErrorBox, Field } from '../components/ui.jsx';
 
@@ -45,6 +45,9 @@ export default function LoginPage() {
         <button className="btn primary wide" disabled={busy}>
           {busy ? 'Входимо…' : 'Увійти'}
         </button>
+        <p className="muted small-text login-switch">
+          Представник клубу? <Link to="/club/login">Кабінет клубу</Link>
+        </p>
       </form>
     </div>
   );

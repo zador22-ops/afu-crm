@@ -1,3 +1,5 @@
+import { клубнаСесія } from '../auth/clubSession.js';
+
 // Один клієнт для трьох API-груп Xano. Токен лежить у localStorage і йде в
 // кожен запит заголовком Authorization, як в ADMIN АФУ.
 const XANO = 'https://xdeg-kg7i-jjtu.f2.xano.io';
@@ -32,6 +34,14 @@ export const setUnauthorizedHandler = (fn) => {
   onUnauthorized = fn;
 };
 
+// Кабінет клубу (задача 1.3): свій токен (auth-таблиця club_account) і свій
+// обробник 401 — прострочений токен клубу закриває лише кабінет клубу, а не
+// вхід співробітника АФУ.
+let onClubUnauthorized = () => {};
+export const setClubUnauthorizedHandler = (fn) => {
+  onClubUnauthorized = fn;
+};
+
 export class ApiError extends Error {
   constructor(status, body) {
     super(body?.message || `HTTP ${status}`);
@@ -47,7 +57,7 @@ export class ApiError extends Error {
  * request('crm', '/clubs/1/image', { method: 'POST', form: FormData })
  * request('crm', '/tournaments', { query: { season_id: 3 } })
  */
-export async function request(group, path, { method = 'GET', body, form, query, auth = true } = {}) {
+export async function request(group, path, { method = 'GET', body, form, query, auth = true, as = 'staff' } = {}) {
   const url = new URL(API[group] + path);
   if (query) {
     for (const [k, v] of Object.entries(query)) {
@@ -55,7 +65,7 @@ export async function request(group, path, { method = 'GET', body, form, query, 
     }
   }
   const headers = {};
-  const t = token.get();
+  const t = as === 'club' ? клубнаСесія.get()?.token || '' : token.get();
   if (auth && t) headers.Authorization = t.startsWith('Bearer ') ? t : `Bearer ${t}`;
   if (body !== undefined) headers['Content-Type'] = 'application/json';
 
@@ -72,10 +82,16 @@ export async function request(group, path, { method = 'GET', body, form, query, 
   } catch {
     data = text;
   }
-  if (res.status === 401 && auth) onUnauthorized();
+  if (res.status === 401 && auth) (as === 'club' ? onClubUnauthorized : onUnauthorized)();
   if (!res.ok) throw new ApiError(res.status, data);
   return data;
 }
+
+// Кабінет клубу: ендпоінти crm/club/… з токеном клубу. Вхід — без токена.
+export const club = {
+  get: (path, query) => request('crm', '/club' + path, { query, as: 'club' }),
+  login: (email, password) => request('crm', '/club/auth/login', { method: 'POST', body: { email, password }, auth: false }),
+};
 
 // Зручні короткі виклики для групи crm
 export const crm = {

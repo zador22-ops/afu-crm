@@ -287,6 +287,115 @@ h3 {
   color: var(--primary);
   vertical-align: middle;
 }
+/* Кабінет клубу (самообслуговування клубів, 1.3) */
+.club-shell {
+  min-height: 100vh;
+  background: var(--bg);
+}
+.club-topbar {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  flex-wrap: wrap;
+  padding: 10px 24px;
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+}
+.club-topbar .brand {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.club-switch {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.club-switch select {
+  min-width: 180px;
+}
+.club-shell > .page {
+  margin: 0 auto;
+}
+/* Адмін «як клуб» — смугу видно завжди, щоб не забути, у чийому кабінеті */
+.as-club-bar {
+  position: sticky;
+  top: 0;
+  z-index: 40;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+  padding: 8px 24px;
+  background: var(--warn-soft);
+  color: var(--warn);
+  border-bottom: 1px solid color-mix(in srgb, var(--warn) 30%, transparent);
+  font-weight: 600;
+}
+.club-notice {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin: 18px 32px -6px;
+}
+.login-switch {
+  margin: 4px 0 0;
+  text-align: center;
+}
+.my-club-head {
+  display: flex;
+  gap: 16px;
+  align-items: center;
+  flex-wrap: wrap;
+  margin-bottom: 14px;
+}
+.my-club-logo {
+  width: 96px;
+  height: 96px;
+  object-fit: contain;
+}
+.my-club-photo {
+  max-width: 320px;
+  width: 100%;
+  border-radius: 10px;
+}
+.my-club-fields {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 10px 24px;
+  margin: 0;
+}
+.my-club-fields dt {
+  font-size: 12px;
+  color: var(--muted);
+}
+.my-club-fields dd {
+  margin: 2px 0 0;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.kit-swatch {
+  display: inline-block;
+  width: 22px;
+  height: 22px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  margin-right: 6px;
+  vertical-align: middle;
+}
+@media (max-width: 640px) {
+  .club-topbar,
+  .as-club-bar {
+    padding: 8px 16px;
+  }
+  .club-notice {
+    margin: 18px 16px -6px;
+  }
+}
+
 /* «Проблеми з даними»: групи за рівнем, перевірки згортаються */
 .issues-meta {
   margin: -6px 0 14px;
