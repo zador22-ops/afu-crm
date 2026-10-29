@@ -396,6 +396,63 @@ h3 {
   }
 }
 
+/* Вкладка «Заявки» клубу (2.3) */
+.request-batch {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 12px 16px;
+  margin-bottom: 12px;
+}
+.request-batch .section-bar {
+  margin: 0 0 8px;
+}
+.request-row {
+  border-top: 1px solid var(--border);
+  padding: 8px 0;
+}
+.request-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.request-status {
+  font-size: 12px;
+  font-weight: 600;
+  border-radius: 999px;
+  padding: 1px 9px;
+}
+.request-status.ok {
+  background: #e3f4ea;
+  color: var(--ok);
+}
+.request-status.wait {
+  background: var(--primary-soft);
+  color: var(--primary-hover);
+}
+.request-status.bad {
+  background: var(--danger-soft);
+  color: var(--danger);
+}
+.request-status.muted {
+  background: var(--bg);
+  color: var(--muted);
+}
+.request-changes {
+  margin: 6px 0 4px;
+  padding-left: 18px;
+  display: grid;
+  gap: 2px;
+  overflow-wrap: anywhere;
+}
+.request-img {
+  width: 40px;
+  height: 40px;
+  object-fit: contain;
+  vertical-align: middle;
+}
+
 /* Надсилання на погодження (2.2) */
 .submit-bar {
   display: grid;

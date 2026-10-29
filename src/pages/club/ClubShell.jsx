@@ -6,6 +6,8 @@ import { обранийКлуб, обранийКлубЗбережений, х�
 import { ErrorBox } from '../../components/ui.jsx';
 import MyClubPage from './MyClubPage.jsx';
 import SubmitBar from './SubmitBar.jsx';
+import ClubRequests from './ClubRequests.jsx';
+import { Tabs } from '../../components/ui.jsx';
 
 /**
  * Кабінет клубу (1.3): лише свій клуб, жодних розділів АФУ. Фарм-клуб —
@@ -16,6 +18,8 @@ export default function ClubShell() {
   const { session, exit } = useClub();
   const me = useQuery({ queryKey: ['club-me'], queryFn: () => club.get('/me') });
   const [вибір, setВибір] = useState(() => обранийКлубЗбережений.get());
+  // Вкладки кабінету: картка, заявки; склад і штаб — етап 3
+  const [вкладка, setВкладка] = useState('card');
   const clubs = me.data?.clubs || [];
   const поточний = обранийКлуб(clubs, вибір);
   const назва = clubs.find((c) => c.teaminfo_id === поточний)?.name || '';
@@ -76,7 +80,18 @@ export default function ClubShell() {
         {me.isPending && <div className="center muted">Завантаження…</div>}
         {me.data && !поточний && <div className="warn-box">Акаунт не прив'язаний до жодного клубу. Зверніться до АФУ</div>}
         {поточний && <SubmitBar key={`s${поточний}`} teaminfoId={поточний} />}
-        {поточний && <MyClubPage key={поточний} teaminfoId={поточний} />}
+        {поточний && (
+          <Tabs
+            value={вкладка}
+            onChange={setВкладка}
+            tabs={[
+              { key: 'card', label: 'Картка' },
+              { key: 'requests', label: 'Заявки' },
+            ]}
+          />
+        )}
+        {поточний && вкладка === 'card' && <MyClubPage key={поточний} teaminfoId={поточний} />}
+        {поточний && вкладка === 'requests' && <ClubRequests key={`r${поточний}`} teaminfoId={поточний} />}
       </main>
     </div>
   );
