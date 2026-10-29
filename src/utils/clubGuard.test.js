@@ -170,3 +170,31 @@ test('upload: розмір перевіряється й за збережени
   assert.ok(s.indexOf('} as $stored_ok') > s.indexOf('} as $img'), 'перевірка $img.size — після storage.create_image');
   assert.match(s, /\(\$var\.img \|\| \{\}\)\.size/);
 });
+
+// Рецензія Backend 30.10: кожна зміна status заявки чи пакета — CAS одним SQL
+// (UPDATE/DELETE … WHERE id = ? AND status = '<очікуваний>' RETURNING id), бо
+// перевірка й запис окремими кроками дають перегони (подвійне застосування).
+test('CAS: жодного db.edit change_request / change_batch, що змінює status', () => {
+  for (const f of клубні) {
+    const s = читати(f);
+    for (const [, тіло] of s.matchAll(/db\.edit change_(?:request|batch) \{([\s\S]*?)\} as \$/g))
+      assert.doesNotMatch(тіло, /\bstatus\s*:/, `${f}: status змінюється поза CAS`);
+    for (const [, sql] of s.matchAll(/sql = """([\s\S]*?)"""/g)) {
+      if (!/^\s*(UPDATE|DELETE)/i.test(sql)) continue;
+      assert.match(sql, /WHERE[\s\S]*status = '\w+'/, `${f}: SQL-перехід без умови на очікуваний статус`);
+      assert.match(sql, /RETURNING id/, `${f}: SQL-перехід без RETURNING id`);
+    }
+  }
+});
+
+test('CAS: чернетка (PUT/DELETE) і надсилання — умови на draft і на «ще без пакета»', () => {
+  assert.match(читати('club-clubs-id-draft.put.xs'), /UPDATE x1_93 SET "after" = \?::jsonb WHERE id = \? AND status = 'draft' RETURNING id;/);
+  assert.match(читати('club-clubs-id-draft.put.xs'), /DELETE FROM x1_93 WHERE id = \? AND status = 'draft' RETURNING id;/);
+  assert.match(читати('club-clubs-id-draft.delete.xs'), /DELETE FROM x1_93 WHERE id = \? AND status = 'draft' RETURNING id;/);
+  const submit = читати('club-clubs-id-submit.post.xs');
+  assert.match(submit, /UPDATE x1_93 SET status = 'submitted', batch_id = \? WHERE id = \? AND status = 'draft' AND batch_id IS NULL RETURNING id;/);
+  // порожній пакет (усе перехопив паралельний запит) — видаляється й відмова
+  assert.match(submit, /if \(\$in_batch == 0\) \{\s*db\.del change_batch/);
+  // db.del change_request поза SQL — ніде (видалення чернетки — лише CAS)
+  for (const f of клубні) assert.doesNotMatch(читати(f), /db\.del change_request/, f);
+});

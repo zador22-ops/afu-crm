@@ -109,16 +109,49 @@ query "club/clubs/{teaminfo_id}/submit" verb=POST {
       data = {created_at: "now", teaminfo_id: $input.teaminfo_id, club_account_id: $auth.id, acted_by_users_id: $acted_by, title: $input.title, status: "submitted", submitted_at: "now", club_comment: $input.club_comment}
     } as $batch
 
+    // Кожен рядок — CAS одним SQL (рецензія Backend 30.10): лише якщо досі
+    // draft і ще без пакета. Паралельний submit не перехопить ті самі рядки;
+    // знімок before пишемо лише в рядки, які взяв цей пакет. x1_93 — change_request.
     foreach ($plan.rows) {
       each as $row {
-        db.edit change_request {
-          field_name = "id"
-          field_value = $row.id
-          data = {status: "submitted", batch_id: $batch.id, before: $row.before, updated_at: "now"}
-        } as $submitted
+        db.direct_query {
+          sql = """
+            UPDATE x1_93 SET status = 'submitted', batch_id = ? WHERE id = ? AND status = 'draft' AND batch_id IS NULL RETURNING id;
+            """
+          response_type = "list"
+          arg = $batch.id
+          arg = $row.id
+        } as $taken
+        conditional {
+          if (($taken|count) > 0) {
+            db.edit change_request {
+              field_name = "id"
+              field_value = $row.id
+              data = {before: $row.before, updated_at: "now"}
+            } as $snapshot
+          }
+        }
       }
+    }
+
+    // Усе перехопив паралельний запит — порожнього пакета не лишаємо
+    db.query change_request {
+      where = $db.change_request.batch_id == $batch.id
+      return = {type: "count"}
+    } as $in_batch
+    conditional {
+      if ($in_batch == 0) {
+        db.del change_batch {
+          field_name = "id"
+          field_value = $batch.id
+        }
+      }
+    }
+    precondition ($in_batch > 0) {
+      error_type = "badrequest"
+      error = "Заявка вже змінилась — оновіть сторінку"
     }
   }
 
-  response = {batch: {id: $batch.id, status: $batch.status, submitted_at: $batch.submitted_at}, rows: $plan.rows|count}
+  response = {batch: {id: $batch.id, status: $batch.status, submitted_at: $batch.submitted_at}, rows: $in_batch}
 }

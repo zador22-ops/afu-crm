@@ -53,9 +53,17 @@ query "club/clubs/{teaminfo_id}/draft" verb=DELETE {
       error = "Зміни вже на погодженні — їх можна відкликати разом із пакетом"
     }
 
-    db.del change_request {
-      field_name = "id"
-      field_value = $draft.id
+    // CAS одним SQL: видалити, лише якщо досі draft (submit міг випередити)
+    db.direct_query {
+      sql = """
+        DELETE FROM x1_93 WHERE id = ? AND status = 'draft' RETURNING id;
+        """
+      response_type = "list"
+      arg = $draft.id
+    } as $gone
+    precondition (($gone|count) > 0) {
+      error_type = "badrequest"
+      error = "Заявка вже змінилась — оновіть сторінку"
     }
   }
 

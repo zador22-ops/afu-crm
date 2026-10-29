@@ -165,17 +165,31 @@ query "club/clubs/{teaminfo_id}/draft" verb=PUT {
       value = null
     }
 
+    // ПЕРЕХОДИ СТАТУСУ — CAS одним SQL (рецензія Backend 30.10): перевірка
+    // «ще draft» і зміна — в одному операторі, інакше submit між перевіркою й
+    // записом дав би змінити вже надіслану заявку. Немає RETURNING id — хтось
+    // випередив → відмова. Таблиця change_request у Postgres Xano — x1_93.
+    // Xano не має коду 409, тож відмова — 400 з текстом «оновіть сторінку».
+
     // Відмінностей не лишилось — чернетка більше не потрібна
     conditional {
       if ($plan.empty && $open != null) {
-        db.del change_request {
-          field_name = "id"
-          field_value = $open.id
+        db.direct_query {
+          sql = """
+            DELETE FROM x1_93 WHERE id = ? AND status = 'draft' RETURNING id;
+            """
+          response_type = "list"
+          arg = $open.id
+        } as $gone
+        precondition (($gone|count) > 0) {
+          error_type = "badrequest"
+          error = "Заявка вже змінилась — оновіть сторінку"
         }
       }
     }
     conditional {
       if (!$plan.empty && $open == null) {
+        // Нова чернетка: подвійну не дасть унікальний open_key
         db.add change_request {
           data = {created_at: "now", updated_at: "now", teaminfo_id: $input.teaminfo_id, club_account_id: $auth.id, acted_by_users_id: $acted_by, entity: "club", action: "update", entity_id: $input.teaminfo_id, after: $plan.after, status: "draft", open_key: $plan.key, target_key: $plan.key, club_comment: $input.club_comment}
         } as $added
@@ -186,10 +200,23 @@ query "club/clubs/{teaminfo_id}/draft" verb=PUT {
     }
     conditional {
       if (!$plan.empty && $open != null) {
+        db.direct_query {
+          sql = """
+            UPDATE x1_93 SET "after" = ?::jsonb WHERE id = ? AND status = 'draft' RETURNING id;
+            """
+          response_type = "list"
+          arg = $plan.after|json_encode
+          arg = $open.id
+        } as $taken
+        precondition (($taken|count) > 0) {
+          error_type = "badrequest"
+          error = "Заявка вже змінилась — оновіть сторінку"
+        }
+        // Рядок уже «наш» (CAS вдався) — решта полів звичайним записом, без статусу
         db.edit change_request {
           field_name = "id"
           field_value = $open.id
-          data = {updated_at: "now", club_account_id: $auth.id, acted_by_users_id: $acted_by, after: $plan.after, club_comment: $input.club_comment}
+          data = {updated_at: "now", club_account_id: $auth.id, acted_by_users_id: $acted_by, club_comment: $input.club_comment}
         } as $edited
         var.update $draft {
           value = $edited

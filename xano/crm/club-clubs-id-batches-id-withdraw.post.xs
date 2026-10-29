@@ -45,38 +45,42 @@ query "club/clubs/{teaminfo_id}/batches/{batch_id}/withdraw" verb=POST {
       error_type = "badrequest"
       error = "Цей пакет уже не на погодженні"
     }
-    db.query change_request {
-      where = $db.change_request.batch_id == $input.batch_id
-      return = {type: "list"}
-      output = ["id", "status"]
-    } as $rows
-    api.lambda {
-      code = """
-        const рядки = $var.rows || [];
-        return { undecided: рядки.every((r) => r.status === 'submitted'), ids: рядки.map((r) => r.id) };
-      """
-      timeout = 10
-    } as $plan
-    precondition ($plan.undecided) {
+    // CAS одним SQL (рецензія Backend 30.10): пакет стає withdrawn, лише якщо
+    // досі submitted і ЖОДЕН його рядок не має рішення — в тому самому
+    // операторі. Інакше модератор міг би погодити й застосувати рядок між
+    // перевіркою й записом, а відкликання повернуло б його в чернетку →
+    // подвійне застосування. x1_92 — change_batch, x1_93 — change_request.
+    db.direct_query {
+      sql = """
+        UPDATE x1_92 SET status = 'withdrawn'
+        WHERE id = ? AND teaminfo_id = ? AND status = 'submitted'
+          AND NOT EXISTS (SELECT 1 FROM x1_93 r WHERE r.batch_id = x1_92.id AND r.status <> 'submitted')
+        RETURNING id;
+        """
+      response_type = "list"
+      arg = $input.batch_id
+      arg = $input.teaminfo_id
+    } as $closed
+    precondition (($closed|count) > 0) {
       error_type = "badrequest"
-      error = "По пакету вже є рішення АФУ — відкликати його не можна"
+      error = "По пакету вже є рішення АФУ або він змінився — оновіть сторінку"
     }
 
-    foreach ($plan.ids) {
-      each as $id {
-        db.edit change_request {
-          field_name = "id"
-          field_value = $id
-          data = {status: "draft", batch_id: null, before: null, updated_at: "now"}
-        } as $back
-      }
-    }
+    // Пакет уже не submitted, тож погодити його рядки модератор не зможе
+    // (CAS погодження 4.2 перевіряє й статус пакета) — повертаємо їх у чернетки
+    db.direct_query {
+      sql = """
+        UPDATE x1_93 SET status = 'draft', batch_id = NULL, "before" = NULL WHERE batch_id = ? AND status = 'submitted' RETURNING id;
+        """
+      response_type = "list"
+      arg = $input.batch_id
+    } as $back
     db.edit change_batch {
       field_name = "id"
       field_value = $input.batch_id
-      data = {status: "withdrawn", withdrawn_at: "now"}
+      data = {withdrawn_at: "now"}
     } as $withdrawn
   }
 
-  response = {batch: {id: $withdrawn.id, status: $withdrawn.status}, rows: $plan.ids|count}
+  response = {batch: {id: $withdrawn.id, status: $withdrawn.status}, rows: $back|count}
 }

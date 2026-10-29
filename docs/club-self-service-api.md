@@ -100,6 +100,28 @@
   заявки → `draft` (`batch_id`, `before` — null), пакет → `withdrawn`. Інакше 400 «По пакету вже є рішення АФУ…».
 - «Одна відкрита заявка на запис» — унікальний `open_key` (контракт 1.1, п. 3); відкликання ключ не звільняє.
 
+### Переходи статусу — CAS одним SQL (рецензія Backend 30.10; НЕ задеплоєно)
+
+Кожна зміна `status` заявки (`change_request`, у Postgres Xano `x1_93`) чи пакета (`change_batch`, `x1_92`) —
+одним оператором з умовою на очікуваний статус і `RETURNING id`; порожній результат — хтось випередив → 400
+«Заявка вже змінилась — оновіть сторінку» (коду 409 у Xano немає). Решта полів (`before`, `updated_at`, коментарі)
+пишеться звичайним `db.edit` лише після вдалого CAS.
+
+| Де | SQL |
+|---|---|
+| PUT чернетки — нове `after` | `UPDATE x1_93 SET "after" = ?::jsonb WHERE id = ? AND status = 'draft' RETURNING id` |
+| PUT без змін / DELETE чернетки | `DELETE FROM x1_93 WHERE id = ? AND status = 'draft' RETURNING id` |
+| submit — кожен рядок | `UPDATE x1_93 SET status = 'submitted', batch_id = ? WHERE id = ? AND status = 'draft' AND batch_id IS NULL RETURNING id`; пакет без рядків — видаляється й відмова |
+| withdraw — пакет | `UPDATE x1_92 SET status = 'withdrawn' WHERE id = ? AND teaminfo_id = ? AND status = 'submitted' AND NOT EXISTS (рядок пакета з іншим статусом) RETURNING id` |
+| withdraw — рядки (після пакета) | `UPDATE x1_93 SET status = 'draft', batch_id = NULL, "before" = NULL WHERE batch_id = ? AND status = 'submitted'` |
+
+Для 4.1/4.2: погодження/повернення — `WHERE id = ? AND status = 'submitted' AND EXISTS (пакет рядка досі
+'submitted')`, інакше відкликаний пакет можна погодити. Тест (`clubGuard.test.js`): жодного `db.edit
+change_request`/`change_batch` зі `status`, кожен SQL-перехід — з умовою на статус і `RETURNING id`.
+
+Живі перевірки вранці: `UPDATE … RETURNING` через `db.direct_query` повертає id (і порожньо без збігу); `?::jsonb`
+з `|json_encode`.
+
 ### Заявки клубу (задача 2.3; НЕ задеплоєно)
 
 `GET crm/club/clubs/{teaminfo_id}/requests` → `{ batches: [{ id, status, submitted_at, withdrawn_at, closed_at, title,
