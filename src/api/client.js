@@ -90,6 +90,7 @@ export async function request(group, path, { method = 'GET', body, form, query, 
 // Кабінет клубу: ендпоінти crm/club/… з токеном клубу. Вхід — без токена.
 export const club = {
   get: (path, query) => request('crm', '/club' + path, { query, as: 'club' }),
+  post: (path, body) => request('crm', '/club' + path, { method: 'POST', body, as: 'club' }),
   put: (path, body) => request('crm', '/club' + path, { method: 'PUT', body, as: 'club' }),
   del: (path) => request('crm', '/club' + path, { method: 'DELETE', as: 'club' }),
   upload: (path, form) => request('crm', '/club' + path, { method: 'POST', form, as: 'club' }),

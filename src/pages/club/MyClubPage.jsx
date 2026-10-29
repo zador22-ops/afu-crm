@@ -23,7 +23,10 @@ export default function MyClubPage({ teaminfoId }) {
   const статус = статусЧернетки(чернетка);
   const { картка: c, змінені } = якБуде(card.data, чернетка);
   const наПогодженні = чернетка?.status === 'submitted';
-  const оновити = () => qc.invalidateQueries({ queryKey: ['club-draft', teaminfoId] });
+  const оновити = () => {
+    qc.invalidateQueries({ queryKey: ['club-draft', teaminfoId] });
+    qc.invalidateQueries({ queryKey: ['club-pending', teaminfoId] });
+  };
 
   const save = useMutation({
     mutationFn: (body) => club.put(`/clubs/${teaminfoId}/draft`, body),

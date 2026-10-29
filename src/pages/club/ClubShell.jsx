@@ -5,6 +5,7 @@ import { useClub } from '../../auth/ClubContext.jsx';
 import { обранийКлуб, обранийКлубЗбережений, хвилинЛишилось } from '../../auth/clubSession.js';
 import { ErrorBox } from '../../components/ui.jsx';
 import MyClubPage from './MyClubPage.jsx';
+import SubmitBar from './SubmitBar.jsx';
 
 /**
  * Кабінет клубу (1.3): лише свій клуб, жодних розділів АФУ. Фарм-клуб —
@@ -74,6 +75,7 @@ export default function ClubShell() {
         <ErrorBox error={me.error} />
         {me.isPending && <div className="center muted">Завантаження…</div>}
         {me.data && !поточний && <div className="warn-box">Акаунт не прив'язаний до жодного клубу. Зверніться до АФУ</div>}
+        {поточний && <SubmitBar key={`s${поточний}`} teaminfoId={поточний} />}
         {поточний && <MyClubPage key={поточний} teaminfoId={поточний} />}
       </main>
     </div>

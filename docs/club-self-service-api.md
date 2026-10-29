@@ -86,6 +86,20 @@
   Заявка вже на погодженні — 400 (спершу відкликати пакет, 2.2). `acted_by_users_id` — з `extras` через `|get`.
 - `DELETE crm/club/clubs/{teaminfo_id}/draft` — клуб прибирає свою чернетку (лише `draft`).
 
+### Пакет на погодження (задача 2.2; НЕ задеплоєно)
+
+- `GET crm/club/clubs/{teaminfo_id}/pending` → `{ drafts: [{ id, entity, action, entity_id, leagues_id, people_id,
+  after, updated_at }], open_batch: { id, status, submitted_at, title, club_comment, rows, decided } | null,
+  next_submit_at }` — `next_submit_at` (мс) лише коли ліміт ще діє.
+- `POST crm/club/clubs/{teaminfo_id}/submit` `{ title?, club_comment? }` → усі `draft` клубу стають `submitted` в
+  одному `change_batch`; у кожну заявку пишеться `before` — поля основного запису (`TeamInfo` / `People` / `Team` /
+  `Administration of teams`), які вона змінює, на момент подачі (для `create` — null). 400 «Немає змін для
+  надсилання»; 400 «Пакет можна надсилати не частіше разу на годину» (рахуються всі пакети клубу, крім
+  відкликаних).
+- `POST crm/club/clubs/{teaminfo_id}/batches/{batch_id}/withdraw` — лише поки жодна заявка пакета не має рішення:
+  заявки → `draft` (`batch_id`, `before` — null), пакет → `withdrawn`. Інакше 400 «По пакету вже є рішення АФУ…».
+- «Одна відкрита заявка на запис» — унікальний `open_key` (контракт 1.1, п. 3); відкликання ключ не звільняє.
+
 ## Акаунти клубів для АФУ (`auth = "Users"`, право 22 «Акаунти клубів»)
 
 ### `GET crm/club-accounts`
