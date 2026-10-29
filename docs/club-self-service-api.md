@@ -67,6 +67,25 @@
 сторожа однаковий у всіх ендпоінтах; тест перевіряє, що він є дослівно й стоїть до читання
 `TeamInfo`, `People`, `Team` тощо, а клубні ендпоінти не пишуть в основні таблиці.
 
+### Чернетка картки клубу (задача 2.1; НЕ задеплоєно)
+
+Усі — `auth = "club_account"`, сторож «лише свій клуб». В основні таблиці не пишуть нічого.
+
+- `POST crm/club/clubs/{teaminfo_id}/upload` (multipart, поле `image`) → `{ image }` — об'єкт файлу у vault.
+  До 5 МБ, лише зображення. Обрізку робить CRM (емблема — квадрат 1024×1024, PNG). У картку файл потрапить
+  лише після погодження.
+- `GET crm/club/venues` → `[{ id, City }]` — для вибору домашньої арени.
+- `GET crm/club/clubs/{teaminfo_id}/draft` → `{ draft }` — відкрита заявка на картку (`open_key = club:<id>`):
+  `{ id, status: draft|submitted, after, club_comment, batch_id, updated_at, created_at, acted_by_users_id }` або null.
+- `PUT crm/club/clubs/{teaminfo_id}/draft` `{ after, club_comment? }` — форма цілком; сервер лишає в `after`
+  лише відмінні від чинної картки поля: `TeamLogo`, `TeamPhoto` (лише з `/vault/`), `TeamInfo` (≤ 2000),
+  `founded_year` (1850…поточний), `home_venues_id` (з `Venues`), `venue_suggestion` (текст для АФУ, у таблицю
+  не пишеться), `website`/`instagram`/`facebook`/`youtube` (`https://…`), `kit_color_primary`/`secondary`
+  (`#RRGGBB`), `contact_name`/`phone`/`email`. Порожнє поле — `null` (очистити); прибрати фото не можна. Будь-яке
+  інше поле (назва, турнір, материнський клуб, «актуальний») — 400. Немає відмінностей — чернетка видаляється.
+  Заявка вже на погодженні — 400 (спершу відкликати пакет, 2.2). `acted_by_users_id` — з `extras` через `|get`.
+- `DELETE crm/club/clubs/{teaminfo_id}/draft` — клуб прибирає свою чернетку (лише `draft`).
+
 ## Акаунти клубів для АФУ (`auth = "Users"`, право 22 «Акаунти клубів»)
 
 ### `GET crm/club-accounts`

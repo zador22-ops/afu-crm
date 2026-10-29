@@ -396,6 +396,43 @@ h3 {
   }
 }
 
+/* Чернетка картки клубу (2.1) */
+.draft-status {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+  border-radius: var(--radius);
+  padding: 10px 14px;
+  margin-bottom: 12px;
+  border: 1px solid var(--border);
+}
+.draft-status.draft {
+  background: var(--warn-soft);
+  color: var(--warn);
+}
+.draft-status.wait {
+  background: var(--primary-soft);
+  color: var(--primary-hover);
+}
+.draft-mark {
+  display: inline-block;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--warn);
+  background: var(--warn-soft);
+  border-radius: 999px;
+  padding: 0 7px;
+  margin-left: 4px;
+}
+.my-club-head figure {
+  margin: 0;
+  display: grid;
+  gap: 4px;
+  justify-items: start;
+}
+
 /* «Проблеми з даними»: групи за рівнем, перевірки згортаються */
 .issues-meta {
   margin: -6px 0 14px;
