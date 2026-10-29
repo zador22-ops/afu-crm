@@ -1,0 +1,747 @@
+[
+ {
+  "id": 421,
+  "verb": "GET",
+  "name": "seasons"
+ },
+ {
+  "id": 423,
+  "verb": "PATCH",
+  "name": "competitions/{league_id}"
+ },
+ {
+  "id": 424,
+  "verb": "GET",
+  "name": "competitions"
+ },
+ {
+  "id": 425,
+  "verb": "POST",
+  "name": "competitions"
+ },
+ {
+  "id": 426,
+  "verb": "PATCH",
+  "name": "seasons/{season_id}"
+ },
+ {
+  "id": 427,
+  "verb": "POST",
+  "name": "seasons"
+ },
+ {
+  "id": 428,
+  "verb": "PATCH",
+  "name": "tournaments/{leagues_id}"
+ },
+ {
+  "id": 429,
+  "verb": "GET",
+  "name": "tournaments"
+ },
+ {
+  "id": 430,
+  "verb": "POST",
+  "name": "tournaments"
+ },
+ {
+  "id": 431,
+  "verb": "POST",
+  "name": "clubs/{teaminfo_id}/image"
+ },
+ {
+  "id": 432,
+  "verb": "GET",
+  "name": "clubs/{teaminfo_id}/roster"
+ },
+ {
+  "id": 433,
+  "verb": "GET",
+  "name": "clubs/{teaminfo_id}/staff"
+ },
+ {
+  "id": 434,
+  "verb": "GET",
+  "name": "clubs/{teaminfo_id}"
+ },
+ {
+  "id": 435,
+  "verb": "PATCH",
+  "name": "clubs/{teaminfo_id}"
+ },
+ {
+  "id": 436,
+  "verb": "GET",
+  "name": "clubs"
+ },
+ {
+  "id": 437,
+  "verb": "POST",
+  "name": "clubs"
+ },
+ {
+  "id": 438,
+  "verb": "POST",
+  "name": "people/{people_id}/photo"
+ },
+ {
+  "id": 439,
+  "verb": "PATCH",
+  "name": "people/{people_id}"
+ },
+ {
+  "id": 440,
+  "verb": "GET",
+  "name": "people/search"
+ },
+ {
+  "id": 441,
+  "verb": "POST",
+  "name": "people"
+ },
+ {
+  "id": 442,
+  "verb": "GET",
+  "name": "positions"
+ },
+ {
+  "id": 443,
+  "verb": "POST",
+  "name": "roster/add"
+ },
+ {
+  "id": 444,
+  "verb": "POST",
+  "name": "roster/{team_id}/close"
+ },
+ {
+  "id": 445,
+  "verb": "PATCH",
+  "name": "roster/{team_id}"
+ },
+ {
+  "id": 446,
+  "verb": "POST",
+  "name": "staff/add"
+ },
+ {
+  "id": 447,
+  "verb": "POST",
+  "name": "staff/{administration_id}/close"
+ },
+ {
+  "id": 448,
+  "verb": "DELETE",
+  "name": "tournaments/{leagues_id}/participants/{teaminfo_id}"
+ },
+ {
+  "id": 449,
+  "verb": "GET",
+  "name": "tournaments/{leagues_id}/participants"
+ },
+ {
+  "id": 450,
+  "verb": "POST",
+  "name": "tournaments/{leagues_id}/participants"
+ },
+ {
+  "id": 451,
+  "verb": "POST",
+  "name": "tournaments/{leagues_id}/tours/generate"
+ },
+ {
+  "id": 452,
+  "verb": "GET",
+  "name": "tournaments/{leagues_id}/tours"
+ },
+ {
+  "id": 453,
+  "verb": "DELETE",
+  "name": "tours/{tours_id}"
+ },
+ {
+  "id": 454,
+  "verb": "PATCH",
+  "name": "tours/{tours_id}"
+ },
+ {
+  "id": 463,
+  "verb": "POST",
+  "name": "competitions/{league_id}/logo"
+ },
+ {
+  "id": 466,
+  "verb": "POST",
+  "name": "judges/{judges_id}/photo"
+ },
+ {
+  "id": 467,
+  "verb": "GET",
+  "name": "judges/{judges_id}"
+ },
+ {
+  "id": 468,
+  "verb": "PATCH",
+  "name": "judges/{judges_id}"
+ },
+ {
+  "id": 469,
+  "verb": "GET",
+  "name": "judges"
+ },
+ {
+  "id": 470,
+  "verb": "POST",
+  "name": "judges"
+ },
+ {
+  "id": 471,
+  "verb": "PATCH",
+  "name": "venues/{venues_id}"
+ },
+ {
+  "id": 472,
+  "verb": "GET",
+  "name": "venues"
+ },
+ {
+  "id": 473,
+  "verb": "POST",
+  "name": "venues"
+ },
+ {
+  "id": 474,
+  "verb": "GET",
+  "name": "matches/{match_id}"
+ },
+ {
+  "id": 475,
+  "verb": "PATCH",
+  "name": "matches/{match_id}"
+ },
+ {
+  "id": 476,
+  "verb": "GET",
+  "name": "matches"
+ },
+ {
+  "id": 477,
+  "verb": "POST",
+  "name": "matches"
+ },
+ {
+  "id": 478,
+  "verb": "GET",
+  "name": "match-statuses"
+ },
+ {
+  "id": 479,
+  "verb": "GET",
+  "name": "delegates"
+ },
+ {
+  "id": 480,
+  "verb": "GET",
+  "name": "matches/{match_id}/deps"
+ },
+ {
+  "id": 481,
+  "verb": "DELETE",
+  "name": "matches/{match_id}"
+ },
+ {
+  "id": 482,
+  "verb": "DELETE",
+  "name": "events/{statistic_id}"
+ },
+ {
+  "id": 483,
+  "verb": "PATCH",
+  "name": "events/{statistic_id}"
+ },
+ {
+  "id": 484,
+  "verb": "GET",
+  "name": "matches/{match_id}/events"
+ },
+ {
+  "id": 485,
+  "verb": "POST",
+  "name": "matches/{match_id}/events"
+ },
+ {
+  "id": 486,
+  "verb": "GET",
+  "name": "event-dicts"
+ },
+ {
+  "id": 487,
+  "verb": "POST",
+  "name": "matches/{match_id}/result"
+ },
+ {
+  "id": 488,
+  "verb": "GET",
+  "name": "matches/{match_id}/squad"
+ },
+ {
+  "id": 489,
+  "verb": "PUT",
+  "name": "matches/{match_id}/squad"
+ },
+ {
+  "id": 490,
+  "verb": "GET",
+  "name": "matches/{match_id}/organization"
+ },
+ {
+  "id": 491,
+  "verb": "PUT",
+  "name": "matches/{match_id}/organization"
+ },
+ {
+  "id": 492,
+  "verb": "POST",
+  "name": "organization/{organization_match_id}/photo"
+ },
+ {
+  "id": 493,
+  "verb": "DELETE",
+  "name": "organization-photos/{photo_id}"
+ },
+ {
+  "id": 494,
+  "verb": "POST",
+  "name": "matches/{match_id}/recalc"
+ },
+ {
+  "id": 495,
+  "verb": "POST",
+  "name": "users/{users_id}/password"
+ },
+ {
+  "id": 496,
+  "verb": "PATCH",
+  "name": "users/{users_id}"
+ },
+ {
+  "id": 497,
+  "verb": "GET",
+  "name": "users"
+ },
+ {
+  "id": 498,
+  "verb": "POST",
+  "name": "users"
+ },
+ {
+  "id": 499,
+  "verb": "PATCH",
+  "name": "roles/{role_id}"
+ },
+ {
+  "id": 500,
+  "verb": "GET",
+  "name": "roles"
+ },
+ {
+  "id": 501,
+  "verb": "POST",
+  "name": "roles"
+ },
+ {
+  "id": 502,
+  "verb": "PATCH",
+  "name": "variables/{variables_id}"
+ },
+ {
+  "id": 503,
+  "verb": "GET",
+  "name": "variables"
+ },
+ {
+  "id": 504,
+  "verb": "POST",
+  "name": "matches/{match_id}/notify"
+ },
+ {
+  "id": 505,
+  "verb": "DELETE",
+  "name": "bracket/{bracket_id}"
+ },
+ {
+  "id": 506,
+  "verb": "GET",
+  "name": "tournaments/{leagues_id}/bracket"
+ },
+ {
+  "id": 507,
+  "verb": "POST",
+  "name": "tournaments/{leagues_id}/bracket"
+ },
+ {
+  "id": 508,
+  "verb": "DELETE",
+  "name": "judges/{judges_id}/photo"
+ },
+ {
+  "id": 509,
+  "verb": "POST",
+  "name": "judges/photo/fill"
+ },
+ {
+  "id": 510,
+  "verb": "GET",
+  "name": "matches/{match_id}/staff-cards"
+ },
+ {
+  "id": 511,
+  "verb": "POST",
+  "name": "matches/{match_id}/staff-cards"
+ },
+ {
+  "id": 512,
+  "verb": "DELETE",
+  "name": "staff-cards/{card_id}"
+ },
+ {
+  "id": 513,
+  "verb": "PATCH",
+  "name": "staff-cards/{card_id}"
+ },
+ {
+  "id": 517,
+  "verb": "GET",
+  "name": "tournaments/{leagues_id}/zones"
+ },
+ {
+  "id": 518,
+  "verb": "POST",
+  "name": "tournaments/{leagues_id}/zones"
+ },
+ {
+  "id": 519,
+  "verb": "DELETE",
+  "name": "zones/{zone_id}"
+ },
+ {
+  "id": 520,
+  "verb": "PATCH",
+  "name": "zones/{zone_id}"
+ },
+ {
+  "id": 552,
+  "verb": "PATCH",
+  "name": "matches/{match_id}/top"
+ },
+ {
+  "id": 558,
+  "verb": "DELETE",
+  "name": "competitions/{league_id}"
+ },
+ {
+  "id": 566,
+  "verb": "PATCH",
+  "name": "competitions/{league_id}/visibility"
+ },
+ {
+  "id": 567,
+  "verb": "GET",
+  "name": "news"
+ },
+ {
+  "id": 568,
+  "verb": "GET",
+  "name": "news/{news_id}"
+ },
+ {
+  "id": 569,
+  "verb": "POST",
+  "name": "news"
+ },
+ {
+  "id": 570,
+  "verb": "PATCH",
+  "name": "news/{news_id}"
+ },
+ {
+  "id": 571,
+  "verb": "POST",
+  "name": "news/{news_id}/publish"
+ },
+ {
+  "id": 572,
+  "verb": "DELETE",
+  "name": "news/{news_id}"
+ },
+ {
+  "id": 573,
+  "verb": "POST",
+  "name": "news/{news_id}/cover"
+ },
+ {
+  "id": 574,
+  "verb": "POST",
+  "name": "news/images"
+ },
+ {
+  "id": 575,
+  "verb": "GET",
+  "name": "news-categories"
+ },
+ {
+  "id": 576,
+  "verb": "POST",
+  "name": "news-categories"
+ },
+ {
+  "id": 577,
+  "verb": "PATCH",
+  "name": "news-categories/{category_id}"
+ },
+ {
+  "id": 599,
+  "verb": "GET",
+  "name": "partners"
+ },
+ {
+  "id": 600,
+  "verb": "POST",
+  "name": "partners"
+ },
+ {
+  "id": 601,
+  "verb": "PATCH",
+  "name": "partners/{partner_id}"
+ },
+ {
+  "id": 602,
+  "verb": "POST",
+  "name": "partners/{partner_id}/logo"
+ },
+ {
+  "id": 603,
+  "verb": "POST",
+  "name": "partners/reorder"
+ },
+ {
+  "id": 605,
+  "verb": "PATCH",
+  "name": "document-categories/{category_id}"
+ },
+ {
+  "id": 606,
+  "verb": "GET",
+  "name": "document-categories"
+ },
+ {
+  "id": 607,
+  "verb": "POST",
+  "name": "document-categories"
+ },
+ {
+  "id": 608,
+  "verb": "POST",
+  "name": "documents/{document_id}/file"
+ },
+ {
+  "id": 609,
+  "verb": "PATCH",
+  "name": "documents/{document_id}"
+ },
+ {
+  "id": 610,
+  "verb": "GET",
+  "name": "documents"
+ },
+ {
+  "id": 611,
+  "verb": "POST",
+  "name": "documents"
+ },
+ {
+  "id": 612,
+  "verb": "POST",
+  "name": "governing-bodies/{body_id}/members/reorder"
+ },
+ {
+  "id": 613,
+  "verb": "POST",
+  "name": "governing-bodies/{body_id}/members"
+ },
+ {
+  "id": 614,
+  "verb": "PATCH",
+  "name": "governing-bodies/{body_id}"
+ },
+ {
+  "id": 615,
+  "verb": "POST",
+  "name": "governing-bodies/reorder"
+ },
+ {
+  "id": 616,
+  "verb": "GET",
+  "name": "governing-bodies"
+ },
+ {
+  "id": 617,
+  "verb": "POST",
+  "name": "governing-bodies"
+ },
+ {
+  "id": 618,
+  "verb": "POST",
+  "name": "governing-members/{member_id}/photo"
+ },
+ {
+  "id": 619,
+  "verb": "PATCH",
+  "name": "governing-members/{member_id}"
+ },
+ {
+  "id": 623,
+  "verb": "GET",
+  "name": "fans"
+ },
+ {
+  "id": 624,
+  "verb": "DELETE",
+  "name": "users/{users_id}"
+ },
+ {
+  "id": 625,
+  "verb": "POST",
+  "name": "fans/cleanup"
+ },
+ {
+  "id": 630,
+  "verb": "GET",
+  "name": "client_errors"
+ },
+ {
+  "id": 632,
+  "verb": "GET",
+  "name": "releases"
+ },
+ {
+  "id": 633,
+  "verb": "POST",
+  "name": "releases"
+ },
+ {
+  "id": 634,
+  "verb": "PATCH",
+  "name": "releases/{app_release_id}"
+ },
+ {
+  "id": 635,
+  "verb": "PATCH",
+  "name": "push-templates/{push_templates_id}"
+ },
+ {
+  "id": 636,
+  "verb": "GET",
+  "name": "push-templates"
+ },
+ {
+  "id": 637,
+  "verb": "POST",
+  "name": "competitions/{league_id}/logo-square"
+ },
+ {
+  "id": 663,
+  "verb": "GET",
+  "name": "game-admin/month"
+ },
+ {
+  "id": 664,
+  "verb": "POST",
+  "name": "game-admin/month-best/{game_month_best_id}/hide"
+ },
+ {
+  "id": 665,
+  "verb": "POST",
+  "name": "game-admin/fans/{fans_id}/nick-reset"
+ },
+ {
+  "id": 666,
+  "verb": "POST",
+  "name": "game-admin/fans/{fans_id}/ban"
+ },
+ {
+  "id": 667,
+  "verb": "GET",
+  "name": "game-admin/winners"
+ },
+ {
+  "id": 668,
+  "verb": "DELETE",
+  "name": "game-admin/winners/{game_season_winner_id}"
+ },
+ {
+  "id": 669,
+  "verb": "DELETE",
+  "name": "game-admin/hall/{game_hall_of_fame_id}"
+ },
+ {
+  "id": 670,
+  "verb": "POST",
+  "name": "game-admin/winners/redefine"
+ },
+ {
+  "id": 671,
+  "verb": "GET",
+  "name": "game-admin/reports"
+ },
+ {
+  "id": 672,
+  "verb": "DELETE",
+  "name": "game-admin/reports/{game_report_id}"
+ },
+ {
+  "id": 673,
+  "verb": "GET",
+  "name": "game-admin/sessions/rejected"
+ },
+ {
+  "id": 674,
+  "verb": "GET",
+  "name": "game-admin/banned-words"
+ },
+ {
+  "id": 675,
+  "verb": "POST",
+  "name": "game-admin/banned-words"
+ },
+ {
+  "id": 676,
+  "verb": "DELETE",
+  "name": "game-admin/banned-words/{game_banned_word_id}"
+ },
+ {
+  "id": 690,
+  "verb": "GET",
+  "name": "game-admin/config"
+ },
+ {
+  "id": 691,
+  "verb": "PATCH",
+  "name": "game-admin/config"
+ },
+ {
+  "id": 766,
+  "verb": "POST",
+  "name": "matches/{match_id}/postpone"
+ },
+ {
+  "id": 767,
+  "verb": "POST",
+  "name": "matches/{match_id}/pause"
+ },
+ {
+  "id": 784,
+  "verb": "GET",
+  "name": "data-issues"
+ }
+]
