@@ -125,7 +125,7 @@ change_request`/`change_batch` зі `status`, кожен SQL-перехід — 
 ### Заявки клубу (задача 2.3; НЕ задеплоєно)
 
 `GET crm/club/clubs/{teaminfo_id}/requests` → `{ batches: [{ id, status, submitted_at, withdrawn_at, closed_at, title,
-club_comment, acted_by_users_id, requests: [{ id, entity, action, entity_id, leagues_id, people_id, depends_on_id,
+club_comment, by_afu, requests: [{ id, entity, action, entity_id, leagues_id, people_id, depends_on_id,
 before, after, status, decision_comment, decided_at, applied_at, person_name, league_name, transfer_from_name }] }],
 transfers_out: [{ id, applied_at, person_name, to_club, league_name }] }`. Пакети — від нових; чернетки сюди не
 входять. `transfers_out` — гравці, яких інший клуб забрав погодженим переходом (рішення 8.4). `apply_error` клубу

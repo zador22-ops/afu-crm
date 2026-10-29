@@ -79,7 +79,8 @@ query "club/clubs/{teaminfo_id}/requests" verb=GET {
           transfer_from_name: r.transfer_from_teaminfo_id ? клуб.get(r.transfer_from_teaminfo_id) || null : null,
         }));
         return {
-          batches: ($var.batches || []).map((b) => ({ ...b, requests: рядки.filter((r) => r.batch_id === b.id) })),
+          // id співробітника АФУ клубу не потрібен — лише ознака «від імені клубу діяла АФУ»
+          batches: ($var.batches || []).map(({ acted_by_users_id, ...b }) => ({ ...b, by_afu: acted_by_users_id != null, requests: рядки.filter((r) => r.batch_id === b.id) })),
           transfers_out: ($var.transfers_out || []).map((t) => ({
             id: t.id,
             applied_at: t.applied_at,

@@ -42,6 +42,7 @@ export default function ClubRequests({ teaminfoId }) {
             <span className="spacer" />
             <span className="muted small-text">{підсумокПакета(b.requests)}</span>
           </div>
+          {b.by_afu && <div className="muted small-text">Надіслала АФУ від імені клубу</div>}
           {b.club_comment && <div className="muted small-text">Ваш коментар: {b.club_comment}</div>}
           {b.requests.map((r) => {
             const с = статусЗаявки(r.status);

@@ -10,7 +10,7 @@ const історія = new Function('ЗМІННІ_', код.replace(/\$var\./g, 
 
 test('сервер: пакети з заявками, імена осіб (наявних і нових), турнір, перехід; «виведені переходом»', () => {
   const r = історія({
-    batches: [{ id: 2, status: 'closed' }, { id: 1, status: 'withdrawn' }],
+    batches: [{ id: 2, status: 'closed', acted_by_users_id: 46 }, { id: 1, status: 'withdrawn', acted_by_users_id: null }],
     rows: [
       { id: 10, batch_id: 2, entity: 'club', action: 'update', after: { TeamInfo: 'x' } },
       { id: 11, batch_id: 2, entity: 'person', action: 'create', after: { prizvushche: 'Новенко', Name: 'Петро' } },
@@ -23,6 +23,8 @@ test('сервер: пакети з заявками, імена осіб (на�
     leagues: [{ id: 10, League: 'Екстра-ліга' }],
   });
   assert.deepEqual(r.batches.map((b) => b.requests.length), [4, 0]);
+  assert.deepEqual(r.batches.map((b) => b.by_afu), [true, false]);
+  assert.equal('acted_by_users_id' in r.batches[0], false); // id співробітника АФУ клубу не віддаємо
   const [, нова, рядок, перехід] = r.batches[0].requests;
   assert.equal(нова.person_name, 'Новенко Петро');
   assert.equal(рядок.person_name, 'Новенко Петро');
