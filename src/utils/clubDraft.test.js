@@ -7,9 +7,9 @@ import { значенняФорми, тілоЧернетки, помилкиФ�
 const xs = fs.readFileSync(new URL('../../xano/crm/club-clubs-id-draft.put.xs', import.meta.url), 'utf8');
 const кінець = xs.indexOf('} as $plan');
 const код = xs.slice(xs.lastIndexOf('api.lambda {', кінець), кінець).match(/code = """([\s\S]*?)"""/)[1];
-const план = (after, club = {}, venues = [{ id: 1 }, { id: 2 }]) =>
+const план = (after, club = {}, venues = [{ id: 1 }, { id: 2 }], club_comment) =>
   // Імена, яких точно немає в самій лямбді (там є змінна циклу v)
-  new Function('ЗМІННІ_', 'ВХІД_', код.replace(/\$var\./g, 'ЗМІННІ_.').replace(/\$input\./g, 'ВХІД_.'))({ club, venues }, { after, teaminfo_id: 58 });
+  new Function('ЗМІННІ_', 'ВХІД_', код.replace(/\$var\./g, 'ЗМІННІ_.').replace(/\$input\./g, 'ВХІД_.'))({ club, venues }, { after, teaminfo_id: 58, club_comment });
 
 const ЛОГО = { path: '/vault/x/logo.png', url: 'https://x/vault/x/logo.png' };
 
@@ -75,4 +75,9 @@ test('перевірка форми до відправлення — ті са�
     'Колір форми — у вигляді #1A2B3C',
     'Перевірте пошту контактної особи',
   ]);
+});
+
+test('сервер: коментар клубу до чернетки — до 1000 знаків', () => {
+  assert.equal(план({ website: 'https://a.b' }, {}, undefined, 'к'.repeat(1000)).comment_ok, true);
+  assert.equal(план({ website: 'https://a.b' }, {}, undefined, 'к'.repeat(1001)).comment_ok, false);
 });

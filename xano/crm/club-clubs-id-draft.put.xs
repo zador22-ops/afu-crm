@@ -93,6 +93,7 @@ query "club/clubs/{teaminfo_id}/draft" verb=PUT {
             if (t !== рядок(чинне[k])) після[k] = t || null;
           }
         }
+        ok.comment_ok = String($input.club_comment || '').length <= 1000;
         return { ...ok, after: після, empty: Object.keys(після).length === 0, key: 'club:' + $input.teaminfo_id };
       """
       timeout = 10
@@ -133,6 +134,10 @@ query "club/clubs/{teaminfo_id}/draft" verb=PUT {
     precondition ($plan.email_ok) {
       error_type = "badrequest"
       error = "Перевірте пошту контактної особи"
+    }
+    precondition ($plan.comment_ok) {
+      error_type = "badrequest"
+      error = "Коментар — до 1000 знаків"
     }
     precondition ($plan.images_ok) {
       error_type = "badrequest"

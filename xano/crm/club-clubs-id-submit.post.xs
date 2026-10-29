@@ -80,6 +80,8 @@ query "club/clubs/{teaminfo_id}/submit" verb=POST {
         };
         return {
           has_drafts: ($var.drafts || []).length > 0,
+          // Межі тексту (рецензія Backend 30.10): назва пакета й коментар клубу
+          text_ok: String($input.title || '').length <= 200 && String($input.club_comment || '').length <= 1000,
           rate_ok: !останній || Date.now() - Number(останній.submitted_at) >= ГОДИНА,
           rows: ($var.drafts || []).map((r) => ({ id: r.id, before: знімок(r) })),
         };
@@ -90,6 +92,10 @@ query "club/clubs/{teaminfo_id}/submit" verb=POST {
     precondition ($plan.has_drafts) {
       error_type = "badrequest"
       error = "Немає змін для надсилання"
+    }
+    precondition ($plan.text_ok) {
+      error_type = "badrequest"
+      error = "Назва пакета — до 200 знаків, коментар — до 1000"
     }
     precondition ($plan.rate_ok) {
       error_type = "badrequest"

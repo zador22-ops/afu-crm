@@ -56,6 +56,13 @@ test('submit: без чернеток — нічого; ліміт 1 пакет/
   assert.match(fs.readFileSync(new URL('../../xano/crm/club-clubs-id-submit.post.xs', import.meta.url), 'utf8'), /\$db\.change_batch\.status != "withdrawn"/);
 });
 
+test('submit: межі тексту — назва до 200, коментар до 1000', () => {
+  const план = лямбда('club-clubs-id-submit.post.xs', 'plan');
+  assert.equal(план({ drafts: [], recent: [] }, { title: 'а'.repeat(200), club_comment: 'б'.repeat(1000) }).text_ok, true);
+  assert.equal(план({ drafts: [], recent: [] }, { title: 'а'.repeat(201) }).text_ok, false);
+  assert.equal(план({ drafts: [], recent: [] }, { club_comment: 'б'.repeat(1001) }).text_ok, false);
+});
+
 test('withdraw: лише поки жоден рядок не має рішення', () => {
   const план = лямбда('club-clubs-id-batches-id-withdraw.post.xs', 'plan');
   assert.deepEqual(план({ rows: [{ id: 1, status: 'submitted' }, { id: 2, status: 'submitted' }] }), { undecided: true, ids: [1, 2] });
