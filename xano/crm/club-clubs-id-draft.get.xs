@@ -36,9 +36,11 @@ query "club/clubs/{teaminfo_id}/draft" verb=GET {
       """
       timeout = 10
     } as $key
-    db.query change_request {
-      where = $db.change_request.open_key == $key
-      return = {type: "single"}
+    // db.get за унікальним open_key: на відсутньому рядку — null (рецензія
+    // Backend 30.10; поведінку «single» на порожньому результаті не перевірено)
+    db.get change_request {
+      field_name = "open_key"
+      field_value = $key
       output = ["id", "status", "after", "club_comment", "batch_id", "updated_at", "created_at", "acted_by_users_id"]
     } as $draft
   }

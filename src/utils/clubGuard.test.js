@@ -158,3 +158,15 @@ test('1.2б: лічильник пишеться ДО відмови (без т�
   assert.ok(вхід.indexOf('security.check_password') < вхід.indexOf('} as $attempt'), 'пароль перевіряється до рішення про спробу');
   assert.match(вхід, /data = \{last_login_at: "now", failed_logins: 0, locked_until: null\}/);
 });
+
+test('відкрита заявка шукається db.get за унікальним open_key, не «single» (рецензія Backend)', () => {
+  for (const f of клубні) assert.doesNotMatch(читати(f), /return = \{type: "single"\}/, f);
+  for (const f of ['club-clubs-id-draft.get.xs', 'club-clubs-id-draft.put.xs', 'club-clubs-id-draft.delete.xs'])
+    assert.match(читати(f), /db\.get change_request \{\s*field_name = "open_key"/, f);
+});
+
+test('upload: розмір перевіряється й за збереженим файлом', () => {
+  const s = читати('club-clubs-id-upload.post.xs');
+  assert.ok(s.indexOf('} as $stored_ok') > s.indexOf('} as $img'), 'перевірка $img.size — після storage.create_image');
+  assert.match(s, /\(\$var\.img \|\| \{\}\)\.size/);
+});

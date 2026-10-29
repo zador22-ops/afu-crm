@@ -139,9 +139,11 @@ query "club/clubs/{teaminfo_id}/draft" verb=PUT {
       error = "Емблему й фото спершу завантажте через форму картки"
     }
 
-    db.query change_request {
-      where = $db.change_request.open_key == $plan.key
-      return = {type: "single"}
+    // db.get за унікальним open_key: на відсутньому рядку — null (рецензія
+    // Backend 30.10; поведінку «single» на порожньому результаті не перевірено)
+    db.get change_request {
+      field_name = "open_key"
+      field_value = $plan.key
       output = ["id", "status"]
     } as $open
     precondition ($open == null || $open.status == "draft") {

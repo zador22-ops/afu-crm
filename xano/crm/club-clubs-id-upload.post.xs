@@ -55,6 +55,21 @@ query "club/clubs/{teaminfo_id}/upload" verb=POST {
       access = "public"
       filename = ""
     } as $img
+
+    // Друга перевірка розміру — за збереженим файлом: у файлі на вході поля size
+    // може не бути, і тоді перша пропустила б будь-який (рецензія Backend 30.10).
+    // Відхилений файл лишається у vault без посилань — його прибере задача
+    // прибирання сиріт (контракт 1.1, п. 4).
+    api.lambda {
+      code = """
+        return Number(($var.img || {}).size || 0) <= 5 * 1024 * 1024;
+      """
+      timeout = 10
+    } as $stored_ok
+    precondition ($stored_ok) {
+      error_type = "badrequest"
+      error = "Файл більший за 5 МБ"
+    }
   }
 
   response = {image: $img}
