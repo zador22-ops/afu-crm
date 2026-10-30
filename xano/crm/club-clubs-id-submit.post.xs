@@ -106,7 +106,7 @@ query "club/clubs/{teaminfo_id}/submit" verb=POST {
       value = $auth.extras|get:"acted_by_users_id":null
     }
     db.add change_batch {
-      data = {created_at: "now", teaminfo_id: $input.teaminfo_id, club_account_id: $auth.id, acted_by_users_id: $acted_by, title: $input.title, status: "submitted", submitted_at: "now", club_comment: $input.club_comment}
+      data = {created_at: "now", teaminfo_id: $input.teaminfo_id, club_account_id: $auth.id, acted_by_users_id: $acted_by, title: $input.title, status: "submitted", submitted_at: "now", has_decision: false, club_comment: $input.club_comment}
     } as $batch
 
     // Кожен рядок — CAS одним SQL (рецензія Backend 30.10): лише якщо досі

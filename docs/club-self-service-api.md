@@ -112,7 +112,7 @@
 | PUT чернетки — нове `after` | `UPDATE x1_93 SET "after" = ?::jsonb WHERE id = ? AND status = 'draft' RETURNING id` |
 | PUT без змін / DELETE чернетки | `DELETE FROM x1_93 WHERE id = ? AND status = 'draft' RETURNING id` |
 | submit — кожен рядок | `UPDATE x1_93 SET status = 'submitted', batch_id = ? WHERE id = ? AND status = 'draft' AND batch_id IS NULL RETURNING id`; пакет без рядків — видаляється й відмова |
-| withdraw — пакет | `UPDATE x1_92 SET status = 'withdrawn' WHERE id = ? AND teaminfo_id = ? AND status = 'submitted' AND NOT EXISTS (рядок пакета з іншим статусом) RETURNING id` |
+| withdraw — пакет | `UPDATE x1_92 SET status = 'withdrawn' WHERE id = ? AND teaminfo_id = ? AND status = 'submitted' AND has_decision IS NOT TRUE AND NOT EXISTS (рядок пакета з іншим статусом) RETURNING id` — `has_decision` погодження ставить першим кроком (контракт 4.2), submit пише явно `false` |
 | withdraw — рядки (після пакета) | `UPDATE x1_93 SET status = 'draft', batch_id = NULL, "before" = NULL WHERE batch_id = ? AND status = 'submitted'` |
 
 Для 4.1/4.2: погодження/повернення — `WHERE id = ? AND status = 'submitted' AND EXISTS (пакет рядка досі

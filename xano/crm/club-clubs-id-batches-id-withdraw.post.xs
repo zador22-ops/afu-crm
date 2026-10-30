@@ -50,10 +50,13 @@ query "club/clubs/{teaminfo_id}/batches/{batch_id}/withdraw" verb=POST {
     // операторі. Інакше модератор міг би погодити й застосувати рядок між
     // перевіркою й записом, а відкликання повернуло б його в чернетку →
     // подвійне застосування. x1_92 — change_batch, x1_93 — change_request.
+    // has_decision (контракт 4.2): погодження першим кроком ставить true на
+    // рядку пакета, тож обидві дії серіалізуються на ньому; IS NOT TRUE — щоб
+    // null (якщо десь не поставили false) не блокував відкликання.
     db.direct_query {
       sql = """
         UPDATE x1_92 SET status = 'withdrawn'
-        WHERE id = ? AND teaminfo_id = ? AND status = 'submitted'
+        WHERE id = ? AND teaminfo_id = ? AND status = 'submitted' AND has_decision IS NOT TRUE
           AND NOT EXISTS (SELECT 1 FROM x1_93 r WHERE r.batch_id = x1_92.id AND r.status <> 'submitted')
         RETURNING id;
         """
