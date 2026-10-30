@@ -200,3 +200,9 @@ test('особу саме створює інший модератор: лямб
   assert.equal(зайнято({ parent_list: [{ status: 'applied' }], claimed: false }, {}), false);
   assert.equal(зайнято({ parent_list: [], claimed: false }, {}), false);
 });
+
+test('збій після db.add People, до applied особи: заявку особи застосовано з її id (рецензія Backend 4.2, бажане)', () => {
+  const catchІ = xs.indexOf('if ($claimed && $new_person != null)');
+  assert.ok(catchІ > xs.indexOf('} as $crashed_row'));
+  assert.match(xs.slice(catchІ, catchІ + 900), /UPDATE x1_93 SET status = 'applied' WHERE id = \? AND status = 'approved' RETURNING id;[\s\S]*applied_entity_id: \$new_person/);
+});

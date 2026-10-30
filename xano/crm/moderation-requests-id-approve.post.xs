@@ -891,6 +891,24 @@ function підсумокЗаявки(план, рішення, хто, коли
                 } as $released_after_crash
               }
             }
+            // Особу вже створено (People є), але збій стався до її applied — застосувати
+            // заявку особи, інакше її рядки назавжди казали б «спробуйте ще раз»
+            conditional {
+              if ($claimed && $new_person != null) {
+                db.direct_query {
+                  sql = """
+                    UPDATE x1_93 SET status = 'applied' WHERE id = ? AND status = 'approved' RETURNING id;
+                    """
+                  response_type = "list"
+                  arg = $row.depends_on_id
+                } as $person_rescued
+                db.edit change_request {
+                  field_name = "id"
+                  field_value = $row.depends_on_id
+                  data = {updated_at: "now", decided_at: "now", decision_users_id: $auth.id, applied_at: "now", applied_entity_id: $new_person, apply_error: null, open_key: null}
+                } as $person_rescued_row
+              }
+            }
           }
         }
       }
