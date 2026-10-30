@@ -878,6 +878,18 @@ input[type='radio'] {
 .pick input {
   width: auto;
 }
+/* Кабінет клубу → «Склад»: турнір з номером, позицією й капітаном в одному рядку */
+.pick.squad-league {
+  justify-content: space-between;
+  flex-wrap: wrap;
+  cursor: default;
+}
+.pick.squad-league select {
+  width: auto;
+}
+.pick input.squad-number {
+  width: 64px;
+}
 
 .error-box {
   background: var(--danger-soft);

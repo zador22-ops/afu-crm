@@ -131,6 +131,40 @@ transfers_out: [{ id, applied_at, person_name, to_club, league_name }] }`. Па�
 входять. `transfers_out` — гравці, яких інший клуб забрав погодженим переходом (рішення 8.4). `apply_error` клубу
 не віддається.
 
+### Склад клубу (задача 3.1; НЕ задеплоєно)
+
+Варіант 3 (рішення Андрія 30.10, AFU `docs/xano/club-self-service-apply.md` розділ 5): гравець у клубі — один
+рядок `Team` (основний турнір і номер), додаткові турніри — `team_league` (t96). Усе нижче пише лише чернетки
+`change_request`; основні таблиці й `team_league` — лише 4.2.
+
+- `GET crm/club/clubs/{id}/squad` → `{ tournaments: [{ id, name, window_only, window_open, next_window_at }],
+  positions: [{ id, name }] (лише ігрові), players: [{ team_id, people_id, name, photo, Number, positions_id,
+  position, Captain, leagues_id, league_name, also: [{ id, leagues_id, league_name, Number }], request }],
+  pending: [{ request_id, status, action, name, new_person, person_request_id, leagues_id, league_name, Number,
+  position, transfer_from }] }`. Турніри — поточного сезону, де клуб учасник; `players` — чинні рядки `Team`, у
+  яких хоч один турнір (основний чи `also`) поточного сезону; `request` — відкрита зміна цього рядка.
+- `GET crm/club/clubs/{id}/people-search?q=&dob=` — лише прізвище **і** повна дата народження (інакше порожньо).
+  Віддає мінімум, щоб упізнати двійника: `{ people: [{ id, prizvushche, Name, birth_year, active_clubs:
+  [{ teaminfo_id, name }] }] }` — без по батькові, фото, контактів і точної дати.
+- `POST crm/club/clubs/{id}/players` `{ person: {people_id} | {new: {prizvushche, Name, po_batkovi?, Date_of_birth,
+  City?, Growth?, Weight?, Photo?}}, rows: [{leagues_id, Number, positions_id, Captain?}], club_comment? }` →
+  `{ person_request_id, rows }`. Нова особа — `person.create` (дубль прізвище + дата → 400 «обрати наявну»);
+  на кожен турнір — `squad_row.create`, або `transfer`, якщо особа чинна в чужому клубі (не материнський / фарм /
+  «брат»). **Порядок `rows` — порядок вибору:** перший стає основним (`Team`), решта — `team_league`; гравцю, що
+  вже в складі клубу, основний не змінюється. Перевірки: турнір свій поточного сезону, вікно відкрите, номер
+  1–99 і не зайнятий (`Team` + `team_league` + відкриті заявки), позиція ігрова, особа ще не в цьому турнірі
+  клубу (`Team` чи `team_league`) і без відкритої заявки на нього.
+- `POST crm/club/clubs/{id}/players/{team_id}/remove` `{ leagues_id?, end_date }` → `squad_row.remove`,
+  `entity_id` = `team_id`, `leagues_id` — з якого турніру (типово основний; додатковий — лише активний рядок
+  `team_league` цього гравця), `after` = `{ End_date }`. Що закриється — вирішує 4.2 (`планВивестиЗТурніру`).
+  Одна відкрита зміна на гравця (ключ `team:<id>`).
+- `DELETE crm/club/clubs/{id}/requests/{request_id}` — прибрати свою чернетку разом із залежними
+  (`depends_on_id`) одним CAS-оператором; особа-сирота (`person.create`, на яку вже ніщо не посилається) —
+  теж.
+
+**Для 4.1/4.2:** рядки однієї нової особи варто застосовувати в порядку `id` — тоді основним стане турнір, який
+клуб обрав першим.
+
 ## Акаунти клубів для АФУ (`auth = "Users"`, право 22 «Акаунти клубів»)
 
 ### `GET crm/club-accounts`
