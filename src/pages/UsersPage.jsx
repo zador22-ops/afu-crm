@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import ClubAccounts from './ClubAccounts.jsx';
+import { ПРАВО_АКАУНТИ_КЛУБІВ, маєПраво } from '../utils/clubAccounts.js';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { crm } from '../api/client.js';
 import { useAuth } from '../auth/AuthContext.jsx';
@@ -24,6 +25,11 @@ export default function UsersPage() {
   // ?tab=clubs — повернення з кабінету клубу після «Увійти як клуб»
   const [params] = useSearchParams();
   const [tab, setTab] = useState(['users', 'roles', 'clubs'].includes(params.get('tab')) ? params.get('tab') : 'users');
+  // «Акаунти клубів» — лише з правом 22 (сервер перевіряє сам; тут — щоб не показувати порожню вкладку)
+  const { user } = useAuth();
+  const roles = useQuery({ queryKey: ['roles'], queryFn: () => crm.get('/roles') });
+  const клуби = маєПраво(roles.data, user?.types_of_user_roles_id, ПРАВО_АКАУНТИ_КЛУБІВ);
+  const вкладка = tab === 'clubs' && !клуби && roles.data ? 'users' : tab;
   return (
     <div className="page">
       <PageHeader
@@ -31,17 +37,17 @@ export default function UsersPage() {
         subtitle="Вхід у CRM і ADMIN спільний: той самий числовий id і пароль. Права дає роль"
       />
       <Tabs
-        value={tab}
+        value={вкладка}
         onChange={setTab}
         tabs={[
           { key: 'users', label: 'Люди' },
           { key: 'roles', label: 'Ролі' },
-          { key: 'clubs', label: 'Акаунти клубів' },
+          ...(клуби ? [{ key: 'clubs', label: 'Акаунти клубів' }] : []),
         ]}
       />
-      {tab === 'users' && <UsersList />}
-      {tab === 'roles' && <RolesEditor />}
-      {tab === 'clubs' && <ClubAccounts />}
+      {вкладка === 'users' && <UsersList />}
+      {вкладка === 'roles' && <RolesEditor />}
+      {вкладка === 'clubs' && клуби && <ClubAccounts />}
     </div>
   );
 }

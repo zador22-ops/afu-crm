@@ -5,7 +5,7 @@ import { crm } from '../api/client.js';
 import { useClub } from '../auth/ClubContext.jsx';
 import { Empty, ErrorBox, Field, Modal, Toggle } from '../components/ui.jsx';
 import { kyivDateTimeString } from '../utils/kyivTime.js';
-import { даніАкаунта, клубиДляВибору } from '../utils/clubAccounts.js';
+import { даніАкаунта, клубиДляВибору, помилкаАкаунтів } from '../utils/clubAccounts.js';
 
 /**
  * «Користувачі» → «Акаунти клубів» (самообслуговування клубів, 1.3; право 22
@@ -44,7 +44,7 @@ export default function ClubAccounts() {
           Новий акаунт клубу
         </button>
       </div>
-      <ErrorBox error={list.error || enter.error} />
+      <ErrorBox error={помилкаАкаунтів(list.error || enter.error)} />
       {list.data?.length === 0 && <Empty>Акаунтів клубів ще немає</Empty>}
       {list.data?.length > 0 && (
         <table className="table cards">
@@ -171,7 +171,7 @@ function AccountForm({ item, clubs, clubsError, onClose, onSave }) {
           ))}
           {список.length === 0 && <div className="muted small-text">Нічого не знайшлось</div>}
         </div>
-        <ErrorBox error={onSave.error} />
+        <ErrorBox error={помилкаАкаунтів(onSave.error)} />
         <div className="form-actions">
           <span className="spacer" />
           <button type="button" className="btn" onClick={onClose}>

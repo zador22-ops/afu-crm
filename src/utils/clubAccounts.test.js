@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { даніАкаунта, клубиДляВибору } from './clubAccounts.js';
+import { даніАкаунта, клубиДляВибору, маєПраво, помилкаАкаунтів } from './clubAccounts.js';
 
 test('новий акаунт — усі поля, пошта й назва обрізані, клуби впорядковані', () => {
   assert.deepEqual(даніАкаунта({}, { email: ' Club@x.ua ', name: ' Сокіл ', password: 'секрет-123', active: true, обрані: new Set([21, 20]) }), {
@@ -31,4 +31,16 @@ test('вибір клубів: без суперників, обрані зве�
   assert.deepEqual(клубиДляВибору(clubs, '', new Set()).map((c) => c.id), [3, 1, 2]);
   assert.deepEqual(клубиДляВибору(clubs, 'бров', new Set([2])).map((c) => c.id), [2, 3]);
   assert.deepEqual(клубиДляВибору(clubs, 'збір', new Set()).map((c) => c.id), []);
+});
+
+test('вкладка «Акаунти клубів» — лише з правом 22; 403 — зрозумілим текстом', () => {
+  const ролі = { roles: [{ id: 1, access_rights_id: [1, 22] }, { id: 2, access_rights_id: [1] }, { id: 3 }] };
+  assert.equal(маєПраво(ролі, 1, 22), true);
+  assert.equal(маєПраво(ролі, 2, 22), false);
+  assert.equal(маєПраво(ролі, 3, 22), false);
+  assert.equal(маєПраво(undefined, 1, 22), false);
+  assert.equal(помилкаАкаунтів({ status: 403, message: 'Access denied' }).message, 'Немає права «Акаунти клубів»');
+  const інша = { status: 400, message: 'x' };
+  assert.equal(помилкаАкаунтів(інша), інша);
+  assert.equal(помилкаАкаунтів(undefined), null);
 });

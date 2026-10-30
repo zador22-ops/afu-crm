@@ -35,3 +35,18 @@ export function клубиДляВибору(clubs, q, обрані) {
         String(a.TeamName || '').localeCompare(String(b.TeamName || ''), 'uk')
     );
 }
+
+// Право 22 «Акаунти клубів» (контракт 1.1). Сервер перевіряє сам; тут — лише щоб не показувати вкладку
+export const ПРАВО_АКАУНТИ_КЛУБІВ = 22;
+
+/** Чи має роль користувача право: відповідь GET crm/roles ({roles: [{id, access_rights_id}]}). */
+export function маєПраво(ролі, roleId, право) {
+  const р = (ролі?.roles || []).find((x) => x.id === roleId);
+  return !!р && (р.access_rights_id || []).includes(право);
+}
+
+/** Помилка запиту акаунтів: 403 — зрозумілим текстом. */
+export function помилкаАкаунтів(error) {
+  if (error?.status === 403) return new Error('Немає права «Акаунти клубів»');
+  return error || null;
+}
