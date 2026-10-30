@@ -890,6 +890,16 @@ input[type='radio'] {
 .pick input.squad-number {
   width: 64px;
 }
+/* Група полів, яку можна вимкнути цілком, без власної рамки й відступів */
+fieldset.plain {
+  display: contents;
+  border: 0;
+  margin: 0;
+  padding: 0;
+}
+.club-cell input.squad-number {
+  width: 64px;
+}
 
 .error-box {
   background: var(--danger-soft);

@@ -26,3 +26,26 @@ export function виведенняЗ(гравець, турніри) {
     ...(гравець.also || []).map((д) => ({ leagues_id: д.leagues_id, name: д.league_name, main: false })),
   ].map((в) => ({ ...в, open: !!т.get(в.leagues_id)?.window_open }));
 }
+
+const ПОЛЯ_ОСОБИ = ['prizvushche', 'Name', 'po_batkovi', 'Date_of_birth', 'City', 'Growth', 'Weight', 'Photo'];
+
+/**
+ * Початкові значення форми «Змінити гравця» (3.1б): чинні дані + відкрита чернетка («як буде»).
+ * ліга — турнір, номер якого міняємо: основний (Team) чи додатковий (team_league).
+ */
+export function формаГравця(гравець, ліга = гравець.leagues_id) {
+  const особа = { ...Object.fromEntries(ПОЛЯ_ОСОБИ.map((k) => [k, гравець[k === 'Photo' ? 'photo' : k] ?? null])), ...(гравець.person_request?.after || {}) };
+  const рядок = (v) => (v == null ? '' : String(v));
+  const person = Object.fromEntries(ПОЛЯ_ОСОБИ.map((k) => [k, k === 'Photo' ? особа.Photo : k === 'Date_of_birth' ? рядок(особа[k]).slice(0, 10) : рядок(особа[k])]));
+  const основний = Number(ліга) === гравець.leagues_id;
+  const д = (гравець.also || []).find((x) => x.leagues_id === Number(ліга));
+  const чинний = основний ? { Number: гравець.Number, positions_id: гравець.positions_id, Captain: гравець.Captain } : { Number: д?.Number ?? null };
+  const r = гравець.request;
+  const чернетка = r && r.action === 'update' && r.leagues_id === Number(ліга) ? r.after || {} : {};
+  const squad = { ...чинний, ...чернетка };
+  return {
+    person,
+    squad: { leagues_id: Number(ліга), Number: рядок(squad.Number), ...(основний ? { positions_id: рядок(squad.positions_id), Captain: !!squad.Captain } : {}) },
+    основний,
+  };
+}

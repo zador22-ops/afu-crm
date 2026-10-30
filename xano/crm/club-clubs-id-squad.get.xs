@@ -105,6 +105,7 @@ query "club/clubs/{teaminfo_id}/squad" verb=GET {
           });
         const турнірId = new Set(турніри.map((t) => t.id));
         const відкриті = $var.requests || [];
+        const заявкаОсоби = (peopleId) => відкриті.find((r) => r.entity === 'person' && r.action === 'update' && r.entity_id === peopleId) || null;
         const заявкаРядка = (teamId) => відкриті.find((r) => r.entity === 'squad_row' && r.entity_id === teamId) || null;
         const діюча = (k) => k.Relevance_of_the_record !== false && (!k.End_date || String(k.End_date) >= сьогодні);
         // Гравець — один рядок Team (основний турнір) + активні додаткові з team_league; у списку,
@@ -117,10 +118,12 @@ query "club/clubs/{teaminfo_id}/squad" verb=GET {
             .map((д) => ({ id: д.id, leagues_id: д.leagues_id, league_name: назва(д.leagues_id), Number: д.Number || null }));
           return {
             team_id: k.id, people_id: k.player_id, name: ім(p), photo: p.Photo || null, Date_of_birth: p.Date_of_birth || null,
+            prizvushche: p.prizvushche || null, Name: p.Name || null, po_batkovi: p.po_batkovi || null,
             City: p.City || null, Growth: p.Growth || null, Weight: p.Weight || null,
             Number: k.Number || null, positions_id: k.positions_id || null, position: (позиція.get(k.positions_id) || {}).Position || null,
             Captain: !!k.Captain, leagues_id: k.leagues_id, league_name: назва(k.leagues_id), also: також,
             request: з ? { id: з.id, status: з.status, action: з.action, leagues_id: з.leagues_id, after: з.after } : null,
+            person_request: (() => { const о = заявкаОсоби(k.player_id); return о ? { id: о.id, status: о.status, after: о.after } : null; })(),
           };
         }).filter((g) => турнірId.has(g.leagues_id) || g.also.some((д) => турнірId.has(д.leagues_id)))
           .sort((a, b) => String(a.league_name).localeCompare(String(b.league_name), 'uk') || (Number(a.Number) || 999) - (Number(b.Number) || 999));

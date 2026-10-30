@@ -4,7 +4,7 @@ import { club } from '../../api/client.js';
 import { Empty, ErrorBox, Field, Modal } from '../../components/ui.jsx';
 import { kyivDateTimeString } from '../../utils/kyivTime.js';
 import { стиснутиФото } from '../../utils/compressImage.js';
-import { виведенняЗ, рядкиДляЗаявки, станРядка } from '../../utils/clubSquad.js';
+import { виведенняЗ, рядкиДляЗаявки, станРядка, формаГравця } from '../../utils/clubSquad.js';
 
 // Фото гравця: до 800 px по довшій стороні (обрізка 3:4 — окремою задачею)
 const ФОТО_ГРАВЦЯ = { максСторона: 800, якість: 0.85, легкий: 300 * 1024, прозорість: false };
@@ -19,6 +19,7 @@ export default function ClubSquad({ teaminfoId }) {
   const qc = useQueryClient();
   const [adding, setAdding] = useState(false);
   const [removing, setRemoving] = useState(null);
+  const [editing, setEditing] = useState(null);
   const q = useQuery({ queryKey: ['club-squad', teaminfoId], queryFn: () => club.get(`/clubs/${teaminfoId}/squad`) });
   const оновити = () => {
     qc.invalidateQueries({ queryKey: ['club-squad', teaminfoId] });
@@ -103,8 +104,24 @@ export default function ClubSquad({ teaminfoId }) {
                         {p.league_name}
                         {p.also.length > 0 && <div className="small-text">також: {p.also.map((д) => `${д.league_name} №${д.Number ?? '—'}`).join(', ')}</div>}
                       </td>
-                      <td data-label="Стан">{стан ? <span className={`request-status ${стан.тон}`}>{стан.текст}</span> : <span className="muted">у складі</span>}</td>
+                      <td data-label="Стан">
+                        {стан && <span className={`request-status ${стан.тон}`}>{стан.текст}</span>}
+                        {p.person_request && (
+                          <span className={`request-status ${p.person_request.status === 'draft' ? 'muted' : 'wait'}`}>
+                            дані — {p.person_request.status === 'draft' ? 'чернетка' : 'на погодженні'}
+                          </span>
+                        )}
+                        {!стан && !p.person_request && <span className="muted">у складі</span>}
+                      </td>
                       <td className="row-actions">
+                        <button className="btn small" onClick={() => setEditing(p)}>
+                          Змінити
+                        </button>
+                        {p.person_request?.status === 'draft' && (
+                          <button className="btn small" onClick={() => discard.mutate(p.person_request.id)} disabled={discard.isPending}>
+                            Скасувати зміну даних
+                          </button>
+                        )}
                         {p.request?.status === 'draft' && (
                           <button className="btn small" onClick={() => discard.mutate(p.request.id)} disabled={discard.isPending}>
                             Скасувати зміну
@@ -124,9 +141,160 @@ export default function ClubSquad({ teaminfoId }) {
           )}
         </>
       )}
+      {editing && <EditPlayer teaminfoId={teaminfoId} player={editing} squad={д} onClose={() => setEditing(null)} onDone={оновити} />}
       {removing && <RemoveDialog teaminfoId={teaminfoId} player={removing} tournaments={д?.tournaments || []} onClose={() => setRemoving(null)} onDone={оновити} />}
       {adding && д && <AddPlayer teaminfoId={teaminfoId} squad={д} onClose={() => setAdding(false)} onDone={оновити} />}
     </section>
+  );
+}
+
+function EditPlayer({ teaminfoId, player, squad, onClose, onDone }) {
+  const [ліга, setЛіга] = useState(player.leagues_id);
+  const [ф, setФ] = useState(() => формаГравця(player));
+  const [вантажимо, setВантажимо] = useState(false);
+  const [помилкаФото, setПомилкаФото] = useState(null);
+  const наПогодженні = player.person_request?.status === 'submitted';
+  const чужаЗміна = player.request && !(player.request.status === 'draft' && player.request.action === 'update' && player.request.leagues_id === Number(ліга));
+  const турніри = виведенняЗ(player, squad.tournaments);
+  const setP = (k) => (e) => setФ((s) => ({ ...s, person: { ...s.person, [k]: e.target.value } }));
+  const setS = (k, v) => setФ((s) => ({ ...s, squad: { ...s.squad, [k]: v } }));
+  const m = useMutation({
+    mutationFn: () =>
+      club.put(`/clubs/${teaminfoId}/players/${player.team_id}`, {
+        ...(наПогодженні ? {} : { person: ф.person }),
+        ...(чужаЗміна ? {} : { squad: ф.squad }),
+      }),
+    onSuccess: () => {
+      onDone();
+      onClose();
+    },
+  });
+  const завантажитиФото = async (f) => {
+    setПомилкаФото(null);
+    setВантажимо(true);
+    try {
+      const r = await стиснутиФото(f, ФОТО_ГРАВЦЯ);
+      const form = new FormData();
+      form.append('image', r.file || f, f.name);
+      const up = await club.upload(`/clubs/${teaminfoId}/upload`, form);
+      setФ((s) => ({ ...s, person: { ...s.person, Photo: up.image } }));
+    } catch (err) {
+      setПомилкаФото(err);
+    } finally {
+      setВантажимо(false);
+    }
+  };
+  const п = ф.person;
+  return (
+    <Modal title={`Змінити: ${player.name}`} onClose={onClose} width={640}>
+      <form
+        className="form"
+        onSubmit={(e) => {
+          e.preventDefault();
+          m.mutate();
+        }}
+      >
+        <p className="muted small-text">Зберігається як чернетка; на сайті й у застосунку зміниться після погодження АФУ.</p>
+        {наПогодженні && <div className="warn-box">Зміни даних гравця вже на погодженні — дані можна буде змінити після рішення АФУ.</div>}
+        <fieldset disabled={наПогодженні} className="plain">
+          <div className="row2">
+            <Field label="Прізвище">
+              <input value={п.prizvushche} onChange={setP('prizvushche')} required maxLength={100} />
+            </Field>
+            <Field label="Ім'я">
+              <input value={п.Name} onChange={setP('Name')} required maxLength={100} />
+            </Field>
+          </div>
+          <div className="row2">
+            <Field label="По батькові">
+              <input value={п.po_batkovi} onChange={setP('po_batkovi')} maxLength={100} />
+            </Field>
+            <Field label="Дата народження">
+              <input type="date" value={п.Date_of_birth} onChange={setP('Date_of_birth')} required />
+            </Field>
+          </div>
+          <div className="row2">
+            <Field label="Місто">
+              <input value={п.City} onChange={setP('City')} maxLength={100} />
+            </Field>
+            <div className="row2">
+              <Field label="Зріст, см">
+                <input inputMode="numeric" value={п.Growth} onChange={setP('Growth')} />
+              </Field>
+              <Field label="Вага, кг">
+                <input inputMode="numeric" value={п.Weight} onChange={setP('Weight')} />
+              </Field>
+            </div>
+          </div>
+          <Field label="Фото" hint="Портрет, до 5 МБ">
+            <div className="club-cell">
+              {п.Photo?.url && <img src={п.Photo.url} alt="" className="img-logo small" />}
+              <input
+                type="file"
+                accept="image/png,image/jpeg"
+                onChange={(e) => {
+                  const f = e.target.files?.[0];
+                  e.target.value = '';
+                  if (f) завантажитиФото(f);
+                }}
+              />
+              {вантажимо && <span className="muted small-text">Завантажуємо…</span>}
+            </div>
+          </Field>
+          <ErrorBox error={помилкаФото} />
+        </fieldset>
+
+        <Field label="Турнір" hint={ф.основний ? 'Основний турнір: номер, позиція, капітан' : 'Додатковий турнір: лише номер'}>
+          <select
+            value={ліга}
+            onChange={(e) => {
+              setЛіга(Number(e.target.value));
+              setФ((s) => ({ ...s, ...формаГравця(player, e.target.value), person: s.person }));
+            }}
+          >
+            {турніри.map((т) => (
+              <option key={т.leagues_id} value={т.leagues_id}>
+                {т.name}
+                {т.main ? ' (основний)' : ''}
+              </option>
+            ))}
+          </select>
+        </Field>
+        {чужаЗміна ? (
+          <div className="warn-box">Для цього гравця вже є інша відкрита зміна складу (за раз — один турнір). Номер і позицію можна буде змінити після неї.</div>
+        ) : (
+          <div className="club-cell">
+            <input className="squad-number" inputMode="numeric" placeholder="№" value={ф.squad.Number} onChange={(e) => setS('Number', e.target.value)} required aria-label="Номер" />
+            {ф.основний && (
+              <>
+                <select value={ф.squad.positions_id} onChange={(e) => setS('positions_id', e.target.value)} required aria-label="Позиція">
+                  {squad.positions.map((p) => (
+                    <option key={p.id} value={p.id}>
+                      {p.name}
+                    </option>
+                  ))}
+                </select>
+                <label className="club-cell small-text">
+                  <input type="checkbox" checked={!!ф.squad.Captain} onChange={(e) => setS('Captain', e.target.checked)} />
+                  капітан
+                </label>
+              </>
+            )}
+          </div>
+        )}
+
+        <ErrorBox error={m.error} />
+        <div className="form-actions">
+          <span className="spacer" />
+          <button type="button" className="btn" onClick={onClose}>
+            Скасувати
+          </button>
+          <button className="btn primary" disabled={m.isPending || вантажимо || (наПогодженні && чужаЗміна)}>
+            {m.isPending ? 'Зберігаємо…' : 'Зберегти чернетку'}
+          </button>
+        </div>
+      </form>
+    </Modal>
   );
 }
 

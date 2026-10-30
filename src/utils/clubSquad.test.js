@@ -62,11 +62,14 @@ test('склад: турніри сезону клубу з вікнами; чи
     { id: 50, entity: 'person', action: 'create', after: { prizvushche: 'Новенко', Name: 'Петро' }, status: 'draft' },
     { id: 51, entity: 'squad_row', action: 'create', depends_on_id: 50, leagues_id: 10, after: { Number: 11, positions_id: 2 }, status: 'draft' },
     { id: 52, entity: 'squad_row', action: 'remove', entity_id: 100, leagues_id: 10, after: { End_date: '2026-11-01' }, status: 'submitted' },
+    { id: 53, entity: 'person', action: 'update', entity_id: 1, after: { City: 'Львів' }, status: 'draft' },
   ];
   const r = склад(з, { teaminfo_id: 20 });
   assert.deepEqual(r.tournaments.map((t) => [t.id, t.window_open, t.next_window_at]), [[10, true, null], [12, false, ЗАРАЗ + 5 * ДЕНЬ]]);
   assert.deepEqual(r.positions, [{ id: 1, name: 'Універсал' }, { id: 2, name: 'Воротар' }]);
   assert.deepEqual(r.players.map((p) => [p.team_id, p.name, p.request && p.request.action]), [[100, 'Свій Іван', 'remove']]);
+  assert.deepEqual(r.players[0].person_request, { id: 53, status: 'draft', after: { City: 'Львів' } });
+  assert.equal(r.players[0].prizvushche, 'Свій');
   assert.deepEqual(r.pending.map((p) => [p.request_id, p.name, p.new_person, p.Number, p.position]), [[51, 'Новенко Петро', true, 11, 'Воротар']]);
 });
 
@@ -196,4 +199,84 @@ test('форма складу: лише обрані турніри; числа;
   assert.equal(станРядка({ action: 'remove', status: 'draft' }).текст, 'виведення — чернетка');
   assert.equal(станРядка({ action: 'update', status: 'submitted' }).тон, 'wait');
   assert.equal(станРядка({ action: 'remove', status: 'draft' }, 'Кубок').текст, 'виведення (Кубок) — чернетка');
+});
+
+// ——— 3.1б: змінити гравця ———
+const змінити = (з, в) => лямбда('club-clubs-id-players-id.put.xs', 'plan')(
+  {
+    card: { id: 100, player_id: 1, teaminfo_id: 20, leagues_id: 10, Number: 7, positions_id: 1, Captain: false, Relevance_of_the_record: true },
+    person: { id: 1, prizvushche: 'Свій', Name: 'Іван', po_batkovi: null, Date_of_birth: '2000-01-01', City: 'Київ', Growth: 180, Weight: null, Photo: { path: '/vault/a.png' } },
+    extra: [{ id: 7, team_id: 100, people_id: 1, leagues_id: 12, Number: 17 }],
+    cards: [{ id: 100, player_id: 1, leagues_id: 10, Number: 7 }, { id: 104, player_id: 5, leagues_id: 10, Number: 8 }],
+    positions: база().positions,
+    open_rows: [],
+    ...з,
+  },
+  { teaminfo_id: 20, team_id: 100, ...в }
+);
+const помилки = (r) => Object.entries(r).filter(([k, v]) => k.endsWith('_ok') && !v).map(([k]) => k);
+
+test('змінити гравця: лише змінені поля особи; порожнє — не чіпає', () => {
+  const r = змінити({}, { person: { prizvushche: 'Свій', Name: 'Іван', po_batkovi: '', Date_of_birth: '2000-01-01', City: 'Львів', Growth: '180', Weight: '75', Photo: { path: '/vault/a.png' } } });
+  assert.deepEqual(помилки(r), []);
+  assert.deepEqual(r.person_after, { City: 'Львів', Weight: 75 });
+  assert.equal(r.person_key, 'person:1');
+  assert.equal(r.squad_empty, true);
+  assert.equal(змінити({}, { person: { City: 'Київ' } }).person_empty, true);
+  assert.deepEqual(змінити({}, { person: { Growth: '' } }).person_after, { Growth: null });
+});
+
+test('змінити гравця: перевірки полів особи', () => {
+  assert.deepEqual(помилки(змінити({}, { person: { Name: ' ' } })), ['name_ok']);
+  assert.deepEqual(помилки(змінити({}, { person: { Date_of_birth: '2030-01-01' } })), ['dob_ok']);
+  assert.deepEqual(помилки(змінити({}, { person: { Growth: 300 } })), ['size_ok']);
+  assert.deepEqual(помилки(змінити({}, { person: { Photo: { path: 'https://x' } } })), ['photo_ok']);
+  assert.deepEqual(помилки(змінити({}, { person: { Phone: '1' } })), ['person_fields_ok']);
+  assert.deepEqual(помилки(змінити({}, { person: { City: 'x'.repeat(101) } })), ['text_ok']);
+});
+
+test('змінити гравця: основний турнір — номер, позиція, капітан; додатковий — лише номер', () => {
+  const r = змінити({}, { squad: { leagues_id: 10, Number: 11, positions_id: 2, Captain: true } });
+  assert.deepEqual(r.squad_after, { Number: 11, positions_id: 2, Captain: true });
+  assert.equal(r.squad_key, 'team:100');
+  const д = змінити({}, { squad: { leagues_id: 12, Number: 18, positions_id: 2, Captain: true } });
+  assert.deepEqual(д.squad_after, { Number: 18 });
+  assert.equal(д.leagues_id, 12);
+  assert.equal(змінити({}, { squad: { leagues_id: 12, Number: 17 } }).squad_empty, true);
+  assert.deepEqual(помилки(змінити({}, { squad: { leagues_id: 14, Number: 5 } })), ['league_ok']);
+});
+
+test('змінити гравця: номер зайнятий іншим гравцем, team_league чи відкритою заявкою', () => {
+  assert.deepEqual(помилки(змінити({}, { squad: { leagues_id: 10, Number: 8 } })), ['number_ok']);
+  assert.deepEqual(помилки(змінити({ extra: [{ id: 9, team_id: 104, people_id: 5, leagues_id: 12, Number: 30 }, { id: 7, team_id: 100, people_id: 1, leagues_id: 12, Number: 17 }] }, { squad: { leagues_id: 12, Number: 30 } })), ['number_ok']);
+  assert.deepEqual(помилки(змінити({ open_rows: [{ entity_id: null, leagues_id: 10, action: 'create', after: { Number: 40 } }] }, { squad: { leagues_id: 10, Number: 40 } })), ['number_ok']);
+  assert.deepEqual(помилки(змінити({}, { squad: { leagues_id: 10, Number: 0 } })), ['number_ok']);
+  assert.deepEqual(помилки(змінити({}, { squad: { leagues_id: 10, positions_id: 4 } })), ['position_ok']);
+});
+
+test('змінити гравця: «лише свої особи» — People читається після перевірки рядка Team свого клубу', () => {
+  const s = fs.readFileSync(new URL('../../xano/crm/club-clubs-id-players-id.put.xs', import.meta.url), 'utf8');
+  const сторож = s.indexOf('precondition ($card != null && $card.teaminfo_id == $input.teaminfo_id && $card.Relevance_of_the_record != false)');
+  assert.ok(сторож > 0);
+  assert.match(s.slice(сторож, сторож + 300), /error = "Це не ваш гравець"/);
+  assert.ok(s.indexOf('db.get People') > сторож);
+  assert.ok(s.indexOf('field_value = $card.player_id') > сторож);
+  // чужу відкриту зміну складу (виведення чи інший турнір) порожня зміна не прибирає
+  assert.match(s, /if \(\$plan\.squad_empty && \$own_squad\)/);
+});
+
+test('форма «Змінити гравця»: чинне + чернетка; додатковий турнір — лише номер', async () => {
+  const { формаГравця } = await import('./clubSquad.js');
+  const г = {
+    team_id: 100, leagues_id: 10, Number: 7, positions_id: 1, Captain: true, prizvushche: 'Свій', Name: 'Іван', po_batkovi: null,
+    Date_of_birth: '2000-01-01T00:00:00', City: 'Київ', Growth: 180, Weight: null, photo: { path: '/vault/a.png' },
+    also: [{ leagues_id: 12, Number: 17 }],
+    person_request: { id: 53, status: 'draft', after: { City: 'Львів' } },
+    request: { id: 54, status: 'draft', action: 'update', leagues_id: 12, after: { Number: 18 } },
+  };
+  const ф = формаГравця(г);
+  assert.deepEqual(ф.person, { prizvushche: 'Свій', Name: 'Іван', po_batkovi: '', Date_of_birth: '2000-01-01', City: 'Львів', Growth: '180', Weight: '', Photo: { path: '/vault/a.png' } });
+  assert.deepEqual(ф.squad, { leagues_id: 10, Number: '7', positions_id: '1', Captain: true });
+  assert.equal(ф.основний, true);
+  assert.deepEqual(формаГравця(г, 12).squad, { leagues_id: 12, Number: '18' });
 });

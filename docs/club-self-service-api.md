@@ -162,6 +162,16 @@ transfers_out: [{ id, applied_at, person_name, to_club, league_name }] }`. Па�
   (`depends_on_id`) одним CAS-оператором; особа-сирота (`person.create`, на яку вже ніщо не посилається) —
   теж.
 
+- `PUT crm/club/clubs/{id}/players/{team_id}` (3.1б) `{ person?: {prizvushche, Name, po_batkovi, Date_of_birth, City,
+  Growth, Weight, Photo}, squad?: {leagues_id, Number, positions_id?, Captain?}, club_comment? }` → `{ person_after,
+  squad_after }`. Форма цілком; сервер лишає в `after` лише змінене. Дві чернетки: `person.update` (ключ
+  `person:<people_id>`) і `squad_row.update` (ключ `team:<team_id>`, `leagues_id` — турнір): основний — номер,
+  позиція, капітан; додатковий (`team_league`) — лише номер. **Лише свої особи:** особа береться тільки з чинного
+  рядка `Team` цього клубу (інакше 403 «Це не ваш гравець»), `People` читається після цієї перевірки. Нова особа
+  із заявки так не змінюється — прибрати й додати знову. Порожня зміна прибирає свою чернетку; чужу відкриту
+  зміну складу (виведення чи інший турнір) не чіпає — тоді зміна складу → 400 «за раз — один турнір». Зміну
+  даних на погодженні — 400. `squad.get` віддає гравцю ще `prizvushche`, `Name`, `po_batkovi` і `person_request`.
+
 **Для 4.1/4.2:** рядки однієї нової особи варто застосовувати в порядку `id` — тоді основним стане турнір, який
 клуб обрав першим.
 
