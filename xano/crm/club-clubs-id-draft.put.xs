@@ -151,7 +151,16 @@ query "club/clubs/{teaminfo_id}/draft" verb=PUT {
       field_value = $plan.key
       output = ["id", "status"]
     } as $open
-    precondition ($open == null || $open.status == "draft") {
+    // Булеве — у лямбді: чи обриває XanoScript вираз «null або його поле» на
+    // null-обʼєкті, не перевірено (рецензія Backend 30.10, жива перевірка 4а)
+    api.lambda {
+      code = """
+        const o = $var.open;
+        return !o || o.status === 'draft';
+      """
+      timeout = 5
+    } as $open_ok
+    precondition ($open_ok) {
       error_type = "badrequest"
       error = "Зміни картки вже на погодженні — дочекайтесь рішення АФУ або відкличте пакет"
     }

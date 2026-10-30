@@ -39,7 +39,7 @@ query "club/clubs/{teaminfo_id}/submit" verb=POST {
       where = $db.change_request.teaminfo_id == $input.teaminfo_id && $db.change_request.status == "draft"
       sort = {change_request.id: "asc"}
       return = {type: "list"}
-      output = ["id", "entity", "action", "entity_id", "after"]
+      output = ["id", "entity", "action", "entity_id", "leagues_id", "after"]
     } as $drafts
     db.query change_batch {
       where = $db.change_batch.teaminfo_id == $input.teaminfo_id && $db.change_batch.status != "withdrawn"
@@ -64,6 +64,12 @@ query "club/clubs/{teaminfo_id}/submit" verb=POST {
       where = $db.Administration_of_teams.teaminfo_id == $input.teaminfo_id
       return = {type: "list"}
     } as $staff
+    // Додаткові турніри (варіант 3): before зміни номера чи виведення з
+    // додаткового турніру — з team_league, а не з основного рядка Team
+    db.query team_league {
+      where = $db.team_league.teaminfo_id == $input.teaminfo_id
+      return = {type: "list"}
+    } as $extra
 
     api.lambda {
       code = """
@@ -72,7 +78,10 @@ query "club/clubs/{teaminfo_id}/submit" verb=POST {
         const таблиця = { club: () => [$var.club].filter(Boolean), person: () => $var.people || [], squad_row: () => $var.squad || [], staff_row: () => $var.staff || [] };
         const знімок = (r) => {
           if (r.action === 'create' || r.entity_id == null) return null;
-          const рядок = (таблиця[r.entity] ? таблиця[r.entity]() : []).find((x) => x.id === r.entity_id);
+          let рядок = (таблиця[r.entity] ? таблиця[r.entity]() : []).find((x) => x.id === r.entity_id);
+          if (рядок && r.entity === 'squad_row' && r.leagues_id && r.leagues_id !== рядок.leagues_id) {
+            рядок = ($var.extra || []).find((д) => д.team_id === r.entity_id && д.leagues_id === r.leagues_id);
+          }
           if (!рядок) return null;
           const б = {};
           for (const k of Object.keys(r.after || {})) if (k in рядок) б[k] = рядок[k];

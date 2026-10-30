@@ -47,6 +47,26 @@ test('submit: before — лише змінювані поля основного
   ]);
 });
 
+test('submit: before зміни в додатковому турнірі — з team_league, в основному — з Team', () => {
+  const план = лямбда('club-clubs-id-submit.post.xs', 'plan');
+  const r = план({
+    drafts: [
+      { id: 5, entity: 'squad_row', action: 'update', entity_id: 30, leagues_id: 12, after: { Number: 18 } },
+      { id: 6, entity: 'squad_row', action: 'update', entity_id: 31, leagues_id: 10, after: { Number: 5 } },
+    ],
+    recent: [],
+    club: { id: 58 },
+    people: [],
+    squad: [{ id: 30, leagues_id: 10, Number: 4 }, { id: 31, leagues_id: 10, Number: 3 }],
+    staff: [],
+    extra: [{ id: 7, team_id: 30, leagues_id: 12, Number: 17 }],
+  });
+  assert.deepEqual(r.rows, [
+    { id: 5, before: { Number: 17 } },
+    { id: 6, before: { Number: 3 } },
+  ]);
+});
+
 test('submit: без чернеток — нічого; ліміт 1 пакет/год', () => {
   const план = лямбда('club-clubs-id-submit.post.xs', 'plan');
   assert.equal(план({ drafts: [], recent: [] }).has_drafts, false);

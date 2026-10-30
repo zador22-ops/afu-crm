@@ -280,3 +280,17 @@ test('форма «Змінити гравця»: чинне + чернетка;
   assert.equal(ф.основний, true);
   assert.deepEqual(формаГравця(г, 12).squad, { leagues_id: 12, Number: '18' });
 });
+
+test('булеві з відкритої заявки — у лямбді (на null $x.поле у XanoScript не перевірено)', () => {
+  for (const ф of ['club-clubs-id-draft.put.xs', 'club-clubs-id-players-id.put.xs']) {
+    const s = fs.readFileSync(new URL(`../../xano/crm/${ф}`, import.meta.url), 'utf8');
+    assert.doesNotMatch(s, /\$open[a-z_]* == null \|\| \$open[a-z_]*\./, ф);
+    assert.doesNotMatch(s, /\$open[a-z_]* != null && \$open[a-z_]*\./, ф);
+  }
+  const своя = лямбда('club-clubs-id-players-id.put.xs', 'own_squad');
+  assert.equal(своя({ open_squad: null, plan: { leagues_id: 10 } }), false);
+  assert.equal(своя({ open_squad: { status: 'draft', action: 'update', leagues_id: 10 }, plan: { leagues_id: 10 } }), true);
+  assert.equal(своя({ open_squad: { status: 'draft', action: 'remove', leagues_id: 10 }, plan: { leagues_id: 10 } }), false);
+  assert.equal(лямбда('club-clubs-id-players-id.put.xs', 'person_open_ok')({ open_person: null }), true);
+  assert.equal(лямбда('club-clubs-id-draft.put.xs', 'open_ok')({ open: { status: 'submitted' } }), false);
+});

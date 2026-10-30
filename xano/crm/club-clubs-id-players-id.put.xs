@@ -213,7 +213,16 @@ query "club/clubs/{teaminfo_id}/players/{team_id}" verb=PUT {
       field_value = $plan.person_key
       output = ["id", "status", "action"]
     } as $open_person
-    precondition ($open_person == null || $open_person.status == "draft") {
+    // Булеві — у лямбді: чи обриває XanoScript «$x == null || $x.поле» на null,
+    // не перевірено (рецензія Backend 30.10, жива перевірка 4а)
+    api.lambda {
+      code = """
+        const o = $var.open_person;
+        return !o || o.status === 'draft';
+      """
+      timeout = 5
+    } as $person_open_ok
+    precondition ($person_open_ok) {
       error_type = "badrequest"
       error = "Зміни даних гравця вже на погодженні — дочекайтесь рішення АФУ або відкличте пакет"
     }
@@ -224,9 +233,13 @@ query "club/clubs/{teaminfo_id}/players/{team_id}" verb=PUT {
     } as $open_squad
     // «Наша» відкрита чернетка складу — update цього ж турніру. Чужу (виведення
     // чи інший турнір) не чіпаємо: порожня зміна складу її не прибирає.
-    var $own_squad {
-      value = $open_squad != null && $open_squad.status == "draft" && $open_squad.action == "update" && $open_squad.leagues_id == $plan.leagues_id
-    }
+    api.lambda {
+      code = """
+        const o = $var.open_squad;
+        return !!o && o.status === 'draft' && o.action === 'update' && Number(o.leagues_id) === Number($var.plan.leagues_id);
+      """
+      timeout = 5
+    } as $own_squad
     precondition ($plan.squad_empty || $open_squad == null || $own_squad) {
       error_type = "badrequest"
       error = "Для цього гравця вже є відкрита зміна складу (за раз — один турнір) — приберіть її або дочекайтесь рішення АФУ"
