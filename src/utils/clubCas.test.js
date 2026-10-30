@@ -92,7 +92,11 @@ test('запасний варіант 3.3 — мала правка: обгор�
     const без = s.replace(/[^\n]*\/\/ ТРАНЗАКЦІЯ ↓\n[\s\S]*?\/\/ ТРАНЗАКЦІЯ ↑\n/g, '');
     assert.equal((без.match(/\{/g) || []).length, (без.match(/\}/g) || []).length, `${f}: після прибирання обгортки дужки не збігаються`);
     assert.doesNotMatch(без, /db\.transaction \{/, `${f}: транзакція без позначок запасного варіанта`);
-    for (const [, n] of s.matchAll(/var \$mine_(\w+) \{/g)) assert.match(s, new RegExp(`foreach \\(\\$mine_${n}\\) \\{\\s*each as \\$mk \\{\\s*try_catch \\{\\s*try \\{\\s*db\\.del change_lock`), `${f}: ${n} — немає прибирання своїх ключів`);
+    for (const [, n] of s.matchAll(/var \$mine_(\w+) \{/g)) {
+      // свої замки прибираються за id СВОГО рядка, не за key (рецензія Backend: за key можна стерти чужий замок)
+      assert.match(s, new RegExp(`value = \\$mine_${n}\\|push:\\$lock_${n}\\.id`), `${f}: ${n} — у $mine має йти id замка`);
+      assert.match(s, new RegExp(`foreach \\(\\$mine_${n}\\) \\{\\s*each as \\$mk \\{\\s*try_catch \\{\\s*try \\{\\s*db\\.del change_lock \\{\\s*field_name = "id"`), `${f}: ${n} — прибирання не за id`);
+    }
   }
 });
 
@@ -201,13 +205,20 @@ test('«Погодити»: один перехід submitted → applied — д
   assert.ok(s.indexOf('} as $plan_try') < від && s.indexOf('foreach ($image_paths)') < від);
 });
 
-test('«Погодити» не вдалось: особа зайнята іншим → 400; інший ключ → 409; ключі вільні → failed «нічого не змінено»', () => {
+test('«Погодити» не вдалось: особа зайнята іншим → 400; лише доля пакета → «спробуйте ще раз»; інший ключ → 409; ключі вільні → failed «нічого не змінено»', () => {
   const чому = лямбда('moderation-requests-id-approve.post.xs', 'why');
   const t = { person_key: 'person:50', row_key: 'cr:51:1' };
-  assert.deepEqual(чому({ held_apply: ['person:50'], tr_apply: t }, {}), { busy: true, conflict: false });
-  assert.deepEqual(чому({ held_apply: ['cr:51:1', 'person:50'], tr_apply: t }, {}), { busy: false, conflict: true });
-  assert.deepEqual(чому({ held_apply: ['batch:5:fate'], tr_apply: t }, {}), { busy: false, conflict: true });
-  assert.deepEqual(чому({ held_apply: [], tr_apply: t }, {}), { busy: false, conflict: false });
+  const з = (h) => чому({ held_apply: h, tr_apply: t, fate_key: 'batch:5:fate' }, {});
+  assert.deepEqual(з(['person:50']), { busy: true, retry: false, conflict: false });
+  assert.deepEqual(з(['cr:51:1', 'person:50']), { busy: false, retry: false, conflict: true });
+  // лише доля пакета — паралельне перше рішення по іншому рядку: «спробуйте ще раз»
+  assert.deepEqual(з(['batch:5:fate']), { busy: false, retry: true, conflict: false });
+  assert.deepEqual(з(['batch:5:fate', 'cr:51:1']), { busy: false, retry: false, conflict: true });
+  assert.deepEqual(з([]), { busy: false, retry: false, conflict: false });
+  const ще = лямбда('moderation-requests-id-reject.post.xs', 'retry_reject');
+  assert.equal(ще({ held_reject: ['batch:5:fate'], fate_key: 'batch:5:fate' }, {}), true);
+  assert.equal(ще({ held_reject: ['batch:5:fate', 'cr:51:1'], fate_key: 'batch:5:fate' }, {}), false);
+  assert.equal(ще({ held_reject: [], fate_key: 'batch:5:fate' }, {}), false);
   assert.match(читати('moderation-requests-id-approve.post.xs'), /Помилка запису в Xano під час застосування — нічого не змінено \(усе відкочено\)/);
 });
 

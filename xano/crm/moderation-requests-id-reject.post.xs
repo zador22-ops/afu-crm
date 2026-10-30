@@ -152,7 +152,7 @@ query "moderation/requests/{request_id}/reject" verb=POST {
                   data = {created_at: "now", key: $lk.key, op: $lk.op, request_id: $lk.request_id, batch_id: $lk.batch_id, users_id: $auth.id, club_account_id: null}
                 } as $lock_reject
                 var.update $mine_reject {
-                  value = $mine_reject|push:$lk.key
+                  value = $mine_reject|push:$lock_reject.id
                 }
               }
             }
@@ -195,13 +195,14 @@ query "moderation/requests/{request_id}/reject" verb=POST {
         }
       }
       catch {
-        // Запасний варіант 3.3: свої ключі геть (у транзакції їх уже відкочено — нічого не знайде)
+        // Запасний варіант 3.3: свої замки геть — за id СВОГО рядка, не за key (рецензія Backend:
+            // за key можна стерти чужий замок, вставлений після відкату); у транзакції id уже відкочено
         foreach ($mine_reject) {
           each as $mk {
             try_catch {
               try {
                 db.del change_lock {
-                  field_name = "key"
+                  field_name = "id"
                   field_value = $mk
                 }
               }
@@ -234,6 +235,18 @@ query "moderation/requests/{request_id}/reject" verb=POST {
           }
         }
       }
+    }
+    // Лише доля пакета: паралельне ПЕРШЕ рішення по іншому рядку — цей рядок ніхто не чіпав
+    api.lambda {
+      code = """
+        const h = $var.held_reject || [];
+        return h.length > 0 && h.every((k) => k === $var.fate_key);
+      """
+      timeout = 5
+    } as $retry_reject
+    precondition ($ok_reject || $retry_reject == false) {
+      error_type = "badrequest"
+      error = "Інше рішення по цьому пакету саме записується — спробуйте ще раз"
     }
     precondition ($ok_reject || ($held_reject|count) == 0) {
       error_type = "badrequest"

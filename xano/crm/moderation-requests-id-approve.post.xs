@@ -722,7 +722,7 @@ function підсумокЗаявки(план, рішення, хто, коли
                       data = {created_at: "now", key: $lk.key, op: $lk.op, request_id: $lk.request_id, batch_id: $lk.batch_id, users_id: $auth.id, club_account_id: null}
                     } as $lock_apply
                     var.update $mine_apply {
-                      value = $mine_apply|push:$lk.key
+                      value = $mine_apply|push:$lock_apply.id
                     }
                   }
                 }
@@ -872,13 +872,14 @@ function підсумокЗаявки(план, рішення, хто, коли
             }
           }
           catch {
-            // Запасний варіант 3.3: свої ключі геть (у транзакції їх уже відкочено — нічого не знайде)
+            // Запасний варіант 3.3: свої замки геть — за id СВОГО рядка, не за key (рецензія Backend:
+            // за key можна стерти чужий замок, вставлений після відкату); у транзакції id уже відкочено
             foreach ($mine_apply) {
               each as $mk {
                 try_catch {
                   try {
                     db.del change_lock {
-                      field_name = "key"
+                      field_name = "id"
                       field_value = $mk
                     }
                   }
@@ -920,13 +921,19 @@ function підсумокЗаявки(план, рішення, хто, коли
                 const h = $var.held_apply || [];
                 const t = $var.tr_apply;
                 const зайнятаОсоба = !!t.person_key && h.includes(t.person_key) && !h.includes(t.row_key);
-                return { busy: зайнятаОсоба, conflict: h.length > 0 && !зайнятаОсоба };
+                // Лише доля пакета: паралельне ПЕРШЕ рішення по іншому рядку — цей рядок ніхто не чіпав
+                const лишеДоля = !зайнятаОсоба && h.includes($var.fate_key) && !h.includes(t.row_key);
+                return { busy: зайнятаОсоба, retry: лишеДоля, conflict: h.length > 0 && !зайнятаОсоба && !лишеДоля };
               """
               timeout = 5
             } as $why
             precondition ($why.busy == false) {
               error_type = "badrequest"
               error = "Нову особу саме створює інший модератор — спробуйте ще раз за хвилину"
+            }
+            precondition ($why.retry == false) {
+              error_type = "badrequest"
+              error = "Інше рішення по цьому пакету саме записується — спробуйте ще раз"
             }
             precondition ($why.conflict == false) {
               error_type = "badrequest"
@@ -1016,7 +1023,7 @@ function підсумокЗаявки(план, рішення, хто, коли
                       data = {created_at: "now", key: $lk.key, op: $lk.op, request_id: $lk.request_id, batch_id: $lk.batch_id, users_id: $auth.id, club_account_id: null}
                     } as $lock_fail
                     var.update $mine_fail {
-                      value = $mine_fail|push:$lk.key
+                      value = $mine_fail|push:$lock_fail.id
                     }
                   }
                 }
@@ -1068,13 +1075,14 @@ function підсумокЗаявки(план, рішення, хто, коли
             }
           }
           catch {
-            // Запасний варіант 3.3: свої ключі геть (у транзакції їх уже відкочено — нічого не знайде)
+            // Запасний варіант 3.3: свої замки геть — за id СВОГО рядка, не за key (рецензія Backend:
+            // за key можна стерти чужий замок, вставлений після відкату); у транзакції id уже відкочено
             foreach ($mine_fail) {
               each as $mk {
                 try_catch {
                   try {
                     db.del change_lock {
-                      field_name = "key"
+                      field_name = "id"
                       field_value = $mk
                     }
                   }

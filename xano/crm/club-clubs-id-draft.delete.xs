@@ -87,7 +87,7 @@ query "club/clubs/{teaminfo_id}/draft" verb=DELETE {
                   data = {created_at: "now", key: $lk.key, op: $lk.op, request_id: $lk.request_id, batch_id: $lk.batch_id, users_id: $acted_by, club_account_id: $auth.id}
                 } as $lock_delete
                 var.update $mine_delete {
-                  value = $mine_delete|push:$lk.key
+                  value = $mine_delete|push:$lock_delete.id
                 }
               }
             }
@@ -104,13 +104,14 @@ query "club/clubs/{teaminfo_id}/draft" verb=DELETE {
         }
       }
       catch {
-        // Запасний варіант 3.3: свої ключі геть (у транзакції їх уже відкочено — нічого не знайде)
+        // Запасний варіант 3.3: свої замки геть — за id СВОГО рядка, не за key (рецензія Backend:
+            // за key можна стерти чужий замок, вставлений після відкату); у транзакції id уже відкочено
         foreach ($mine_delete) {
           each as $mk {
             try_catch {
               try {
                 db.del change_lock {
-                  field_name = "key"
+                  field_name = "id"
                   field_value = $mk
                 }
               }
