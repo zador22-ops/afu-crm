@@ -112,57 +112,113 @@ query "moderation/requests/{request_id}/approve" verb=POST {
       return = {type: "list"}
       output = ["leagues_id", "window_only"]
     } as $rules
-    // Нова особа, від якої залежить рядок (id = null → порожньо)
+    // Нова особа, від якої залежить рядок: захопити її CAS-ом submitted → approved
+    // ДО плану й db.add People (рецензія Backend 4.2, п. 1) — інакше два модератори,
+    // що одночасно погоджують два рядки однієї нової особи, створили б дві People.
+    var $claimed {
+      value = false
+    }
+    conditional {
+      if ($row.depends_on_id != null) {
+        db.direct_query {
+          sql = """
+            UPDATE x1_93 SET status = 'approved' WHERE id = ? AND status = 'submitted' RETURNING id;
+            """
+          response_type = "list"
+          arg = $row.depends_on_id
+        } as $claim
+        var.update $claimed {
+          value = ($claim|count) > 0
+        }
+      }
+    }
+    // (id = null → порожньо); читаємо ПІСЛЯ захоплення
     db.query change_request {
       where = $db.change_request.id == $row.depends_on_id
       return = {type: "list"}
       output = ["id", "entity", "action", "teaminfo_id", "after", "status", "applied_entity_id"]
     } as $parent_list
-
-    // Файли фото з after (і нової особи) мають існувати у vault: HEAD → 200
+    // Особу саме створює інший модератор (approved, але не нами) — повернути рядок
+    // у submitted (записів ще не було) і попросити спробувати ще раз
     api.lambda {
       code = """
-        const шляхи = [];
-        const з = (o) => {
-          for (const k of ['Photo', 'TeamLogo', 'TeamPhoto']) {
-            const v = o && o[k];
-            const p = v && typeof v === 'object' ? String(v.path || '') : '';
-            if (p) шляхи.push(p);
-          }
-        };
-        з($var.row.after);
-        const батько = ($var.parent_list || [])[0];
-        if (батько && (батько.status === 'submitted' || батько.status === 'approved')) з(батько.after);
-        return [...new Set(шляхи)].map((p) => ({ path: p, url: 'https://xdeg-kg7i-jjtu.f2.xano.io' + p }));
+        const б = ($var.parent_list || [])[0];
+        return !!б && б.status === 'approved' && !$var.claimed;
       """
       timeout = 5
-    } as $image_paths
-    var $images {
-      value = []
-    }
-    foreach ($image_paths) {
-      each as $img {
-        api.request {
-          url = $img.url
-          method = "HEAD"
-          timeout = 10
-        } as $head
-        api.lambda {
-          code = """
-            return { path: $var.img.path, status: $var.head && $var.head.response ? $var.head.response.status : null };
-          """
-          timeout = 5
-        } as $checked
-        var.update $images {
-          value = $images|push:$checked
-        }
+    } as $person_busy
+    conditional {
+      if ($person_busy) {
+        db.direct_query {
+          sql = """
+            UPDATE x1_93 SET status = 'submitted' WHERE id = ? AND status = 'approved' RETURNING id;
+            """
+          response_type = "list"
+          arg = $input.request_id
+        } as $released_row
+        db.edit change_request {
+          field_name = "id"
+          field_value = $input.request_id
+          data = {updated_at: "now", decided_at: null, decision_users_id: null}
+        } as $undecided
       }
     }
+    precondition ($person_busy == false) {
+      error_type = "badrequest"
+      error = "Нову особу саме створює інший модератор — спробуйте ще раз за хвилину"
+    }
 
-    // 3. План: правила 4.2 дослівно + склейка CRM
-    api.lambda {
-      code = """
-        // ПРАВИЛА 4.2 — ДОСЛІВНО з AFU docs/xano/drafts/club-self-service/apply-rules.js (без module.exports)
+    // 2–3. Перевірка фото й план — у try_catch (рецензія Backend 4.2, п. 2): збій
+    // HEAD чи лямбди плану не має лишити заявку назавжди в approved
+    var $plan {
+      value = null
+    }
+    try_catch {
+      try {
+        // Файли фото з after (і нової особи) мають існувати у vault: HEAD → 200
+        api.lambda {
+          code = """
+            const шляхи = [];
+            const з = (o) => {
+              for (const k of ['Photo', 'TeamLogo', 'TeamPhoto']) {
+                const v = o && o[k];
+                const p = v && typeof v === 'object' ? String(v.path || '') : '';
+                if (p) шляхи.push(p);
+              }
+            };
+            з($var.row.after);
+            const батько = ($var.parent_list || [])[0];
+            if (батько && (батько.status === 'submitted' || батько.status === 'approved')) з(батько.after);
+            return [...new Set(шляхи)].map((p) => ({ path: p, url: 'https://xdeg-kg7i-jjtu.f2.xano.io' + p }));
+          """
+          timeout = 5
+        } as $image_paths
+        var $images {
+          value = []
+        }
+        foreach ($image_paths) {
+          each as $img {
+            api.request {
+              url = $img.url
+              method = "HEAD"
+              timeout = 10
+            } as $head
+            api.lambda {
+              code = """
+                return { path: $var.img.path, status: $var.head && $var.head.response ? $var.head.response.status : null };
+              """
+              timeout = 5
+            } as $checked
+            var.update $images {
+              value = $images|push:$checked
+            }
+          }
+        }
+
+        // 3. План: правила 4.2 дослівно + склейка CRM
+        api.lambda {
+          code = """
+            // ПРАВИЛА 4.2 — ДОСЛІВНО з AFU docs/xano/drafts/club-self-service/apply-rules.js (без module.exports)
 /**
  * Самообслуговування клубів, 4.2: правила застосування погодженої заявки — чисті функції.
  * Контракт docs/xano/club-self-service-apply.md. 30.10.2026.
@@ -464,127 +520,143 @@ function підсумокЗаявки(план, рішення, хто, коли
 }
         // /ПРАВИЛА 4.2
 
-        // ——— Склейка CRM: заявка + прочитані рядки → кроки запису (нічого не пише) ———
-        const зараз = Date.now();
-        let сьогодні;
-        try {
-          сьогодні = new Intl.DateTimeFormat('en-CA', { timeZone: 'Europe/Kyiv', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date(зараз));
-        } catch (e) {
-          сьогодні = new Date(зараз).toISOString().slice(0, 10);
-        }
-        const з = $var.row;
-        const клуби = $var.clubs || [];
-        const клуб = клуби.find((к) => к.id === з.teaminfo_id) || null;
-        const люди = $var.people || [];
-        const картки = $var.cards || [];
-        const додаткові = $var.extra || [];
-        const діє = (к) => к.Relevance_of_the_record !== false && (!є(к.End_date) || String(к.End_date) >= сьогодні);
-        const діюДод = (д) => д.is_active !== false && (!є(д.End_date) || String(д.End_date) >= сьогодні);
-        const батько = ($var.parent_list || [])[0] || null;
-        const нормПр = (s) => String(s || '').trim().toLowerCase();
-        const двійникиДля = (а) => люди.filter((p) => нормПр(p.prizvushche) === нормПр(а && а.prizvushche) && String(p.Date_of_birth || '').slice(0, 10) === String((а && а.Date_of_birth) || '').slice(0, 10));
-        // Фото з after (і нової особи, від якої залежить рядок): файл має існувати у vault (контракт 4.2, d7058d0)
-        const відсутні = ($var.images || []).filter((і) => Number(і.status) !== 200).map((і) => і.path);
-        const вікноЛіги = (id) => вікно(($var.rules || []).find((р) => р.leagues_id === id) || null, ($var.windows || []).filter((в) => в.leagues_id === id).map((в) => ({ starts_at: Number(в.starts_at), ends_at: Number(в.ends_at) })), зараз);
-        const складТурніру = (ліга) => картки.filter((к) => к.teaminfo_id === з.teaminfo_id && к.leagues_id === ліга && діє(к))
-          .concat(додаткові.filter((д) => д.teaminfo_id === з.teaminfo_id && д.leagues_id === ліга && діюДод(д)).map((д) => ({ id: -д.id, player_id: д.people_id, Number: д.Number })));
-        const кроки = [];
-        let особаВпала = false; // нова особа не пройшла правила — її заявка й інші рядки теж failed
-        let особаКрок = null; // нова особа (person.create, від якої залежить рядок) — пишеться першою
-        let план;
-        const НОВА = -1; // id нової особи до запису; кроки з person = true отримають справжній
-
-        if (відсутні.length) план = невдача('Файл зображення не знайдено — завантажте його знову');
-        else if (з.entity === 'club') {
-          план = планКлубу(з, клуб);
-          if (план.ok && Object.keys(план.patch || {}).length) кроки.push({ table: 'TeamInfo', op: 'patch', id: план.id, data: план.patch, label: 'картку клубу змінено' });
-        } else if (з.entity === 'person') {
-          const о = з.entity_id ? люди.find((p) => p.id === з.entity_id) || null : null;
-          план = планОсоби(з, о, з.action === 'create' ? двійникиДля(з.after) : []);
-          if (план.ok && план.add) особаКрок = { data: план.add, request_id: з.id };
-          if (план.ok && план.patch) кроки.push({ table: 'People', op: 'patch', id: план.id, data: план.patch, label: 'дані особи змінено' });
-        } else {
-          // Рядок складу / штабу: особа — наявна або нова (її person.create застосовується першою)
-          let особа = null;
-          if (з.depends_on_id) {
-            if (!батько) план = невдача('Заявка на нову особу, від якої залежить ця, не знайдена');
-            else if (батько.status === 'submitted' || батько.status === 'approved') {
-              const п = планОсоби(батько, null, двійникиДля(батько.after));
-              if (!п.ok) {
-                план = п;
-                особаВпала = true;
-              } else {
-                особаКрок = { data: п.add, request_id: батько.id };
-                особа = { id: НОВА };
-              }
-            } else {
-              const д = залежність(з, батько);
-              if (!д.ok) план = д.wait ? невдача('Нова особа ще не створена') : д;
-              else особа = люди.find((p) => p.id === д.people_id) || null;
+            // ——— Склейка CRM: заявка + прочитані рядки → кроки запису (нічого не пише) ———
+            const зараз = Date.now();
+            let сьогодні;
+            try {
+              сьогодні = new Intl.DateTimeFormat('en-CA', { timeZone: 'Europe/Kyiv', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date(зараз));
+            } catch (e) {
+              сьогодні = new Date(зараз).toISOString().slice(0, 10);
             }
-          } else особа = з.people_id ? люди.find((p) => p.id === з.people_id) || null : null;
+            const з = $var.row;
+            const клуби = $var.clubs || [];
+            const клуб = клуби.find((к) => к.id === з.teaminfo_id) || null;
+            const люди = $var.people || [];
+            const картки = $var.cards || [];
+            const додаткові = $var.extra || [];
+            const діє = (к) => к.Relevance_of_the_record !== false && (!є(к.End_date) || String(к.End_date) >= сьогодні);
+            const діюДод = (д) => д.is_active !== false && (!є(д.End_date) || String(д.End_date) >= сьогодні);
+            const батько = ($var.parent_list || [])[0] || null;
+            const нормПр = (s) => String(s || '').trim().toLowerCase();
+            const двійникиДля = (а) => люди.filter((p) => нормПр(p.prizvushche) === нормПр(а && а.prizvushche) && String(p.Date_of_birth || '').slice(0, 10) === String((а && а.Date_of_birth) || '').slice(0, 10));
+            // Фото з after (і нової особи, від якої залежить рядок): файл має існувати у vault (контракт 4.2, d7058d0)
+            const відсутні = ($var.images || []).filter((і) => Number(і.status) !== 200).map((і) => і.path);
+            const вікноЛіги = (id) => вікно(($var.rules || []).find((р) => р.leagues_id === id) || null, ($var.windows || []).filter((в) => в.leagues_id === id).map((в) => ({ starts_at: Number(в.starts_at), ends_at: Number(в.ends_at) })), зараз);
+            const складТурніру = (ліга) => картки.filter((к) => к.teaminfo_id === з.teaminfo_id && к.leagues_id === ліга && діє(к))
+              .concat(додаткові.filter((д) => д.teaminfo_id === з.teaminfo_id && д.leagues_id === ліга && діюДод(д)).map((д) => ({ id: -д.id, player_id: д.people_id, Number: д.Number })));
+            const кроки = [];
+            let особаВпала = false; // нова особа не пройшла правила — її заявка й інші рядки теж failed
+            let особаКрок = null; // нова особа (person.create, від якої залежить рядок) — пишеться першою
+            let план;
+            const НОВА = -1; // id нової особи до запису; кроки з person = true отримають справжній
 
-          if (!план) {
-            const ctx = {
-              клуб, усіКлуби: клуби, особа, сьогодні, позиції: $var.positions || [],
-              активніОсоби: особа && особа.id !== НОВА ? картки.filter((к) => к.player_id === особа.id && діє(к)) : [],
-              додатковіОсоби: додаткові,
-              складТурніру: з.leagues_id ? складТурніру(з.leagues_id) : [],
-              вікно: з.leagues_id ? вікноЛіги(з.leagues_id) : null,
-              штабКлубу: $var.staff || [],
-            };
-            const рядок = з.entity_id ? (з.entity === 'squad_row' ? картки.find((к) => к.id === з.entity_id) : ($var.staff || []).find((с) => с.id === з.entity_id)) || null : null;
-            if (з.entity === 'squad_row' && (з.action === 'create' || з.action === 'transfer')) {
-              план = планДодатиДоСкладу(з, ctx);
-              if (план.ok && план.table === 'Team') {
-                // Порядок (контракт 4.2): спершу новий рядок, потім закриття старих
-                кроки.push({ table: 'Team', op: 'add', data: план.add, person: 'player_id', label: 'гравця додано до складу', created: true });
-                for (const id of план.close || []) {
-                  кроки.push({ table: 'Team', op: 'patch', id, data: план.closeData, label: `закрито рядок складу №${id} у старому клубі` });
-                  // Закриваючи чужий Team, вимкнути й усі його додаткові турніри (варіант 3)
-                  for (const д of додаткові.filter((x) => x.team_id === id && діюДод(x))) кроки.push({ table: 'team_league', op: 'patch', id: д.id, data: { is_active: false, End_date: сьогодні }, label: `вимкнено додатковий турнір №${д.id} у старому клубі` });
+            if (відсутні.length) план = невдача('Файл зображення не знайдено — завантажте його знову');
+            else if (з.entity === 'club') {
+              план = планКлубу(з, клуб);
+              if (план.ok && Object.keys(план.patch || {}).length) кроки.push({ table: 'TeamInfo', op: 'patch', id: план.id, data: план.patch, label: 'картку клубу змінено' });
+            } else if (з.entity === 'person') {
+              const о = з.entity_id ? люди.find((p) => p.id === з.entity_id) || null : null;
+              план = планОсоби(з, о, з.action === 'create' ? двійникиДля(з.after) : []);
+              if (план.ok && план.add) особаКрок = { data: план.add, request_id: з.id };
+              if (план.ok && план.patch) кроки.push({ table: 'People', op: 'patch', id: план.id, data: план.patch, label: 'дані особи змінено' });
+            } else {
+              // Рядок складу / штабу: особа — наявна або нова (її person.create застосовується першою)
+              let особа = null;
+              if (з.depends_on_id) {
+                if (!батько) план = невдача('Заявка на нову особу, від якої залежить ця, не знайдена');
+                else if (батько.status === 'submitted' || батько.status === 'approved') {
+                  const п = планОсоби(батько, null, двійникиДля(батько.after));
+                  if (!п.ok) {
+                    план = п;
+                    особаВпала = true;
+                  } else {
+                    особаКрок = { data: п.add, request_id: батько.id };
+                    особа = { id: НОВА };
+                  }
+                } else {
+                  const д = залежність(з, батько);
+                  if (!д.ok) план = д.wait ? невдача('Нова особа ще не створена') : д;
+                  else особа = люди.find((p) => p.id === д.people_id) || null;
                 }
-              } else if (план.ok && план.table === 'team_league') {
-                if (план.add) кроки.push({ table: 'team_league', op: 'add', data: план.add, person: 'people_id', label: 'гравця додано в додатковий турнір', created: true });
-                else кроки.push({ table: 'team_league', op: 'patch', id: план.id, data: план.edit, label: 'додатковий турнір гравця увімкнено знову', applied_id: план.id });
+              } else особа = з.people_id ? люди.find((p) => p.id === з.people_id) || null : null;
+
+              if (!план) {
+                const ctx = {
+                  клуб, усіКлуби: клуби, особа, сьогодні, позиції: $var.positions || [],
+                  активніОсоби: особа && особа.id !== НОВА ? картки.filter((к) => к.player_id === особа.id && діє(к)) : [],
+                  додатковіОсоби: додаткові,
+                  складТурніру: з.leagues_id ? складТурніру(з.leagues_id) : [],
+                  вікно: з.leagues_id ? вікноЛіги(з.leagues_id) : null,
+                  штабКлубу: $var.staff || [],
+                };
+                const рядок = з.entity_id ? (з.entity === 'squad_row' ? картки.find((к) => к.id === з.entity_id) : ($var.staff || []).find((с) => с.id === з.entity_id)) || null : null;
+                if (з.entity === 'squad_row' && (з.action === 'create' || з.action === 'transfer')) {
+                  план = планДодатиДоСкладу(з, ctx);
+                  if (план.ok && план.table === 'Team') {
+                    // Порядок (контракт 4.2): спершу новий рядок, потім закриття старих
+                    кроки.push({ table: 'Team', op: 'add', data: план.add, person: 'player_id', label: 'гравця додано до складу', created: true });
+                    for (const id of план.close || []) {
+                      кроки.push({ table: 'Team', op: 'patch', id, data: план.closeData, label: `закрито рядок складу №${id} у старому клубі` });
+                      // Закриваючи чужий Team, вимкнути й усі його додаткові турніри (варіант 3)
+                      for (const д of додаткові.filter((x) => x.team_id === id && діюДод(x))) кроки.push({ table: 'team_league', op: 'patch', id: д.id, data: { is_active: false, End_date: сьогодні }, label: `вимкнено додатковий турнір №${д.id} у старому клубі` });
+                    }
+                  } else if (план.ok && план.table === 'team_league') {
+                    if (план.add) кроки.push({ table: 'team_league', op: 'add', data: план.add, person: 'people_id', label: 'гравця додано в додатковий турнір', created: true });
+                    else кроки.push({ table: 'team_league', op: 'patch', id: план.id, data: план.edit, label: 'додатковий турнір гравця увімкнено знову', applied_id: план.id });
+                  }
+                } else if (з.entity === 'squad_row' && з.action === 'update') {
+                  план = планЗмінитиСклад(з, рядок, ctx);
+                  if (план.ok) кроки.push({ table: план.table, op: 'patch', id: план.id, data: план.patch, label: план.table === 'Team' ? 'рядок складу змінено' : 'номер у додатковому турнірі змінено' });
+                } else if (з.entity === 'squad_row' && з.action === 'remove') {
+                  const ліга = з.leagues_id || (рядок && рядок.leagues_id);
+                  план = планВивестиЗТурніру(з, рядок, додаткові, { ...ctx, вікно: ліга ? вікноЛіги(ліга) : null });
+                  if (план.ok) {
+                    кроки.push({ table: план.table, op: 'patch', id: план.id, data: план.edit || план.patch, label: план.patch ? 'основний турнір гравця змінено' : план.table === 'Team' ? 'гравця виведено зі складу' : 'гравця виведено з додаткового турніру' });
+                    if (план.також) кроки.push({ table: план.також.table, op: 'patch', id: план.також.id, data: план.також.edit, label: 'колишній додатковий турнір вимкнено' });
+                  }
+                } else if (з.entity === 'staff_row' && з.action === 'create') {
+                  план = планДодатиШтаб(з, ctx);
+                  if (план.ok) кроки.push({ table: 'Administration of teams', op: 'add', data: план.add, person: 'people_id', label: 'людину додано до штабу', created: true });
+                } else if (з.entity === 'staff_row' && з.action === 'update') {
+                  план = планЗмінитиШтаб(з, рядок, ctx);
+                  if (план.ok) кроки.push({ table: 'Administration of teams', op: 'patch', id: план.id, data: план.patch, label: 'посаду змінено' });
+                } else if (з.entity === 'staff_row' && з.action === 'remove') {
+                  план = планВивестиШтаб(з, рядок, ctx);
+                  if (план.ok) кроки.push({ table: 'Administration of teams', op: 'patch', id: план.id, data: план.edit, label: 'людину виведено зі штабу' });
+                } else план = невдача('Невідомий тип заявки');
               }
-            } else if (з.entity === 'squad_row' && з.action === 'update') {
-              план = планЗмінитиСклад(з, рядок, ctx);
-              if (план.ok) кроки.push({ table: план.table, op: 'patch', id: план.id, data: план.patch, label: план.table === 'Team' ? 'рядок складу змінено' : 'номер у додатковому турнірі змінено' });
-            } else if (з.entity === 'squad_row' && з.action === 'remove') {
-              const ліга = з.leagues_id || (рядок && рядок.leagues_id);
-              план = планВивестиЗТурніру(з, рядок, додаткові, { ...ctx, вікно: ліга ? вікноЛіги(ліга) : null });
-              if (план.ok) {
-                кроки.push({ table: план.table, op: 'patch', id: план.id, data: план.edit || план.patch, label: план.patch ? 'основний турнір гравця змінено' : план.table === 'Team' ? 'гравця виведено зі складу' : 'гравця виведено з додаткового турніру' });
-                if (план.також) кроки.push({ table: план.також.table, op: 'patch', id: план.також.id, data: план.також.edit, label: 'колишній додатковий турнір вимкнено' });
-              }
-            } else if (з.entity === 'staff_row' && з.action === 'create') {
-              план = планДодатиШтаб(з, ctx);
-              if (план.ok) кроки.push({ table: 'Administration of teams', op: 'add', data: план.add, person: 'people_id', label: 'людину додано до штабу', created: true });
-            } else if (з.entity === 'staff_row' && з.action === 'update') {
-              план = планЗмінитиШтаб(з, рядок, ctx);
-              if (план.ok) кроки.push({ table: 'Administration of teams', op: 'patch', id: план.id, data: план.patch, label: 'посаду змінено' });
-            } else if (з.entity === 'staff_row' && з.action === 'remove') {
-              план = планВивестиШтаб(з, рядок, ctx);
-              if (план.ok) кроки.push({ table: 'Administration of teams', op: 'patch', id: план.id, data: план.edit, label: 'людину виведено зі штабу' });
-            } else план = невдача('Невідомий тип заявки');
-          }
+            }
+            return {
+              ok: !!(план && план.ok),
+              failed: план && !план.ok ? план.failed || 'Не вдалося застосувати' : null,
+              person: план && план.ok ? особаКрок : null,
+              // нова особа впала (двійник тощо) — сама її заявка й інші рядки теж failed (рецензія Backend 4.1, п. 2)
+              person_failed: особаВпала,
+              person_request_id: з.depends_on_id || null,
+              steps: план && план.ok ? кроки : [],
+              applied_id: (кроки.find((к) => к.applied_id) || {}).applied_id || null,
+              venue_suggestion: план && план.venue_suggestion ? план.venue_suggestion : null,
+              today: сьогодні,
+            };
+          """
+          timeout = 20
+        } as $plan_try
+        var.update $plan {
+          value = $plan_try
         }
-        return {
-          ok: !!(план && план.ok),
-          failed: план && !план.ok ? план.failed || 'Не вдалося застосувати' : null,
-          person: план && план.ok ? особаКрок : null,
-          // нова особа впала (двійник тощо) — сама її заявка й інші рядки теж failed (рецензія Backend 4.1, п. 2)
-          person_failed: особаВпала,
-          person_request_id: з.depends_on_id || null,
-          steps: план && план.ok ? кроки : [],
-          applied_id: (кроки.find((к) => к.applied_id) || {}).applied_id || null,
-          venue_suggestion: план && план.venue_suggestion ? план.venue_suggestion : null,
-          today: сьогодні,
-        };
-      """
-      timeout = 20
-    } as $plan
+      }
+      catch {
+        api.lambda {
+          code = """
+            return { ok: false, failed: 'Внутрішня помилка під час перевірки чи плану — повідомте Backend', person: null, person_failed: false, person_request_id: null, steps: [], applied_id: null };
+          """
+          timeout = 5
+        } as $plan_crashed
+        var.update $plan {
+          value = $plan_crashed
+        }
+      }
+    }
 
     // 4а. План не пройшов — failed з текстом правила
     conditional {
@@ -601,13 +673,25 @@ function підсумокЗаявки(план, рішення, хто, коли
           field_value = $input.request_id
           data = {updated_at: "now", apply_error: $plan.failed, open_key: null}
         } as $failed_row
+        // Особу ми захопили, але впала не вона — звільнити для інших рядків
+        conditional {
+          if ($claimed && $plan.person_failed == false) {
+            db.direct_query {
+              sql = """
+                UPDATE x1_93 SET status = 'submitted' WHERE id = ? AND status = 'approved' RETURNING id;
+                """
+              response_type = "list"
+              arg = $row.depends_on_id
+            } as $released_person
+          }
+        }
         // Нова особа не пройшла правила — її заявка й інші її рядки теж failed
         conditional {
           if ($plan.person_failed) {
             db.direct_query {
               sql = """
                 UPDATE x1_93 SET status = 'failed'
-                WHERE (id = ? OR depends_on_id = ?) AND status = 'submitted'
+                WHERE ((id = ? AND status IN ('submitted', 'approved')) OR (depends_on_id = ? AND status = 'submitted'))
                 RETURNING id;
                 """
               response_type = "list"
@@ -652,7 +736,7 @@ function підсумокЗаявки(план, рішення, хто, коли
                 }
                 db.direct_query {
                   sql = """
-                    UPDATE x1_93 SET status = 'applied' WHERE id = ? AND status IN ('submitted', 'approved') RETURNING id;
+                    UPDATE x1_93 SET status = 'applied' WHERE id = ? AND status = 'approved' RETURNING id;
                     """
                   response_type = "list"
                   arg = $plan.person.request_id
@@ -795,6 +879,18 @@ function підсумокЗаявки(план, рішення, хто, коли
               field_value = $input.request_id
               data = {updated_at: "now", apply_error: $error_text, open_key: null}
             } as $crashed_row
+            // Особу захопили, але не створили — звільнити для інших рядків
+            conditional {
+              if ($claimed && $new_person == null) {
+                db.direct_query {
+                  sql = """
+                    UPDATE x1_93 SET status = 'submitted' WHERE id = ? AND status = 'approved' RETURNING id;
+                    """
+                  response_type = "list"
+                  arg = $row.depends_on_id
+                } as $released_after_crash
+              }
+            }
           }
         }
       }

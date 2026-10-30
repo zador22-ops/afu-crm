@@ -237,10 +237,14 @@ transfers_out: [{ id, applied_at, person_name, to_club, league_name }] }`. Па�
 
 1. CAS `submitted` → `approved` через рядок пакета (`has_decision`), як «Повернути»; далі `decided_at`,
    `decision_users_id` — `db.edit`.
-2. Читання: клуби, особи, `Team`, `team_league`, штаб клубу, позиції, заявкові періоди, `person.create`, від якої
-   залежить рядок. Файли фото з `after` (і нової особи) — `api.request` HEAD на `https://xdeg-kg7i-jjtu.f2.xano.io` +
+2. Нова особа, від якої залежить рядок, — захоплюється CAS-ом `submitted` → `approved` **до** плану й `db.add People`
+   (інакше два модератори створили б дві особи). Захопив інший і ще не створив → рядок назад у `submitted`, 400
+   «Нову особу саме створює інший модератор — спробуйте ще раз»; уже створив (`applied`) → його `applied_entity_id`.
+   Захоплену, але не створену особу (рядок не пройшов не через неї, збій до `db.add`) — звільняють назад у `submitted`.
+   Читання: клуби, особи, `Team`, `team_league`, штаб клубу, позиції, заявкові періоди, `person.create`. Файли фото з `after` (і нової особи) — `api.request` HEAD на `https://xdeg-kg7i-jjtu.f2.xano.io` +
    `path`: не 200 → `failed` «Файл зображення не знайдено — завантажте його знову».
-3. План — правила 4.2 **дослівно** з AFU `docs/xano/drafts/club-self-service/apply-rules.js` (між мітками
+3. Перевірка фото й план — у `try_catch`: збій → план «не пройшов» з «Внутрішня помилка під час перевірки чи плану —
+   повідомте Backend», а не 500 із заявкою, що назавжди лишилась `approved`. План — правила 4.2 **дослівно** з AFU `docs/xano/drafts/club-self-service/apply-rules.js` (між мітками
    `// ПРАВИЛА 4.2 — ДОСЛІВНО` і `// /ПРАВИЛА 4.2`; тест звіряє побайтово) + склейка CRM: заявка → кроки
    `{table, op: add|patch, id, data, label}`. «Сьогодні» — за Києвом.
 4. План не пройшов → CAS `approved` → `failed`, `apply_error` — текст правила. Нова особа не пройшла правила
