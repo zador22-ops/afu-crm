@@ -185,7 +185,7 @@ query "club/clubs/{teaminfo_id}/staff/{staff_id}" verb=PUT {
     } as $person_open_ok
     precondition ($person_open_ok) {
       error_type = "badrequest"
-      error = "Зміни даних гравця вже на погодженні — дочекайтесь рішення АФУ або відкличте пакет"
+      error = "Зміни даних особи вже на погодженні — дочекайтесь рішення АФУ або відкличте пакет"
     }
     db.get change_request {
       field_name = "open_key"
