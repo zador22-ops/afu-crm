@@ -208,6 +208,29 @@ transfers_out: [{ id, applied_at, person_name, to_club, league_name }] }`. Па�
 - `PUT crm/registration-rules/{leagues_id}` `{ window_only }` — один рядок на турнір: немає — створюється.
 - Екран — «Службове → Заявкові періоди», лише з правом 21. Видаляти періоди не можна — лише змінити.
 
+## «Погодження» для АФУ (задача 4.1; `auth = "Users"`, право 21; НЕ задеплоєно)
+
+- `GET crm/moderation/count` → `{ batches, rows }` — пакети з рядком `submitted` (лічильник у меню).
+- `GET crm/moderation/batches?state=open|done|withdrawn|all&teaminfo_id=&entity=` → `[{ id, teaminfo_id, club_name,
+  acted_by_name, title, club_comment, status, state, submitted_at, closed_at, withdrawn_at, rows, counts: {submitted,
+  approved, applied, rejected, failed}, entities }]`. Стан — за рядками (контракт 4.2, розділ 0): `open` — є
+  `submitted`; `done` — рішення по всіх; `withdrawn` — відкликаний без рішень. Ті, що чекають, — від найстаріших.
+- `GET crm/moderation/batches/{id}` → `{ batch, rows: [{ …заявка, person_name, person_photo, new_person, league_name,
+  transfer_from_name, decision_name, decidable, window_open, target: 'Team'|'team_league'|null, primary_change:
+  {leagues_id, league_name, Number}|null }], labels: { positions, venues } }`. Нічого не пише. `decidable` — `submitted`
+  і не `person.create` (його рішення виводиться з рядків). `target` — куди піде рядок складу (варіант 3: перший рядок
+  нової особи — `Team`, решта й рядки особи, що вже в складі клубу, — `team_league`). `primary_change` — виведення з
+  основного турніру, коли є активні додаткові: основним стане найраніший (як `планВивестиЗТурніру`).
+- `POST crm/moderation/requests/{id}/reject` `{ comment }` (3–1000) → `rejected` CAS-ом через рядок пакета
+  (`WITH b AS (UPDATE x1_92 SET has_decision = true …) UPDATE x1_93 SET status = 'rejected' …`), далі `db.edit`
+  без статусу: `decided_at`, `decision_users_id`, `decision_comment`, `open_key` = null. Нова особа, чиї рядки
+  повернуто всі, — теж `rejected` (CAS з `NOT EXISTS`). Пакет без `submitted` / `approved` — `closed` (CAS), потім
+  `closed_at`. Нічого в основні таблиці.
+- «Погодити» і «Погодити все в пакеті» (`POST crm/moderation/requests/{id}/approve`,
+  `POST crm/moderation/batches/{id}/approve-all`) — застосування, задача 4.2.
+- Екран — пункт меню «Погодження» з числом пакетів (лише з правом 21); список із фільтрами клуб / тип; пакет —
+  картки рядків «було / стане» двома колонками, фото поруч, перехід, зміна основного турніру, закрите вікно.
+
 ## Акаунти клубів для АФУ (`auth = "Users"`, право 22 «Акаунти клубів»)
 
 ### `GET crm/club-accounts`

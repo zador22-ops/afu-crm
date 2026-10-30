@@ -23,6 +23,8 @@ import { useClub } from './auth/ClubContext.jsx';
 import { перенаправлення, режим, ВХІД_КЛУБУ } from './auth/clubSession.js';
 import ClubLoginPage from './pages/club/ClubLoginPage.jsx';
 import ClubShell from './pages/club/ClubShell.jsx';
+import ModerationPage from './pages/ModerationPage.jsx';
+import ModerationLink from './components/ModerationLink.jsx';
 // Новини тягнуть редактор TipTap (~сотні КБ) — вантажимо лише коли відкрили
 const NewsPage = lazy(() => import('./pages/NewsPage.jsx'));
 const NewsEditPage = lazy(() => import('./pages/NewsEditPage.jsx'));
@@ -206,6 +208,7 @@ function Shell({ children }) {
               {n.label}
             </NavLink>
           ))}
+          {!делегат && <ModerationLink />}
         </nav>
       </aside>
       <div className="content">
@@ -298,6 +301,8 @@ export default function App() {
         <Route path="/push" element={<PushPage />} />
         <Route path="/game" element={<GamePage />} />
         <Route path="/settings" element={<SettingsPage />} />
+        <Route path="/moderation" element={<ModerationPage />} />
+        <Route path="/moderation/:id" element={<ModerationPage />} />
         <Route path="*" element={<div className="page">Сторінку не знайдено</div>} />
       </Routes>
     </Shell>
