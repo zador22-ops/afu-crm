@@ -20,6 +20,8 @@ import { ЯКІСТЬ_КАДРУ } from '../utils/compressImage.js';
  *   file     File    щойно вибраний файл, або
  *   url      string  адреса вже збереженого фото
  *   size     number  сторона квадрата на виході, за замовчуванням 600
+ *   height   number  висота на виході, якщо кадр не квадратний (фото гравця
+ *                    3:4 — size 600, height 800): вікно стає прямокутником
  *   прозоро  bool    режим логотипа: PNG із прозорістю замість JPEG на білому,
  *                    і зменшувати можна аж поки емблема не вміститься повністю
  *   onDone   (Blob, string) => void  готовий кадр і його objectURL для прев'ю
@@ -32,7 +34,11 @@ import { ЯКІСТЬ_КАДРУ } from '../utils/compressImage.js';
  */
 const ВІКНО = 320;
 
-export default function PhotoCropper({ file, url, size = 600, прозоро = false, onClose, onDone }) {
+export default function PhotoCropper({ file, url, size = 600, height = size, прозоро = false, onClose, onDone }) {
+  // Вікно кадру: довша сторона — ВІКНО, пропорції — як на виході
+  const ВШ = size >= height ? ВІКНО : Math.round((ВІКНО * size) / height);
+  const ВВ = height >= size ? ВІКНО : Math.round((ВІКНО * height) / size);
+  const квадрат = ВШ === ВВ;
   const [img, setImg] = useState(null);
   const [помилка, setПомилка] = useState(null);
   const [zoom, setZoom] = useState(1);
@@ -71,8 +77,8 @@ export default function PhotoCropper({ file, url, size = 600, прозоро = f
   // повністю». Далі зум тільки збільшує.
   const база = img
     ? (прозоро
-        ? Math.min(ВІКНО / img.naturalWidth, ВІКНО / img.naturalHeight)
-        : Math.max(ВІКНО / img.naturalWidth, ВІКНО / img.naturalHeight))
+        ? Math.min(ВШ / img.naturalWidth, ВВ / img.naturalHeight)
+        : Math.max(ВШ / img.naturalWidth, ВВ / img.naturalHeight))
     : 1;
   const s = база * zoom;
   const ширина = img ? img.naturalWidth * s : 0;
@@ -82,17 +88,17 @@ export default function PhotoCropper({ file, url, size = 600, прозоро = f
   // коли менше — додатний (совгаємо в межах вікна). Одна формула на обидва.
   const обмежити = useCallback(
     (з) => ({
-      x: Math.max(Math.min(0, ВІКНО - ширина), Math.min(Math.max(0, ВІКНО - ширина), з.x)),
-      y: Math.max(Math.min(0, ВІКНО - висота), Math.min(Math.max(0, ВІКНО - висота), з.y)),
+      x: Math.max(Math.min(0, ВШ - ширина), Math.min(Math.max(0, ВШ - ширина), з.x)),
+      y: Math.max(Math.min(0, ВВ - висота), Math.min(Math.max(0, ВВ - висота), з.y)),
     }),
-    [ширина, висота]
+    [ширина, висота, ВШ, ВВ]
   );
 
   useEffect(() => setЗсув((з) => обмежити(з)), [обмежити]);
 
   // Центруємо, коли зображення щойно завантажилось або змінився зум
   useEffect(() => {
-    if (img) setЗсув(обмежити({ x: (ВІКНО - ширина) / 2, y: (ВІКНО - висота) / 2 }));
+    if (img) setЗсув(обмежити({ x: (ВШ - ширина) / 2, y: (ВВ - висота) / 2 }));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [img]);
 
@@ -121,15 +127,15 @@ export default function PhotoCropper({ file, url, size = 600, прозоро = f
   const зберегти = async () => {
     const c = document.createElement('canvas');
     c.width = size;
-    c.height = size;
+    c.height = height;
     const ctx = c.getContext('2d');
     if (!прозоро) {
       // Фото: біле тло, бо JPEG прозорості не має, а порожні кути в аватарі
       // виглядали б як дірки.
       ctx.fillStyle = '#fff';
-      ctx.fillRect(0, 0, size, size);
+      ctx.fillRect(0, 0, size, height);
     }
-    const k = size / ВІКНО;
+    const k = size / ВШ;
     ctx.drawImage(img, зсув.x * k, зсув.y * k, ширина * k, висота * k);
     const blob = await new Promise((r) =>
       прозоро ? c.toBlob(r, 'image/png') : c.toBlob(r, 'image/jpeg', ЯКІСТЬ_КАДРУ)
@@ -144,7 +150,8 @@ export default function PhotoCropper({ file, url, size = 600, прозоро = f
       {img && (
         <div className="cropper" onKeyDown={клавіші} tabIndex={0} ref={рамка}>
           <div
-            className="crop-window"
+            className={квадрат ? 'crop-window' : 'crop-window rect'}
+            style={квадрат ? undefined : { width: ВШ, height: ВВ }}
             onMouseDown={почати}
             onMouseMove={рухати}
             onMouseUp={відпустити}
@@ -182,7 +189,7 @@ export default function PhotoCropper({ file, url, size = 600, прозоро = f
               className="btn"
               onClick={() => {
                 setZoom(1);
-                setЗсув(обмежити({ x: (ВІКНО - ширина) / 2, y: (ВІКНО - висота) / 2 }));
+                setЗсув(обмежити({ x: (ВШ - ширина) / 2, y: (ВВ - висота) / 2 }));
               }}
             >
               Скинути

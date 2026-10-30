@@ -1303,6 +1303,10 @@ fieldset.plain {
   user-select: none;
   box-shadow: 0 0 0 1px var(--border);
 }
+/* Прямокутний кадр (фото гравця 3:4): розмір — з пропсів, кути не круглі */
+.crop-window.rect {
+  border-radius: 8px;
+}
 .crop-window:active {
   cursor: grabbing;
 }

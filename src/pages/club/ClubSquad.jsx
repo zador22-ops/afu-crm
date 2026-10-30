@@ -3,11 +3,11 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { club } from '../../api/client.js';
 import { Empty, ErrorBox, Field, Modal } from '../../components/ui.jsx';
 import { kyivDateTimeString } from '../../utils/kyivTime.js';
-import { стиснутиФото } from '../../utils/compressImage.js';
+import PhotoCropper from '../../components/PhotoCropper.jsx';
 import { виведенняЗ, рядкиДляЗаявки, станРядка, формаГравця } from '../../utils/clubSquad.js';
 
-// Фото гравця: до 800 px по довшій стороні (обрізка 3:4 — окремою задачею)
-const ФОТО_ГРАВЦЯ = { максСторона: 800, якість: 0.85, легкий: 300 * 1024, прозорість: false };
+// Фото гравця за ТЗ — кадр 3:4, 600×800 (PhotoCropper, як емблема клубу)
+const ФОТО_ГРАВЦЯ = { size: 600, height: 800 };
 
 /**
  * Вкладка «Склад» кабінету клубу (самообслуговування клубів, 3.1): чинні
@@ -169,13 +169,13 @@ function EditPlayer({ teaminfoId, player, squad, onClose, onDone }) {
       onClose();
     },
   });
-  const завантажитиФото = async (f) => {
+  const [кадр, setКадр] = useState(null); // файл фото на обрізку 3:4
+  const завантажитиФото = async (blob) => {
     setПомилкаФото(null);
     setВантажимо(true);
     try {
-      const r = await стиснутиФото(f, ФОТО_ГРАВЦЯ);
       const form = new FormData();
-      form.append('image', r.file || f, f.name);
+      form.append('image', blob, 'photo.jpg');
       const up = await club.upload(`/clubs/${teaminfoId}/upload`, form);
       setФ((s) => ({ ...s, person: { ...s.person, Photo: up.image } }));
     } catch (err) {
@@ -235,7 +235,7 @@ function EditPlayer({ teaminfoId, player, squad, onClose, onDone }) {
                 onChange={(e) => {
                   const f = e.target.files?.[0];
                   e.target.value = '';
-                  if (f) завантажитиФото(f);
+                  if (f) setКадр(f);
                 }}
               />
               {вантажимо && <span className="muted small-text">Завантажуємо…</span>}
@@ -294,6 +294,17 @@ function EditPlayer({ teaminfoId, player, squad, onClose, onDone }) {
           </button>
         </div>
       </form>
+      {кадр && (
+        <PhotoCropper
+          file={кадр}
+          {...ФОТО_ГРАВЦЯ}
+          onClose={() => setКадр(null)}
+          onDone={(blob) => {
+            setКадр(null);
+            завантажитиФото(blob);
+          }}
+        />
+      )}
     </Modal>
   );
 }
@@ -381,13 +392,13 @@ function AddPlayer({ teaminfoId, squad, onClose, onDone }) {
   // Варіант 3: перший обраний турнір стає основним — якщо людина ще не в складі клубу
   const вСкладі = особа?.people_id && squad.players.some((p) => p.people_id === особа.people_id);
   const основний = вСкладі ? null : рядки[0]?.leagues_id;
-  const завантажитиФото = async (f) => {
+  const [кадр, setКадр] = useState(null); // файл фото на обрізку 3:4
+  const завантажитиФото = async (blob) => {
     setПомилкаФото(null);
     setВантажимо(true);
     try {
-      const r = await стиснутиФото(f, ФОТО_ГРАВЦЯ);
       const form = new FormData();
-      form.append('image', r.file || f, f.name);
+      form.append('image', blob, 'photo.jpg');
       const up = await club.upload(`/clubs/${teaminfoId}/upload`, form);
       setНова((s) => ({ ...s, Photo: up.image }));
     } catch (err) {
@@ -481,7 +492,7 @@ function AddPlayer({ teaminfoId, squad, onClose, onDone }) {
                   onChange={(e) => {
                     const f = e.target.files?.[0];
                     e.target.value = '';
-                    if (f) завантажитиФото(f);
+                    if (f) setКадр(f);
                   }}
                 />
                 {вантажимо && <span className="muted small-text">Завантажуємо…</span>}
@@ -562,6 +573,17 @@ function AddPlayer({ teaminfoId, squad, onClose, onDone }) {
           </button>
         </div>
       </form>
+      {кадр && (
+        <PhotoCropper
+          file={кадр}
+          {...ФОТО_ГРАВЦЯ}
+          onClose={() => setКадр(null)}
+          onDone={(blob) => {
+            setКадр(null);
+            завантажитиФото(blob);
+          }}
+        />
+      )}
     </Modal>
   );
 }
