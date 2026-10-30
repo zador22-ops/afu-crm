@@ -49,6 +49,9 @@ export default function RegistrationWindows() {
             onChange={(v) => rule.mutate({ id: l.id, window_only: v })}
             label={l.window_only ? 'склад — лише в період' : 'склад — будь-коли'}
           />
+          {l.window_only && !l.windows.some((w) => w.ends_at > Date.now()) && (
+            <div className="warn-box">Попереду періодів немає — клуби не зможуть змінювати склад цього турніру, доки ви не додасте період</div>
+          )}
           {l.windows.length > 0 && (
             <table className="table compact">
               <tbody>
