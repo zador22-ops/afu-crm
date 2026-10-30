@@ -74,7 +74,7 @@ query "club/clubs/{teaminfo_id}/players/{team_id}/remove" verb=POST {
           league_ok: ліга === k.leagues_id || додатковий,
           leagues_id: ліга,
           window_ok: !лишеУВікні || ($var.windows || []).some((w) => w.leagues_id === ліга && Number(w.starts_at) <= зараз && зараз < Number(w.ends_at)),
-          date_ok: /^\d{4}-\d{2}-\d{2}$/.test(дата) && (!k.Date || дата >= String(k.Date).slice(0, 10)),
+          date_ok: /^\d{4}-\d{2}-\d{2}$/.test(дата) && дата <= сьогодні && (!k.Date || дата >= String(k.Date).slice(0, 10)),
           end_date: дата,
           key: 'team:' + k.id,
         };
@@ -95,7 +95,7 @@ query "club/clubs/{teaminfo_id}/players/{team_id}/remove" verb=POST {
     }
     precondition ($plan.date_ok) {
       error_type = "badrequest"
-      error = "Дата виведення — не раніше дати заявки гравця"
+      error = "Дата виведення — не в майбутньому й не раніше дати заявки гравця"
     }
     db.get change_request {
       field_name = "open_key"
@@ -104,7 +104,7 @@ query "club/clubs/{teaminfo_id}/players/{team_id}/remove" verb=POST {
     } as $open
     precondition ($open == null) {
       error_type = "badrequest"
-      error = "Для цього гравця вже є відкрита зміна — приберіть її або дочекайтесь рішення"
+      error = "Для цього гравця вже є відкрита зміна (за раз — один турнір) — приберіть її або дочекайтесь рішення АФУ"
     }
 
     var $acted_by {

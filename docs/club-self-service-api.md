@@ -156,7 +156,7 @@ transfers_out: [{ id, applied_at, person_name, to_club, league_name }] }`. Па�
   клубу (`Team` чи `team_league`) і без відкритої заявки на нього.
 - `POST crm/club/clubs/{id}/players/{team_id}/remove` `{ leagues_id?, end_date }` → `squad_row.remove`,
   `entity_id` = `team_id`, `leagues_id` — з якого турніру (типово основний; додатковий — лише активний рядок
-  `team_league` цього гравця), `after` = `{ End_date }`. Що закриється — вирішує 4.2 (`планВивестиЗТурніру`).
+  `team_league` цього гравця), `after` = `{ End_date }` (не в майбутньому й не раніше `Team.Date`). Що закриється — вирішує 4.2 (`планВивестиЗТурніру`).
   Одна відкрита зміна на гравця (ключ `team:<id>`).
 - `DELETE crm/club/clubs/{id}/requests/{request_id}` — прибрати свою чернетку разом із залежними
   (`depends_on_id`) одним CAS-оператором; особа-сирота (`person.create`, на яку вже ніщо не посилається) —

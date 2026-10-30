@@ -168,7 +168,7 @@ function RemoveDialog({ teaminfoId, player, tournaments, onClose, onDone }) {
         )}
         <p className="muted small-text">Зміна набуде чинності після погодження АФУ; історія виступів гравця лишиться.</p>
         <Field label="Дата виведення">
-          <input type="date" value={дата} onChange={(e) => setДата(e.target.value)} required />
+          <input type="date" value={дата} max={new Date().toISOString().slice(0, 10)} onChange={(e) => setДата(e.target.value)} required />
         </Field>
         <ErrorBox error={m.error} />
         <div className="form-actions">

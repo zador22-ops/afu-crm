@@ -142,6 +142,7 @@ test('виведення: лише чинний, вікно, дата не ра�
   const з = (x = {}) => ({ card: k, extra: [], windows: [], rules: [], ...x });
   assert.deepEqual(вивести(з(), { end_date: '2026-10-30' }), { active: true, league_ok: true, leagues_id: 10, window_ok: true, date_ok: true, end_date: '2026-10-30', key: 'team:100' });
   assert.equal(вивести(з(), { end_date: '2026-08-01' }).date_ok, false);
+  assert.equal(вивести(з(), { end_date: '2026-10-31' }).date_ok, false); // у майбутньому — 4.2 відхилить
   assert.equal(вивести(з({ card: { ...k, Relevance_of_the_record: false } }), { end_date: '2026-10-30' }).active, false);
   assert.equal(вивести(з({ rules: [{ leagues_id: 10, window_only: true }] }), { end_date: '2026-10-30' }).window_ok, false);
   assert.equal(вивести(з({ rules: [{ leagues_id: 12, window_only: true }] }), { end_date: '2026-10-30' }).window_ok, true); // правило чужого турніру
