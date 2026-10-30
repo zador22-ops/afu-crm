@@ -119,7 +119,7 @@ test('«Повернути»: коментар 3–1000; person.create — ні;
   assert.equal(перевірка({ row: { batch_id: null, entity: 'club' } }, { comment: 'Чернетка' }).found, false);
   const s = читати('moderation-requests-id-reject.post.xs');
   assert.match(s, /WITH b AS \(\s*UPDATE x1_92 SET has_decision = true\s*WHERE id = \? AND status = 'submitted'\s*RETURNING id\s*\)\s*UPDATE x1_93 SET status = 'rejected'\s*WHERE id = \? AND status = 'submitted' AND batch_id IN \(SELECT id FROM b\)\s*RETURNING id;/);
-  assert.match(s, /NOT EXISTS \(SELECT 1 FROM x1_93 r WHERE r\.depends_on_id = p\.id AND r\.status <> 'rejected'\)/);
+  assert.match(s, /NOT EXISTS \(SELECT 1 FROM x1_93 r WHERE r\.depends_on_id = p\.id AND r\.status IN \('submitted', 'approved', 'applied'\)\)/);
   assert.match(s, /UPDATE x1_92 SET status = 'closed'\s*WHERE id = \? AND status = 'submitted'\s*AND NOT EXISTS \(SELECT 1 FROM x1_93 r WHERE r\.batch_id = x1_92\.id AND r\.status IN \('submitted', 'approved'\)\)/);
   // статус — лише через SQL; db.edit — без status
   for (const м of s.matchAll(/db\.edit (change_request|change_batch) \{[\s\S]*?data = \{([^}]*)\}/g)) assert.doesNotMatch(м[2], /status/);

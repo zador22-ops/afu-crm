@@ -81,14 +81,16 @@ query "moderation/requests/{request_id}/reject" verb=POST {
       data = {updated_at: "now", decided_at: "now", decision_users_id: $auth.id, decision_comment: $input.comment, open_key: null}
     } as $decided
 
-    // Нова особа: повернуто всі рядки, що на неї посилаються, — повернути й її
+    // Нова особа: рядки, що на неї посилаються, остаточні й жоден не застосовано →
+    // її остаточний статус (повернуто всі — rejected, інакше failed); як у approve
     conditional {
       if ($row.depends_on_id != null) {
         db.direct_query {
           sql = """
-            UPDATE x1_93 p SET status = 'rejected'
+            UPDATE x1_93 p
+            SET status = CASE WHEN EXISTS (SELECT 1 FROM x1_93 r WHERE r.depends_on_id = p.id AND r.status = 'failed') THEN 'failed' ELSE 'rejected' END
             WHERE p.id = ? AND p.status = 'submitted'
-              AND NOT EXISTS (SELECT 1 FROM x1_93 r WHERE r.depends_on_id = p.id AND r.status <> 'rejected')
+              AND NOT EXISTS (SELECT 1 FROM x1_93 r WHERE r.depends_on_id = p.id AND r.status IN ('submitted', 'approved', 'applied'))
             RETURNING id;
             """
           response_type = "list"
@@ -99,7 +101,7 @@ query "moderation/requests/{request_id}/reject" verb=POST {
             db.edit change_request {
               field_name = "id"
               field_value = $row.depends_on_id
-              data = {updated_at: "now", decided_at: "now", decision_users_id: $auth.id, decision_comment: "Усі рядки складу й штабу повернуто", open_key: null}
+              data = {updated_at: "now", decided_at: "now", decision_users_id: $auth.id, decision_comment: "Жоден рядок складу чи штабу не застосовано", open_key: null}
             } as $person_decided
           }
         }

@@ -20,6 +20,28 @@ query "moderation/batches" verb=GET {
       error = "Доступ заборонено"
     }
 
+    // Самовиліковування (рецензія Backend 4.1, п. 1): два одночасні рішення в
+    // одному пакеті можуть обидва не закрити його — закриваємо тут тим самим
+    // правилом (рядки є, і жоден не submitted / approved)
+    db.direct_query {
+      sql = """
+        UPDATE x1_92 SET status = 'closed'
+        WHERE status = 'submitted'
+          AND EXISTS (SELECT 1 FROM x1_93 r WHERE r.batch_id = x1_92.id)
+          AND NOT EXISTS (SELECT 1 FROM x1_93 r WHERE r.batch_id = x1_92.id AND r.status IN ('submitted', 'approved'))
+        RETURNING id;
+        """
+      response_type = "list"
+    } as $healed
+    foreach ($healed) {
+      each as $h {
+        db.edit change_batch {
+          field_name = "id"
+          field_value = $h.id
+          data = {closed_at: "now"}
+        } as $healed_batch
+      }
+    }
     db.query change_batch {
       sort = {change_batch.submitted_at: "desc"}
       return = {type: "list"}

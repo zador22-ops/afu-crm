@@ -123,7 +123,22 @@ function BatchView({ id }) {
     qc.invalidateQueries({ queryKey: ['moderation-count'] });
   };
   const approve = useMutation({ mutationFn: (rid) => crm.post(`/moderation/requests/${rid}/approve`), onSettled: оновити });
-  const approveAll = useMutation({ mutationFn: () => crm.post(`/moderation/batches/${id}/approve-all`), onSettled: оновити });
+  // «Погодити все» — по черзі за id (як подано): кожен рядок — своє застосування зі своїм CAS;
+  // рядки нової особи після першого підуть у додаткові турніри. Один не пройшов — решта йдуть далі.
+  const approveAll = useMutation({
+    mutationFn: async () => {
+      const ids = (q.data?.rows || []).filter((r) => r.decidable).map((r) => r.id).sort((a, b) => a - b);
+      for (const rid of ids) {
+        try {
+          await crm.post(`/moderation/requests/${rid}/approve`);
+        } catch (e) {
+          // «Заявка вже змінилась» — хтось вирішив раніше; інше покаже картка рядка після оновлення
+          if (!/змінилась/.test(e.message || '')) throw e;
+        }
+      }
+    },
+    onSettled: оновити,
+  });
   const д = q.data;
   const чекають = (д?.rows || []).filter((r) => r.decidable).length;
   const зайнято = approve.isPending || approveAll.isPending;

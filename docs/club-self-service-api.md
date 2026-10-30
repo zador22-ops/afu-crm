@@ -226,10 +226,32 @@ transfers_out: [{ id, applied_at, person_name, to_club, league_name }] }`. Па�
   без статусу: `decided_at`, `decision_users_id`, `decision_comment`, `open_key` = null. Нова особа, чиї рядки
   повернуто всі, — теж `rejected` (CAS з `NOT EXISTS`). Пакет без `submitted` / `approved` — `closed` (CAS), потім
   `closed_at`. Нічого в основні таблиці.
-- «Погодити» і «Погодити все в пакеті» (`POST crm/moderation/requests/{id}/approve`,
-  `POST crm/moderation/batches/{id}/approve-all`) — застосування, задача 4.2.
+- «Погодити» (`POST crm/moderation/requests/{id}/approve`) — застосування, задача 4.2. «Погодити все в пакеті» —
+  CRM по черзі за `id` кличе той самий «Погодити» (кожен рядок — свій CAS і своє застосування).
 - Екран — пункт меню «Погодження» з числом пакетів (лише з правом 21); список із фільтрами клуб / тип; пакет —
   картки рядків «було / стане» двома колонками, фото поруч, перехід, зміна основного турніру, закрите вікно.
+
+## Застосування погодженого (задача 4.2; `auth = "Users"`, право 21; НЕ задеплоєно)
+
+`POST crm/moderation/requests/{id}/approve` → `{ id, status: 'applied'|'failed', apply_error, applied_entity_id }`.
+
+1. CAS `submitted` → `approved` через рядок пакета (`has_decision`), як «Повернути»; далі `decided_at`,
+   `decision_users_id` — `db.edit`.
+2. Читання: клуби, особи, `Team`, `team_league`, штаб клубу, позиції, заявкові періоди, `person.create`, від якої
+   залежить рядок. Файли фото з `after` (і нової особи) — `api.request` HEAD на `https://xdeg-kg7i-jjtu.f2.xano.io` +
+   `path`: не 200 → `failed` «Файл зображення не знайдено — завантажте його знову».
+3. План — правила 4.2 **дослівно** з AFU `docs/xano/drafts/club-self-service/apply-rules.js` (між мітками
+   `// ПРАВИЛА 4.2 — ДОСЛІВНО` і `// /ПРАВИЛА 4.2`; тест звіряє побайтово) + склейка CRM: заявка → кроки
+   `{table, op: add|patch, id, data, label}`. «Сьогодні» — за Києвом.
+4. План не пройшов → CAS `approved` → `failed`, `apply_error` — текст правила. Нова особа не пройшла правила
+   (двійник тощо) → її `person.create` і решта її рядків `submitted` → теж `failed`.
+5. План пройшов → у `try_catch`: нова особа (`db.add People`, її `person.create` → `applied` з
+   `applied_entity_id`), потім кроки по черзі (перехід: спершу новий `Team`, потім закрити старий і вимкнути його
+   `team_league`), потім CAS `approved` → `applied`. Збій запису → `failed` «Помилка запису в Xano посеред
+   застосування. Зроблено: …» — АФУ виправляє вручну.
+6. `open_key` → null завжди. Нова особа, чиї рядки остаточні й жоден не застосовано, — `rejected` (повернуто всі) чи
+   `failed`. Пакет без `submitted` / `approved` — `closed`; той самий оператор ліниво і в `GET moderation/batches`
+   (два одночасні рішення могли обидва його не закрити).
 
 ## Акаунти клубів для АФУ (`auth = "Users"`, право 22 «Акаунти клубів»)
 
