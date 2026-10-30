@@ -194,6 +194,20 @@ transfers_out: [{ id, applied_at, person_name, to_club, league_name }] }`. Па�
   (не в майбутньому й не раніше `Date`), ключ `staff:<id>`.
 - Прибрати чернетку — той самий `DELETE crm/club/clubs/{id}/requests/{request_id}`.
 
+## Заявкові періоди для АФУ (задача 3.4; `auth = "Users"`, право 21; НЕ задеплоєно)
+
+Таблиці t94 `registration_window`, t95 `registration_rule` (контракт 1.1, розділ 2.5). Час — epoch мс; CRM
+переводить із київського.
+
+- `GET crm/registration-windows?all=` → `[{ id, name, season_id, window_only, windows: [{ id, starts_at, ends_at,
+  note }], open_now, next_window_at }]` — турніри поточного сезону (з `all` — усі). `open_now` і `next_window_at` —
+  те саме правило, що в `club/clubs/{id}/squad`.
+- `POST crm/registration-windows` `{ leagues_id, starts_at, ends_at, note? }`;
+  `PATCH crm/registration-windows/{id}` `{ starts_at, ends_at, note? }` — кінець пізніше початку, періоди одного
+  турніру не перетинаються, примітка ≤ 200.
+- `PUT crm/registration-rules/{leagues_id}` `{ window_only }` — один рядок на турнір: немає — створюється.
+- Екран — «Службове → Заявкові періоди», лише з правом 21. Видаляти періоди не можна — лише змінити.
+
 ## Акаунти клубів для АФУ (`auth = "Users"`, право 22 «Акаунти клубів»)
 
 ### `GET crm/club-accounts`

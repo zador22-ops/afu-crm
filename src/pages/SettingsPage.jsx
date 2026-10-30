@@ -2,6 +2,9 @@ import { useEffect, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { crm } from '../api/client.js';
 import { Empty, ErrorBox, Field, Modal, PageHeader, Toggle } from '../components/ui.jsx';
+import { useAuth } from '../auth/AuthContext.jsx';
+import { маєПраво } from '../utils/clubAccounts.js';
+import RegistrationWindows from './RegistrationWindows.jsx';
 
 /**
  * Службові налаштування — таблиця `Variables`, рядки, які керують
@@ -57,8 +60,14 @@ const ЗАСТОСУНКИ = [
 ];
 const чиста = (v) => String(v || '').trim().replace(/^[vV]\.?\s*/, '');
 
+// Право 21 «Модерація заявок клубів» — заявкові періоди (сервер перевіряє сам)
+const ПРАВО_МОДЕРАЦІЯ_КЛУБІВ = 21;
+
 export default function SettingsPage() {
   const list = useQuery({ queryKey: ['variables'], queryFn: () => crm.get('/variables') });
+  const { user } = useAuth();
+  const roles = useQuery({ queryKey: ['roles'], queryFn: () => crm.get('/roles') });
+  const періоди = маєПраво(roles.data, user?.types_of_user_roles_id, ПРАВО_МОДЕРАЦІЯ_КЛУБІВ);
   const рядок = (id) => (list.data || []).find((v) => v.id === id);
 
   return (
@@ -97,6 +106,7 @@ export default function SettingsPage() {
           <AppVersions variables={list.data} />
         </>
       )}
+      {періоди && <RegistrationWindows />}
     </div>
   );
 }
