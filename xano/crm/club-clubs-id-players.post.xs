@@ -256,6 +256,13 @@ query "club/clubs/{teaminfo_id}/players" verb=POST {
       """
       timeout = 10
     } as $final_rows
+    // $person_request може бути null — id читаємо в лямбді
+    api.lambda {
+      code = """
+        return { person_request_id: $var.person_request ? $var.person_request.id : null, rows: ($var.final_rows || []).length };
+      """
+      timeout = 5
+    } as $result
 
     foreach ($final_rows) {
       each as $row {
@@ -266,5 +273,5 @@ query "club/clubs/{teaminfo_id}/players" verb=POST {
     }
   }
 
-  response = {person_request_id: $person_request.id, rows: $final_rows|count}
+  response = $result
 }

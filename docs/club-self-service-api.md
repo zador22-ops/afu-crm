@@ -175,6 +175,25 @@ transfers_out: [{ id, applied_at, person_name, to_club, league_name }] }`. Па�
 **Для 4.1/4.2:** рядки однієї нової особи варто застосовувати в порядку `id` — тоді основним стане турнір, який
 клуб обрав першим.
 
+### Штаб клубу (задача 3.3; НЕ задеплоєно)
+
+Лише чернетки `change_request`; `Administration of teams` — лише 4.2. Заявкових вікон для штабу немає.
+
+- `GET crm/club/clubs/{id}/staff` → `{ positions: [{ id, name }] (лише посади штабу), staff: [{ id, people_id, name,
+  prizvushche, Name, po_batkovi, Date_of_birth, City, Growth, Weight, photo, positions_id, position, Date, request,
+  person_request }], pending: [{ request_id, status, name, new_person, positions_id, position }] }`. `staff` — чинні
+  рядки клубу.
+- `POST crm/club/clubs/{id}/staff` `{ person: {people_id} | {new: {…як у складі}}, positions_id, club_comment? }` →
+  `{ request_id, person_request_id }`. Нова особа — `person.create` (дубль → 400). `staff_row.create`, `after` =
+  `{ positions_id }`, ключ `staffnew:<клуб>:<особа | new<id>>:<посада>`. Посада — не ігрова; та сама особа на тій
+  самій посаді клубу чи з такою відкритою заявкою — 400. Пошук особи — той самий `people-search`.
+- `PUT crm/club/clubs/{id}/staff/{staff_id}` `{ person?, positions_id?, club_comment? }` → `person.update` (ключ
+  `person:<people_id>`, як у складі) і `staff_row.update` (ключ `staff:<id>`, `after` = `{ positions_id }`). **Лише
+  свої особи:** особа — тільки з чинного рядка штабу цього клубу (інакше 403), `People` — після перевірки.
+- `POST crm/club/clubs/{id}/staff/{staff_id}/remove` `{ end_date }` → `staff_row.remove`, `after` = `{ end_date }`
+  (не в майбутньому й не раніше `Date`), ключ `staff:<id>`.
+- Прибрати чернетку — той самий `DELETE crm/club/clubs/{id}/requests/{request_id}`.
+
 ## Акаунти клубів для АФУ (`auth = "Users"`, право 22 «Акаунти клубів»)
 
 ### `GET crm/club-accounts`

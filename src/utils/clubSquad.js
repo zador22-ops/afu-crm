@@ -33,10 +33,15 @@ const ПОЛЯ_ОСОБИ = ['prizvushche', 'Name', 'po_batkovi', 'Date_of_birth
  * Початкові значення форми «Змінити гравця» (3.1б): чинні дані + відкрита чернетка («як буде»).
  * ліга — турнір, номер якого міняємо: основний (Team) чи додатковий (team_league).
  */
+/** Дані особи для форми (склад і штаб): чинні + відкрита чернетка person.update. */
+export function формаОсоби(запис) {
+  const особа = { ...Object.fromEntries(ПОЛЯ_ОСОБИ.map((k) => [k, запис[k === 'Photo' ? 'photo' : k] ?? null])), ...(запис.person_request?.after || {}) };
+  return Object.fromEntries(ПОЛЯ_ОСОБИ.map((k) => [k, k === 'Photo' ? особа.Photo : k === 'Date_of_birth' ? рядок(особа[k]).slice(0, 10) : рядок(особа[k])]));
+}
+const рядок = (v) => (v == null ? '' : String(v));
+
 export function формаГравця(гравець, ліга = гравець.leagues_id) {
-  const особа = { ...Object.fromEntries(ПОЛЯ_ОСОБИ.map((k) => [k, гравець[k === 'Photo' ? 'photo' : k] ?? null])), ...(гравець.person_request?.after || {}) };
-  const рядок = (v) => (v == null ? '' : String(v));
-  const person = Object.fromEntries(ПОЛЯ_ОСОБИ.map((k) => [k, k === 'Photo' ? особа.Photo : k === 'Date_of_birth' ? рядок(особа[k]).slice(0, 10) : рядок(особа[k])]));
+  const person = формаОсоби(гравець);
   const основний = Number(ліга) === гравець.leagues_id;
   const д = (гравець.also || []).find((x) => x.leagues_id === Number(ліга));
   const чинний = основний ? { Number: гравець.Number, positions_id: гравець.positions_id, Captain: гравець.Captain } : { Number: д?.Number ?? null };

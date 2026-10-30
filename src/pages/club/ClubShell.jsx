@@ -8,6 +8,7 @@ import MyClubPage from './MyClubPage.jsx';
 import SubmitBar from './SubmitBar.jsx';
 import ClubRequests from './ClubRequests.jsx';
 import ClubSquad from './ClubSquad.jsx';
+import ClubStaff from './ClubStaff.jsx';
 import { Tabs } from '../../components/ui.jsx';
 
 /**
@@ -88,12 +89,14 @@ export default function ClubShell() {
             tabs={[
               { key: 'card', label: 'Картка' },
               { key: 'squad', label: 'Склад' },
+              { key: 'staff', label: 'Штаб' },
               { key: 'requests', label: 'Заявки' },
             ]}
           />
         )}
         {поточний && вкладка === 'card' && <MyClubPage key={поточний} teaminfoId={поточний} />}
         {поточний && вкладка === 'squad' && <ClubSquad key={`q${поточний}`} teaminfoId={поточний} />}
+        {поточний && вкладка === 'staff' && <ClubStaff key={`t${поточний}`} teaminfoId={поточний} />}
         {поточний && вкладка === 'requests' && <ClubRequests key={`r${поточний}`} teaminfoId={поточний} />}
       </main>
     </div>

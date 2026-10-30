@@ -3,11 +3,9 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { club } from '../../api/client.js';
 import { Empty, ErrorBox, Field, Modal } from '../../components/ui.jsx';
 import { kyivDateTimeString } from '../../utils/kyivTime.js';
-import PhotoCropper from '../../components/PhotoCropper.jsx';
+import { PersonFields, PersonSearch } from './PersonFields.jsx';
 import { виведенняЗ, рядкиДляЗаявки, станРядка, формаГравця } from '../../utils/clubSquad.js';
 
-// Фото гравця за ТЗ — кадр 3:4, 600×800 (PhotoCropper, як емблема клубу)
-const ФОТО_ГРАВЦЯ = { size: 600, height: 800 };
 
 /**
  * Вкладка «Склад» кабінету клубу (самообслуговування клубів, 3.1): чинні
@@ -152,11 +150,10 @@ function EditPlayer({ teaminfoId, player, squad, onClose, onDone }) {
   const [ліга, setЛіга] = useState(player.leagues_id);
   const [ф, setФ] = useState(() => формаГравця(player));
   const [вантажимо, setВантажимо] = useState(false);
-  const [помилкаФото, setПомилкаФото] = useState(null);
   const наПогодженні = player.person_request?.status === 'submitted';
   const чужаЗміна = player.request && !(player.request.status === 'draft' && player.request.action === 'update' && player.request.leagues_id === Number(ліга));
   const турніри = виведенняЗ(player, squad.tournaments);
-  const setP = (k) => (e) => setФ((s) => ({ ...s, person: { ...s.person, [k]: e.target.value } }));
+  const setP = (k, v) => setФ((s) => ({ ...s, person: { ...s.person, [k]: v } }));
   const setS = (k, v) => setФ((s) => ({ ...s, squad: { ...s.squad, [k]: v } }));
   const m = useMutation({
     mutationFn: () =>
@@ -169,22 +166,6 @@ function EditPlayer({ teaminfoId, player, squad, onClose, onDone }) {
       onClose();
     },
   });
-  const [кадр, setКадр] = useState(null); // файл фото на обрізку 3:4
-  const завантажитиФото = async (blob) => {
-    setПомилкаФото(null);
-    setВантажимо(true);
-    try {
-      const form = new FormData();
-      form.append('image', blob, 'photo.jpg');
-      const up = await club.upload(`/clubs/${teaminfoId}/upload`, form);
-      setФ((s) => ({ ...s, person: { ...s.person, Photo: up.image } }));
-    } catch (err) {
-      setПомилкаФото(err);
-    } finally {
-      setВантажимо(false);
-    }
-  };
-  const п = ф.person;
   return (
     <Modal title={`Змінити: ${player.name}`} onClose={onClose} width={640}>
       <form
@@ -197,51 +178,7 @@ function EditPlayer({ teaminfoId, player, squad, onClose, onDone }) {
         <p className="muted small-text">Зберігається як чернетка; на сайті й у застосунку зміниться після погодження АФУ.</p>
         {наПогодженні && <div className="warn-box">Зміни даних гравця вже на погодженні — дані можна буде змінити після рішення АФУ.</div>}
         <fieldset disabled={наПогодженні} className="plain">
-          <div className="row2">
-            <Field label="Прізвище">
-              <input value={п.prizvushche} onChange={setP('prizvushche')} required maxLength={100} />
-            </Field>
-            <Field label="Ім'я">
-              <input value={п.Name} onChange={setP('Name')} required maxLength={100} />
-            </Field>
-          </div>
-          <div className="row2">
-            <Field label="По батькові">
-              <input value={п.po_batkovi} onChange={setP('po_batkovi')} maxLength={100} />
-            </Field>
-            <Field label="Дата народження">
-              <input type="date" value={п.Date_of_birth} onChange={setP('Date_of_birth')} required />
-            </Field>
-          </div>
-          <div className="row2">
-            <Field label="Місто">
-              <input value={п.City} onChange={setP('City')} maxLength={100} />
-            </Field>
-            <div className="row2">
-              <Field label="Зріст, см">
-                <input inputMode="numeric" value={п.Growth} onChange={setP('Growth')} />
-              </Field>
-              <Field label="Вага, кг">
-                <input inputMode="numeric" value={п.Weight} onChange={setP('Weight')} />
-              </Field>
-            </div>
-          </div>
-          <Field label="Фото" hint="Портрет, до 5 МБ">
-            <div className="club-cell">
-              {п.Photo?.url && <img src={п.Photo.url} alt="" className="img-logo small" />}
-              <input
-                type="file"
-                accept="image/png,image/jpeg"
-                onChange={(e) => {
-                  const f = e.target.files?.[0];
-                  e.target.value = '';
-                  if (f) setКадр(f);
-                }}
-              />
-              {вантажимо && <span className="muted small-text">Завантажуємо…</span>}
-            </div>
-          </Field>
-          <ErrorBox error={помилкаФото} />
+          <PersonFields teaminfoId={teaminfoId} value={ф.person} set={setP} onBusy={setВантажимо} />
         </fieldset>
 
         <Field label="Турнір" hint={ф.основний ? 'Основний турнір: номер, позиція, капітан' : 'Додатковий турнір: лише номер'}>
@@ -294,17 +231,6 @@ function EditPlayer({ teaminfoId, player, squad, onClose, onDone }) {
           </button>
         </div>
       </form>
-      {кадр && (
-        <PhotoCropper
-          file={кадр}
-          {...ФОТО_ГРАВЦЯ}
-          onClose={() => setКадр(null)}
-          onDone={(blob) => {
-            setКадр(null);
-            завантажитиФото(blob);
-          }}
-        />
-      )}
     </Modal>
   );
 }
@@ -366,20 +292,10 @@ function RemoveDialog({ teaminfoId, player, tournaments, onClose, onDone }) {
 
 function AddPlayer({ teaminfoId, squad, onClose, onDone }) {
   const [пошук, setПошук] = useState({ q: '', dob: '' });
-  const [знайдено, setЗнайдено] = useState(null);
   const [особа, setОсоба] = useState(null); // {people_id, label, active_clubs} | {new: {...}}
   const [нова, setНова] = useState({ prizvushche: '', Name: '', po_batkovi: '', City: '', Growth: '', Weight: '', Photo: null });
   const [турніри, setТурніри] = useState({}); // leagues_id → {on, Number, positions_id, Captain}
   const [вантажимо, setВантажимо] = useState(false);
-  const [помилкаФото, setПомилкаФото] = useState(null);
-
-  const search = useMutation({
-    mutationFn: () => club.get(`/clubs/${teaminfoId}/people-search`, { q: пошук.q.trim(), dob: пошук.dob }),
-    onSuccess: (r) => {
-      setЗнайдено(r.people || []);
-      setОсоба(null);
-    },
-  });
   const save = useMutation({
     mutationFn: (body) => club.post(`/clubs/${teaminfoId}/players`, body),
     onSuccess: () => {
@@ -392,21 +308,6 @@ function AddPlayer({ teaminfoId, squad, onClose, onDone }) {
   // Варіант 3: перший обраний турнір стає основним — якщо людина ще не в складі клубу
   const вСкладі = особа?.people_id && squad.players.some((p) => p.people_id === особа.people_id);
   const основний = вСкладі ? null : рядки[0]?.leagues_id;
-  const [кадр, setКадр] = useState(null); // файл фото на обрізку 3:4
-  const завантажитиФото = async (blob) => {
-    setПомилкаФото(null);
-    setВантажимо(true);
-    try {
-      const form = new FormData();
-      form.append('image', blob, 'photo.jpg');
-      const up = await club.upload(`/clubs/${teaminfoId}/upload`, form);
-      setНова((s) => ({ ...s, Photo: up.image }));
-    } catch (err) {
-      setПомилкаФото(err);
-    } finally {
-      setВантажимо(false);
-    }
-  };
   const submit = (e) => {
     e.preventDefault();
     const person = особа?.people_id ? { people_id: особа.people_id } : { new: { ...нова, Date_of_birth: пошук.dob, prizvushche: нова.prizvushche || пошук.q.trim() } };
@@ -417,90 +318,23 @@ function AddPlayer({ teaminfoId, squad, onClose, onDone }) {
   return (
     <Modal title="Додати гравця" onClose={onClose} width={640}>
       <form className="form" onSubmit={submit}>
-        <p className="muted small-text">Спершу знайдіть людину в базі за прізвищем і датою народження — так не з'явиться дубль.</p>
-        <div className="row2">
-          <Field label="Прізвище">
-            <input value={пошук.q} onChange={(e) => setПошук((s) => ({ ...s, q: e.target.value }))} autoFocus />
-          </Field>
-          <Field label="Дата народження">
-            <input type="date" value={пошук.dob} onChange={(e) => setПошук((s) => ({ ...s, dob: e.target.value }))} />
-          </Field>
-        </div>
-        <div className="form-actions">
-          <button type="button" className="btn" onClick={() => search.mutate()} disabled={пошук.q.trim().length < 2 || !пошук.dob || search.isPending}>
-            {search.isPending ? 'Шукаємо…' : 'Знайти в базі'}
-          </button>
-        </div>
-        <ErrorBox error={search.error} />
-
-        {знайдено && (
-          <div className="pick-list">
-            {знайдено.map((p) => (
-              <label key={p.id} className="pick">
-                <input type="radio" name="person" checked={особа?.people_id === p.id} onChange={() => setОсоба({ people_id: p.id, active_clubs: p.active_clubs })} />
-                <span>
-                  {[p.prizvushche, p.Name].filter(Boolean).join(' ')}
-                  {p.birth_year && <span className="muted small-text"> · {p.birth_year} р. н.</span>}
-                  {p.active_clubs?.length > 0 && <span className="muted small-text"> · зараз: {p.active_clubs.map((c) => c.name).join(', ')}</span>}
-                </span>
-              </label>
-            ))}
-            <label className="pick">
-              <input type="radio" name="person" checked={!!особа?.new} onChange={() => { setОсоба({ new: true }); setНова((s) => ({ ...s, prizvushche: s.prizvushche || пошук.q.trim() })); }} />
-              <span>{знайдено.length ? 'Це інша людина — створити нову особу' : 'У базі немає — створити нову особу'}</span>
-            </label>
-          </div>
-        )}
+        <PersonSearch
+          teaminfoId={teaminfoId}
+          пошук={пошук}
+          setПошук={setПошук}
+          обрана={особа}
+          onPick={(о) => {
+            setОсоба(о);
+            if (о?.new) setНова((s) => ({ ...s, prizvushche: s.prizvushche || пошук.q.trim() }));
+          }}
+        />
         {перехід.length > 0 && (
           <div className="warn-box">
             Зараз у складі: {перехід.map((c) => c.name).join(', ')}. Якщо це не ваш материнський чи фарм-клуб — це перехід, його погоджує АФУ.
           </div>
         )}
 
-        {особа?.new && (
-          <>
-            <div className="row2">
-              <Field label="Прізвище">
-                <input value={нова.prizvushche} onChange={(e) => setНова((s) => ({ ...s, prizvushche: e.target.value }))} required maxLength={100} />
-              </Field>
-              <Field label="Ім'я">
-                <input value={нова.Name} onChange={(e) => setНова((s) => ({ ...s, Name: e.target.value }))} required maxLength={100} />
-              </Field>
-            </div>
-            <div className="row2">
-              <Field label="По батькові">
-                <input value={нова.po_batkovi} onChange={(e) => setНова((s) => ({ ...s, po_batkovi: e.target.value }))} maxLength={100} />
-              </Field>
-              <Field label="Місто">
-                <input value={нова.City} onChange={(e) => setНова((s) => ({ ...s, City: e.target.value }))} maxLength={100} />
-              </Field>
-            </div>
-            <div className="row2">
-              <Field label="Зріст, см">
-                <input inputMode="numeric" value={нова.Growth} onChange={(e) => setНова((s) => ({ ...s, Growth: e.target.value }))} />
-              </Field>
-              <Field label="Вага, кг">
-                <input inputMode="numeric" value={нова.Weight} onChange={(e) => setНова((s) => ({ ...s, Weight: e.target.value }))} />
-              </Field>
-            </div>
-            <Field label="Фото" hint="Портрет, до 5 МБ">
-              <div className="club-cell">
-                {нова.Photo?.url && <img src={нова.Photo.url} alt="" className="img-logo small" />}
-                <input
-                  type="file"
-                  accept="image/png,image/jpeg"
-                  onChange={(e) => {
-                    const f = e.target.files?.[0];
-                    e.target.value = '';
-                    if (f) setКадр(f);
-                  }}
-                />
-                {вантажимо && <span className="muted small-text">Завантажуємо…</span>}
-              </div>
-            </Field>
-            <ErrorBox error={помилкаФото} />
-          </>
-        )}
+        {особа?.new && <PersonFields teaminfoId={teaminfoId} value={нова} set={(k, v) => setНова((s) => ({ ...s, [k]: v }))} withDob={false} onBusy={setВантажимо} />}
 
         {особа && (
           <Field label="Турніри — у які заявити" hint={вСкладі ? 'Гравець уже в складі клубу: його основний турнір не зміниться' : 'Перший обраний турнір стане основним'}>
@@ -573,17 +407,6 @@ function AddPlayer({ teaminfoId, squad, onClose, onDone }) {
           </button>
         </div>
       </form>
-      {кадр && (
-        <PhotoCropper
-          file={кадр}
-          {...ФОТО_ГРАВЦЯ}
-          onClose={() => setКадр(null)}
-          onDone={(blob) => {
-            setКадр(null);
-            завантажитиФото(blob);
-          }}
-        />
-      )}
     </Modal>
   );
 }
