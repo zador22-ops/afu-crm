@@ -46,6 +46,19 @@
 `git revert` і push. Дані: записи йдуть лише в t92–t96 і (після «Погодити») в основні таблиці — тому 4.2
 вмикати останнім і перевіряти на тестовому клубі.
 
+### CAS v2 — після живої перевірки А2 (31.10, НЕ розгорнуто)
+
+А2 показала, що записи через SQL у Xano неможливі (`0A000`), — переходи переписано на таблицю-замок (розділ «Переходи
+статусу — CAS v2» нижче). Розгортання — одним «так» Андрія разом зі схемою Backend (`rev`, `change_lock`, default 0 →
+null), після живих перевірок механізму Ж1–Ж5:
+
+- оновлюються **7 уже розгорнутих** файлів кроку 1 — кожен своїм точним фільтром (`--check` для `club-clubs-id-`
+  покаже «оновлено 18»: це переформатування Xano, а не зміни; решту 11 не чіпаємо): `club-clubs-id-draft.put`,
+  `club-clubs-id-draft.delete`, `club-clubs-id-submit`, `club-clubs-id-batches`, `club-clubs-id-requests-id`,
+  `club-clubs-id-players-id.put`, `club-clubs-id-staff-id.put`;
+- крок 4 (`moderation-`) — уже в новому вигляді;
+- якщо Ж1–Ж2 не пройдуть — запасний варіант 3.3 (прибрати позначену обгортку транзакції) до розгортання.
+
 ## Два види токенів
 
 | Хто | Таблиця авторизації | Як входить | Що відкриває |
@@ -137,27 +150,30 @@
   заявки → `draft` (`batch_id`, `before` — null), пакет → `withdrawn`. Інакше 400 «По пакету вже є рішення АФУ…».
 - «Одна відкрита заявка на запис» — унікальний `open_key` (контракт 1.1, п. 3); відкликання ключ не звільняє.
 
-### Переходи статусу — CAS одним SQL (рецензія Backend 30.10; НЕ задеплоєно)
+### Переходи статусу — CAS v2: таблиця-замок (31.10; замінює «CAS одним SQL»)
 
-Кожна зміна `status` заявки (`change_request`, у Postgres Xano `x1_93`) чи пакета (`change_batch`, `x1_92`) —
-одним оператором з умовою на очікуваний статус і `RETURNING id`; порожній результат — хтось випередив → 400
-«Заявка вже змінилась — оновіть сторінку» (коду 409 у Xano немає). Решта полів (`before`, `updated_at`, коментарі)
-пишеться звичайним `db.edit` лише після вдалого CAS.
+Жива перевірка А2 (30.10): `UPDATE x1_93 … RETURNING` через `db.direct_query` → `0A000 FEATURE NOT SUPPORTED`
+(`x1_<id>` у Xano — view). Рішення PM 2: **жодних записів через SQL**. Контракт — AFU
+`docs/xano/club-self-service-cas-v2.md`. Схема: `change_request.rev`, `change_batch.rev`, таблиця `change_lock`
+(`key` унікальний).
 
-| Де | SQL |
+Кожен перехід: прочитати рядок (і `rev`) → `precondition` очікуваного статусу → у `try_catch { db.transaction {
+… } }`: `db.add change_lock` на кожен ключ → записи → `rev + 1`. Не вдалось → **поза транзакцією** `db.get
+change_lock` за ключами: є → 400 «Заявка вже змінилась — оновіть сторінку», немає → помилка бази. Текст помилки Xano
+не читається. Кілька рядків — замки за зростанням `id`.
+
+| Перехід | Ключі |
 |---|---|
-| PUT чернетки — нове `after` | `UPDATE x1_93 SET "after" = ?::jsonb WHERE id = ? AND status = 'draft' RETURNING id` |
-| PUT без змін / DELETE чернетки | `DELETE FROM x1_93 WHERE id = ? AND status = 'draft' RETURNING id` |
-| submit — кожен рядок | `UPDATE x1_93 SET status = 'submitted', batch_id = ? WHERE id = ? AND status = 'draft' AND batch_id IS NULL RETURNING id`; пакет без рядків — видаляється й відмова |
-| withdraw — пакет | `UPDATE x1_92 SET status = 'withdrawn' WHERE id = ? AND teaminfo_id = ? AND status = 'submitted' AND has_decision IS NOT TRUE AND NOT EXISTS (рядок пакета з іншим статусом) RETURNING id` — `has_decision` погодження ставить першим кроком (контракт 4.2), submit пише явно `false` |
-| withdraw — рядки (після пакета) | `UPDATE x1_93 SET status = 'draft', batch_id = NULL, "before" = NULL WHERE batch_id = ? AND status = 'submitted'` |
+| Чернетка: змінити `after` / видалити (draft PUT / DELETE, players / staff PUT) | `cr:<id>:<rev>` |
+| Видалити з залежними й осиротілою новою особою (requests DELETE) | `cr:` кожного рядка |
+| submit — новий пакет і всі рядки в одній транзакції (порожнього пакета не буває) | `cr:` кожної чернетки |
+| withdraw — доля пакета спершу читається (є → відмова) | `batch:<id>:fate` (`withdrawn`) + `cr:` кожного рядка |
+| Повернути / Погодити — доля читається: `withdrawn` → відмова, `decided` → далі без нового ключа | `batch:<id>:fate` (`decided`, якщо ще немає) + `cr:` рядка (+ `cr:` нової особи, чий статус стає остаточним) |
+| Погодити нову особу | + `person:<cr_id>` (створює рівно один модератор) |
 
-Для 4.1/4.2: погодження/повернення — `WHERE id = ? AND status = 'submitted' AND EXISTS (пакет рядка досі
-'submitted')`, інакше відкликаний пакет можна погодити. Тест (`clubGuard.test.js`): жодного `db.edit
-change_request`/`change_batch` зі `status`, кожен SQL-перехід — з умовою на статус і `RETURNING id`.
-
-Живі перевірки вранці: `UPDATE … RETURNING` через `db.direct_query` повертає id (і порожньо без збігу); `?::jsonb`
-з `|json_encode`.
+**Запасний варіант 3.3** (якщо `db.transaction` не пройде живу перевірку Ж1–Ж2): прибрати рядки між
+позначками `// ТРАНЗАКЦІЯ ↓` і `// ТРАНЗАКЦІЯ ↑` у кожному файлі; прибирання своїх ключів у `catch` уже є.
+Тести — `src/utils/clubCas.test.js`.
 
 ### Заявки клубу (задача 2.3; НЕ задеплоєно)
 
@@ -196,7 +212,7 @@ transfers_out: [{ id, applied_at, person_name, to_club, league_name }] }`. Па�
   `team_league` цього гравця), `after` = `{ End_date }` (не в майбутньому й не раніше `Team.Date`). Що закриється — вирішує 4.2 (`планВивестиЗТурніру`).
   Одна відкрита зміна на гравця (ключ `team:<id>`).
 - `DELETE crm/club/clubs/{id}/requests/{request_id}` — прибрати свою чернетку разом із залежними
-  (`depends_on_id`) одним CAS-оператором; особа-сирота (`person.create`, на яку вже ніщо не посилається) —
+  (`depends_on_id`) однією транзакцією CAS v2; особа-сирота (`person.create`, на яку вже ніщо не посилається) —
   теж.
 
 - `PUT crm/club/clubs/{id}/players/{team_id}` (3.1б) `{ person?: {prizvushche, Name, po_batkovi, Date_of_birth, City,
@@ -258,11 +274,10 @@ transfers_out: [{ id, applied_at, person_name, to_club, league_name }] }`. Па�
   і не `person.create` (його рішення виводиться з рядків). `target` — куди піде рядок складу (варіант 3: перший рядок
   нової особи — `Team`, решта й рядки особи, що вже в складі клубу, — `team_league`). `primary_change` — виведення з
   основного турніру, коли є активні додаткові: основним стане найраніший (як `планВивестиЗТурніру`).
-- `POST crm/moderation/requests/{id}/reject` `{ comment }` (3–1000) → `rejected` CAS-ом через рядок пакета
-  (`WITH b AS (UPDATE x1_92 SET has_decision = true …) UPDATE x1_93 SET status = 'rejected' …`), далі `db.edit`
-  без статусу: `decided_at`, `decision_users_id`, `decision_comment`, `open_key` = null. Нова особа, чиї рядки
-  повернуто всі, — теж `rejected` (CAS з `NOT EXISTS`). Пакет без `submitted` / `approved` — `closed` (CAS), потім
-  `closed_at`. Нічого в основні таблиці.
+- `POST crm/moderation/requests/{id}/reject` `{ comment }` (3–1000) → `rejected` однією транзакцією CAS v2: доля пакета
+  (`batch:<id>:fate`, якщо ще немає), `cr:` рядка; там само — наслідки, пораховані наперед: нова особа, чиї рядки
+  остаточні й жоден не застосовано, — `rejected` / `failed`; пакет без `submitted` / `approved` — `closed`;
+  `has_decision` = true (лише відображення). `open_key` = null. Нічого в основні таблиці.
 - «Погодити» (`POST crm/moderation/requests/{id}/approve`) — застосування, задача 4.2. «Погодити все в пакеті» —
   CRM по черзі за `id` кличе той самий «Погодити» (кожен рядок — свій CAS і своє застосування).
 - Екран — пункт меню «Погодження» з числом пакетів (лише з правом 21); список із фільтрами клуб / тип; пакет —
@@ -271,28 +286,22 @@ transfers_out: [{ id, applied_at, person_name, to_club, league_name }] }`. Па�
 ## Застосування погодженого (задача 4.2; `auth = "Users"`, право 21; НЕ задеплоєно)
 
 `POST crm/moderation/requests/{id}/approve` → `{ id, status: 'applied'|'failed', apply_error, applied_entity_id }`.
+Переходи — CAS v2, проміжного `approved` немає:
 
-1. CAS `submitted` → `approved` через рядок пакета (`has_decision`), як «Повернути»; далі `decided_at`,
-   `decision_users_id` — `db.edit`.
-2. Нова особа, від якої залежить рядок, — захоплюється CAS-ом `submitted` → `approved` **до** плану й `db.add People`
-   (інакше два модератори створили б дві особи). Захопив інший і ще не створив → рядок назад у `submitted`, 400
-   «Нову особу саме створює інший модератор — спробуйте ще раз»; уже створив (`applied`) → його `applied_entity_id`.
-   Захоплену, але не створену особу (рядок не пройшов не через неї, збій до `db.add`) — звільняють назад у `submitted`.
-   Читання: клуби, особи, `Team`, `team_league`, штаб клубу, позиції, заявкові періоди, `person.create`. Файли фото з `after` (і нової особи) — `api.request` HEAD на `https://xdeg-kg7i-jjtu.f2.xano.io` +
-   `path`: не 200 → `failed` «Файл зображення не знайдено — завантажте його знову».
-3. Перевірка фото й план — у `try_catch`: збій → план «не пройшов» з «Внутрішня помилка під час перевірки чи плану —
-   повідомте Backend», а не 500 із заявкою, що назавжди лишилась `approved`. План — правила 4.2 **дослівно** з AFU `docs/xano/drafts/club-self-service/apply-rules.js` (між мітками
-   `// ПРАВИЛА 4.2 — ДОСЛІВНО` і `// /ПРАВИЛА 4.2`; тест звіряє побайтово) + склейка CRM: заявка → кроки
-   `{table, op: add|patch, id, data, label}`. «Сьогодні» — за Києвом.
-4. План не пройшов → CAS `approved` → `failed`, `apply_error` — текст правила. Нова особа не пройшла правила
-   (двійник тощо) → її `person.create` і решта її рядків `submitted` → теж `failed`.
-5. План пройшов → у `try_catch`: нова особа (`db.add People`, її `person.create` → `applied` з
-   `applied_entity_id`), потім кроки по черзі (перехід: спершу новий `Team`, потім закрити старий і вимкнути його
-   `team_league`), потім CAS `approved` → `applied`. Збій запису → `failed` «Помилка запису в Xano посеред
-   застосування. Зроблено: …» — АФУ виправляє вручну.
-6. `open_key` → null завжди. Нова особа, чиї рядки остаточні й жоден не застосовано, — `rejected` (повернуто всі) чи
-   `failed`. Пакет без `submitted` / `approved` — `closed`; той самий оператор ліниво і в `GET moderation/batches`
-   (два одночасні рішення могли обидва його не закрити).
+1. Доля пакета `batch:<id>:fate` — спершу читається: `withdrawn` → 400 «Клуб відкликав цей пакет».
+2. Читання; перевірка файлів фото (HEAD → 200) і план — у `try_catch`, **до** транзакції. План — правила 4.2
+   **дослівно** з AFU `apply-rules.js` (між мітками; тест звіряє побайтово) + склейка CRM → кроки запису.
+3. План пройшов → **одна транзакція** `submitted` → `applied`: ключі (доля, `person:<cr_id>` і `cr:` нової особи,
+   `cr:` рядка, `cr:` нових осіб, чий статус стає остаточним), `db.add People` + її заявка `applied`, кроки в основні
+   таблиці (перехід: спершу новий `Team`, потім закриття старого й його `team_league`), рядок `applied`, наслідки
+   (нова особа, закриття пакета). Збій — відкочено **все**.
+4. Транзакція не пройшла: `person:` зайнятий, а свій `cr:` ні → 400 «Нову особу саме створює інший модератор —
+   спробуйте ще раз»; інший ключ → 400 «Заявка вже змінилась»; ключі вільні (впав запис) → крок 5 з «Помилка запису в
+   Xano під час застосування — нічого не змінено».
+5. План не пройшов (чи крок 4) → окрема транзакція `submitted` → `failed` з текстом. Нова особа не пройшла правила
+   (двійник тощо) → її заявка й інші її рядки, що чекають, — теж `failed`.
+6. Два одночасні рішення в одному пакеті, які не бачать одне одного, доводить до кінця `GET moderation/batches`:
+   остаточний статус нової особи (свій замок і транзакція; зайнято — пропуск) і закриття пакета за фактичним станом.
 
 ## Акаунти клубів для АФУ (`auth = "Users"`, право 22 «Акаунти клубів»)
 

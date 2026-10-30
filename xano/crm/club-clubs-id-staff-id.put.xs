@@ -172,7 +172,7 @@ query "club/clubs/{teaminfo_id}/staff/{staff_id}" verb=PUT {
     db.get change_request {
       field_name = "open_key"
       field_value = $plan.person_key
-      output = ["id", "status", "action"]
+      output = ["id", "status", "action", "rev"]
     } as $open_person
     // Булеві — у лямбді: чи обриває XanoScript «$x == null || $x.поле» на null,
     // не перевірено (рецензія Backend 30.10, жива перевірка 4а)
@@ -190,7 +190,7 @@ query "club/clubs/{teaminfo_id}/staff/{staff_id}" verb=PUT {
     db.get change_request {
       field_name = "open_key"
       field_value = $plan.staff_key
-      output = ["id", "status", "action"]
+      output = ["id", "status", "action", "rev"]
     } as $open_staff
     // «Наша» відкрита чернетка посади — update. Виведення (той самий ключ) не чіпаємо
     api.lambda {
@@ -208,93 +208,423 @@ query "club/clubs/{teaminfo_id}/staff/{staff_id}" verb=PUT {
     var $acted_by {
       value = $auth.extras|get:"acted_by_users_id":null
     }
-    // ——— Чернетка person.update (person:<people_id>) — як club-clubs-id-draft.put: CAS одним SQL ———
+    // ——— Чернетка person.update (person:<people_id>) — CAS v2: замок cr:<id>:<rev> і запис у транзакції ———
     conditional {
       if ($plan.person_empty && $open_person != null) {
-        db.direct_query {
-          sql = """
-            DELETE FROM x1_93 WHERE id = ? AND status = 'draft' RETURNING id;
-            """
-          response_type = "list"
-          arg = $open_person.id
-        } as $gone_person
-        precondition (($gone_person|count) > 0) {
+        // ——— Перехід «del_person» — CAS v2 (AFU docs/xano/club-self-service-cas-v2.md) ———
+        // Замки change_lock (унікальний key) і записи — в одній транзакції. Конфлікт
+        // визначається за станом (чи є ключ) ПОЗА транзакцією, не за текстом помилки.
+        // ЗАПАСНИЙ ВАРІАНТ 3.3 (якщо Ж1–Ж2 не пройдуть): прибрати рядки між позначками
+        // «ТРАНЗАКЦІЯ ↓» і «ТРАНЗАКЦІЯ ↑» (обгортку db.transaction / stack і її дужки);
+        // прибирання своїх ключів у catch уже є.
+        api.lambda {
+          code = """
+            const o = $var.open_person;
+            return { keys: [{ key: 'cr:' + o.id + ':' + (o.rev || 0), op: 'delete', request_id: o.id, batch_id: null }], rev: (o.rev || 0) + 1 };
+          """
+          timeout = 5
+        } as $tr_del_person
+        var $mine_del_person {
+          value = []
+        }
+        var $ok_del_person {
+          value = false
+        }
+        try_catch {
+          try {
+            // ТРАНЗАКЦІЯ ↓
+            db.transaction {
+              stack {
+            // ТРАНЗАКЦІЯ ↑
+                foreach ($tr_del_person.keys) {
+                  each as $lk {
+                    db.add change_lock {
+                      data = {created_at: "now", key: $lk.key, op: $lk.op, request_id: $lk.request_id, batch_id: $lk.batch_id, users_id: $acted_by, club_account_id: $auth.id}
+                    } as $lock_del_person
+                    var.update $mine_del_person {
+                      value = $mine_del_person|push:$lk.key
+                    }
+                  }
+                }
+                db.del change_request {
+                  field_name = "id"
+                  field_value = $open_person.id
+                }
+            // ТРАНЗАКЦІЯ ↓
+              }
+            }
+            // ТРАНЗАКЦІЯ ↑
+            var.update $ok_del_person {
+              value = true
+            }
+          }
+          catch {
+            // Запасний варіант 3.3: свої ключі геть (у транзакції їх уже відкочено — нічого не знайде)
+            foreach ($mine_del_person) {
+              each as $mk {
+                try_catch {
+                  try {
+                    db.del change_lock {
+                      field_name = "key"
+                      field_value = $mk
+                    }
+                  }
+                  catch {
+                  }
+                }
+              }
+            }
+          }
+        }
+        var $held_del_person {
+          value = []
+        }
+        conditional {
+          if ($ok_del_person == false) {
+            foreach ($tr_del_person.keys) {
+              each as $hk {
+                db.get change_lock {
+                  field_name = "key"
+                  field_value = $hk.key
+                  output = ["id", "op"]
+                } as $h
+                conditional {
+                  if ($h != null) {
+                    var.update $held_del_person {
+                      value = $held_del_person|push:$hk.key
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+        precondition ($ok_del_person || ($held_del_person|count) == 0) {
           error_type = "badrequest"
           error = "Заявка вже змінилась — оновіть сторінку"
+        }
+        precondition ($ok_del_person) {
+          error_type = "standard"
+          error = "Помилка бази — нічого не змінено, спробуйте ще раз"
         }
       }
     }
     conditional {
       if (!$plan.person_empty && $open_person == null) {
         db.add change_request {
-          data = {created_at: "now", updated_at: "now", teaminfo_id: $input.teaminfo_id, club_account_id: $auth.id, acted_by_users_id: $acted_by, entity: "person", action: "update", entity_id: $row.people_id, people_id: $row.people_id, after: $plan.person_after, status: "draft", open_key: $plan.person_key, target_key: $plan.person_key, club_comment: $input.club_comment}
+          data = {created_at: "now", updated_at: "now", teaminfo_id: $input.teaminfo_id, club_account_id: $auth.id, acted_by_users_id: $acted_by, entity: "person", action: "update", entity_id: $row.people_id, people_id: $row.people_id, after: $plan.person_after, status: "draft", open_key: $plan.person_key, target_key: $plan.person_key, club_comment: $input.club_comment, rev: 0}
         } as $added_person
       }
     }
     conditional {
       if (!$plan.person_empty && $open_person != null) {
-        db.direct_query {
-          sql = """
-            UPDATE x1_93 SET "after" = ?::jsonb WHERE id = ? AND status = 'draft' RETURNING id;
-            """
-          response_type = "list"
-          arg = $plan.person_after|json_encode
-          arg = $open_person.id
-        } as $taken_person
-        precondition (($taken_person|count) > 0) {
+        // ——— Перехід «edit_person» — CAS v2 (AFU docs/xano/club-self-service-cas-v2.md) ———
+        // Замки change_lock (унікальний key) і записи — в одній транзакції. Конфлікт
+        // визначається за станом (чи є ключ) ПОЗА транзакцією, не за текстом помилки.
+        // ЗАПАСНИЙ ВАРІАНТ 3.3 (якщо Ж1–Ж2 не пройдуть): прибрати рядки між позначками
+        // «ТРАНЗАКЦІЯ ↓» і «ТРАНЗАКЦІЯ ↑» (обгортку db.transaction / stack і її дужки);
+        // прибирання своїх ключів у catch уже є.
+        api.lambda {
+          code = """
+            const o = $var.open_person;
+            return { keys: [{ key: 'cr:' + o.id + ':' + (o.rev || 0), op: 'edit', request_id: o.id, batch_id: null }], rev: (o.rev || 0) + 1 };
+          """
+          timeout = 5
+        } as $tr_edit_person
+        var $mine_edit_person {
+          value = []
+        }
+        var $ok_edit_person {
+          value = false
+        }
+        try_catch {
+          try {
+            // ТРАНЗАКЦІЯ ↓
+            db.transaction {
+              stack {
+            // ТРАНЗАКЦІЯ ↑
+                foreach ($tr_edit_person.keys) {
+                  each as $lk {
+                    db.add change_lock {
+                      data = {created_at: "now", key: $lk.key, op: $lk.op, request_id: $lk.request_id, batch_id: $lk.batch_id, users_id: $acted_by, club_account_id: $auth.id}
+                    } as $lock_edit_person
+                    var.update $mine_edit_person {
+                      value = $mine_edit_person|push:$lk.key
+                    }
+                  }
+                }
+                db.edit change_request {
+                  field_name = "id"
+                  field_value = $open_person.id
+                  data = {after: $plan.person_after, updated_at: "now", club_account_id: $auth.id, acted_by_users_id: $acted_by, club_comment: $input.club_comment, rev: $tr_edit_person.rev}
+                } as $edited_person
+            // ТРАНЗАКЦІЯ ↓
+              }
+            }
+            // ТРАНЗАКЦІЯ ↑
+            var.update $ok_edit_person {
+              value = true
+            }
+          }
+          catch {
+            // Запасний варіант 3.3: свої ключі геть (у транзакції їх уже відкочено — нічого не знайде)
+            foreach ($mine_edit_person) {
+              each as $mk {
+                try_catch {
+                  try {
+                    db.del change_lock {
+                      field_name = "key"
+                      field_value = $mk
+                    }
+                  }
+                  catch {
+                  }
+                }
+              }
+            }
+          }
+        }
+        var $held_edit_person {
+          value = []
+        }
+        conditional {
+          if ($ok_edit_person == false) {
+            foreach ($tr_edit_person.keys) {
+              each as $hk {
+                db.get change_lock {
+                  field_name = "key"
+                  field_value = $hk.key
+                  output = ["id", "op"]
+                } as $h
+                conditional {
+                  if ($h != null) {
+                    var.update $held_edit_person {
+                      value = $held_edit_person|push:$hk.key
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+        precondition ($ok_edit_person || ($held_edit_person|count) == 0) {
           error_type = "badrequest"
           error = "Заявка вже змінилась — оновіть сторінку"
         }
-        db.edit change_request {
-          field_name = "id"
-          field_value = $open_person.id
-          data = {updated_at: "now", club_account_id: $auth.id, acted_by_users_id: $acted_by, club_comment: $input.club_comment}
-        } as $edited_person
+        precondition ($ok_edit_person) {
+          error_type = "standard"
+          error = "Помилка бази — нічого не змінено, спробуйте ще раз"
+        }
       }
     }
 
-    // ——— Чернетка staff_row.update (staff:<id>) — як club-clubs-id-draft.put: CAS одним SQL ———
+    // ——— Чернетка staff_row.update (staff:<id>) — CAS v2 ———
     conditional {
       if ($plan.staff_empty && $own_staff) {
-        db.direct_query {
-          sql = """
-            DELETE FROM x1_93 WHERE id = ? AND status = 'draft' RETURNING id;
-            """
-          response_type = "list"
-          arg = $open_staff.id
-        } as $gone_staff
-        precondition (($gone_staff|count) > 0) {
+        // ——— Перехід «del_staff» — CAS v2 (AFU docs/xano/club-self-service-cas-v2.md) ———
+        // Замки change_lock (унікальний key) і записи — в одній транзакції. Конфлікт
+        // визначається за станом (чи є ключ) ПОЗА транзакцією, не за текстом помилки.
+        // ЗАПАСНИЙ ВАРІАНТ 3.3 (якщо Ж1–Ж2 не пройдуть): прибрати рядки між позначками
+        // «ТРАНЗАКЦІЯ ↓» і «ТРАНЗАКЦІЯ ↑» (обгортку db.transaction / stack і її дужки);
+        // прибирання своїх ключів у catch уже є.
+        api.lambda {
+          code = """
+            const o = $var.open_staff;
+            return { keys: [{ key: 'cr:' + o.id + ':' + (o.rev || 0), op: 'delete', request_id: o.id, batch_id: null }], rev: (o.rev || 0) + 1 };
+          """
+          timeout = 5
+        } as $tr_del_staff
+        var $mine_del_staff {
+          value = []
+        }
+        var $ok_del_staff {
+          value = false
+        }
+        try_catch {
+          try {
+            // ТРАНЗАКЦІЯ ↓
+            db.transaction {
+              stack {
+            // ТРАНЗАКЦІЯ ↑
+                foreach ($tr_del_staff.keys) {
+                  each as $lk {
+                    db.add change_lock {
+                      data = {created_at: "now", key: $lk.key, op: $lk.op, request_id: $lk.request_id, batch_id: $lk.batch_id, users_id: $acted_by, club_account_id: $auth.id}
+                    } as $lock_del_staff
+                    var.update $mine_del_staff {
+                      value = $mine_del_staff|push:$lk.key
+                    }
+                  }
+                }
+                db.del change_request {
+                  field_name = "id"
+                  field_value = $open_staff.id
+                }
+            // ТРАНЗАКЦІЯ ↓
+              }
+            }
+            // ТРАНЗАКЦІЯ ↑
+            var.update $ok_del_staff {
+              value = true
+            }
+          }
+          catch {
+            // Запасний варіант 3.3: свої ключі геть (у транзакції їх уже відкочено — нічого не знайде)
+            foreach ($mine_del_staff) {
+              each as $mk {
+                try_catch {
+                  try {
+                    db.del change_lock {
+                      field_name = "key"
+                      field_value = $mk
+                    }
+                  }
+                  catch {
+                  }
+                }
+              }
+            }
+          }
+        }
+        var $held_del_staff {
+          value = []
+        }
+        conditional {
+          if ($ok_del_staff == false) {
+            foreach ($tr_del_staff.keys) {
+              each as $hk {
+                db.get change_lock {
+                  field_name = "key"
+                  field_value = $hk.key
+                  output = ["id", "op"]
+                } as $h
+                conditional {
+                  if ($h != null) {
+                    var.update $held_del_staff {
+                      value = $held_del_staff|push:$hk.key
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+        precondition ($ok_del_staff || ($held_del_staff|count) == 0) {
           error_type = "badrequest"
           error = "Заявка вже змінилась — оновіть сторінку"
+        }
+        precondition ($ok_del_staff) {
+          error_type = "standard"
+          error = "Помилка бази — нічого не змінено, спробуйте ще раз"
         }
       }
     }
     conditional {
       if (!$plan.staff_empty && $open_staff == null) {
         db.add change_request {
-          data = {created_at: "now", updated_at: "now", teaminfo_id: $input.teaminfo_id, club_account_id: $auth.id, acted_by_users_id: $acted_by, entity: "staff_row", action: "update", entity_id: $row.id, people_id: $row.people_id, after: $plan.staff_after, status: "draft", open_key: $plan.staff_key, target_key: $plan.staff_key, club_comment: $input.club_comment}
+          data = {created_at: "now", updated_at: "now", teaminfo_id: $input.teaminfo_id, club_account_id: $auth.id, acted_by_users_id: $acted_by, entity: "staff_row", action: "update", entity_id: $row.id, people_id: $row.people_id, after: $plan.staff_after, status: "draft", open_key: $plan.staff_key, target_key: $plan.staff_key, club_comment: $input.club_comment, rev: 0}
         } as $added_staff
       }
     }
     conditional {
       if (!$plan.staff_empty && $own_staff) {
-        db.direct_query {
-          sql = """
-            UPDATE x1_93 SET "after" = ?::jsonb WHERE id = ? AND status = 'draft' RETURNING id;
-            """
-          response_type = "list"
-          arg = $plan.staff_after|json_encode
-          arg = $open_staff.id
-        } as $taken_staff
-        precondition (($taken_staff|count) > 0) {
+        // ——— Перехід «edit_staff» — CAS v2 (AFU docs/xano/club-self-service-cas-v2.md) ———
+        // Замки change_lock (унікальний key) і записи — в одній транзакції. Конфлікт
+        // визначається за станом (чи є ключ) ПОЗА транзакцією, не за текстом помилки.
+        // ЗАПАСНИЙ ВАРІАНТ 3.3 (якщо Ж1–Ж2 не пройдуть): прибрати рядки між позначками
+        // «ТРАНЗАКЦІЯ ↓» і «ТРАНЗАКЦІЯ ↑» (обгортку db.transaction / stack і її дужки);
+        // прибирання своїх ключів у catch уже є.
+        api.lambda {
+          code = """
+            const o = $var.open_staff;
+            return { keys: [{ key: 'cr:' + o.id + ':' + (o.rev || 0), op: 'edit', request_id: o.id, batch_id: null }], rev: (o.rev || 0) + 1 };
+          """
+          timeout = 5
+        } as $tr_edit_staff
+        var $mine_edit_staff {
+          value = []
+        }
+        var $ok_edit_staff {
+          value = false
+        }
+        try_catch {
+          try {
+            // ТРАНЗАКЦІЯ ↓
+            db.transaction {
+              stack {
+            // ТРАНЗАКЦІЯ ↑
+                foreach ($tr_edit_staff.keys) {
+                  each as $lk {
+                    db.add change_lock {
+                      data = {created_at: "now", key: $lk.key, op: $lk.op, request_id: $lk.request_id, batch_id: $lk.batch_id, users_id: $acted_by, club_account_id: $auth.id}
+                    } as $lock_edit_staff
+                    var.update $mine_edit_staff {
+                      value = $mine_edit_staff|push:$lk.key
+                    }
+                  }
+                }
+                db.edit change_request {
+                  field_name = "id"
+                  field_value = $open_staff.id
+                  data = {after: $plan.staff_after, updated_at: "now", club_account_id: $auth.id, acted_by_users_id: $acted_by, club_comment: $input.club_comment, rev: $tr_edit_staff.rev}
+                } as $edited_staff
+            // ТРАНЗАКЦІЯ ↓
+              }
+            }
+            // ТРАНЗАКЦІЯ ↑
+            var.update $ok_edit_staff {
+              value = true
+            }
+          }
+          catch {
+            // Запасний варіант 3.3: свої ключі геть (у транзакції їх уже відкочено — нічого не знайде)
+            foreach ($mine_edit_staff) {
+              each as $mk {
+                try_catch {
+                  try {
+                    db.del change_lock {
+                      field_name = "key"
+                      field_value = $mk
+                    }
+                  }
+                  catch {
+                  }
+                }
+              }
+            }
+          }
+        }
+        var $held_edit_staff {
+          value = []
+        }
+        conditional {
+          if ($ok_edit_staff == false) {
+            foreach ($tr_edit_staff.keys) {
+              each as $hk {
+                db.get change_lock {
+                  field_name = "key"
+                  field_value = $hk.key
+                  output = ["id", "op"]
+                } as $h
+                conditional {
+                  if ($h != null) {
+                    var.update $held_edit_staff {
+                      value = $held_edit_staff|push:$hk.key
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+        precondition ($ok_edit_staff || ($held_edit_staff|count) == 0) {
           error_type = "badrequest"
           error = "Заявка вже змінилась — оновіть сторінку"
         }
-        db.edit change_request {
-          field_name = "id"
-          field_value = $open_staff.id
-          data = {updated_at: "now", club_account_id: $auth.id, acted_by_users_id: $acted_by, club_comment: $input.club_comment}
-        } as $edited_staff
+        precondition ($ok_edit_staff) {
+          error_type = "standard"
+          error = "Помилка бази — нічого не змінено, спробуйте ще раз"
+        }
       }
     }
   }

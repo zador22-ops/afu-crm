@@ -20,25 +20,89 @@ query "moderation/batches" verb=GET {
       error = "Доступ заборонено"
     }
 
-    // Самовиліковування (рецензія Backend 4.1, п. 1): два одночасні рішення в
-    // одному пакеті можуть обидва не закрити його — закриваємо тут тим самим
-    // правилом (рядки є, і жоден не submitted / approved)
-    db.direct_query {
-      sql = """
-        UPDATE x1_92 SET status = 'closed'
-        WHERE status = 'submitted'
-          AND EXISTS (SELECT 1 FROM x1_93 r WHERE r.batch_id = x1_92.id)
-          AND NOT EXISTS (SELECT 1 FROM x1_93 r WHERE r.batch_id = x1_92.id AND r.status IN ('submitted', 'approved'))
-        RETURNING id;
-        """
-      response_type = "list"
-    } as $healed
-    foreach ($healed) {
-      each as $h {
+    // Самовиліковування (рецензія Backend 4.1, п. 1): два одночасні рішення в одному
+    // пакеті можуть обидва не побачити одне одного — тут доводимо до кінця тим самим
+    // правилом: нова особа, чиї рядки остаточні й жоден не застосовано, — rejected /
+    // failed (CAS v2: замок cr:<id>:<rev> + запис у транзакції; зайнято — пропускаємо);
+    // пакет без рядків submitted / approved — closed (пакет закривають лише рішення,
+    // доля batch:<id>:fate уже decided — замок не потрібен).
+    db.query change_batch {
+      where = $db.change_batch.status == "submitted"
+      return = {type: "list"}
+      output = ["id"]
+    } as $open_batches
+    db.query change_request {
+      where = $db.change_request.batch_id != null
+      return = {type: "list"}
+      output = ["id", "batch_id", "entity", "action", "status", "depends_on_id", "rev"]
+    } as $heal_rows
+    api.lambda {
+      code = """
+        // Наслідки рішення для пакета — передбачення ДО транзакції, щоб замки були відомі наперед
+        // (два одночасні рішення в одному пакеті, які цього не бачать, долагоджує GET moderation/batches):
+        // нова особа, чиї рядки всі остаточні й жоден не застосовано, — rejected / failed;
+        // пакет без рядків submitted / approved — closed.
+        const ОСТАТОЧНІ = ['applied', 'rejected', 'failed'];
+        const наслідки = (рядки, зміниВхід) => {
+          const зміни = { ...зміниВхід };
+          const стан = (r) => (r.id in зміни ? зміни[r.id] : r.status);
+          const особи = [];
+          for (const p of рядки.filter((r) => r.entity === 'person' && r.action === 'create' && стан(r) === 'submitted')) {
+            const діти = рядки.filter((r) => r.depends_on_id === p.id);
+            if (діти.length && діти.every((r) => ОСТАТОЧНІ.includes(стан(r))) && !діти.some((r) => стан(r) === 'applied')) {
+              const s = діти.some((r) => стан(r) === 'failed') ? 'failed' : 'rejected';
+              особи.push({ id: p.id, lock_rev: p.rev || 0, rev: (p.rev || 0) + 1, status: s });
+              зміни[p.id] = s;
+            }
+          }
+          return { persons: особи, close: рядки.length > 0 && !рядки.some((r) => ['submitted', 'approved'].includes(стан(r))) };
+        };
+        // Порядок замків: доля пакета, особа, далі cr: за зростанням id (однаковий у всіх — без взаємного очікування)
+        const упорядкувати = (ключі) => [...ключі].sort((a, b) => (a.rank - b.rank) || ((a.request_id || 0) - (b.request_id || 0))).map(({ rank, ...k }) => k);
+        const особи = [];
+        const закрити = [];
+        for (const b of $var.open_batches || []) {
+          const р = ($var.heal_rows || []).filter((x) => x.batch_id === b.id);
+          особи.push(...наслідки(р, {}).persons);
+          // закриваємо за ФАКТИЧНИМ станом: особу, яку лагодимо зараз, пакет дочекається до наступного разу
+          if (р.length && !р.some((x) => x.status === 'submitted' || x.status === 'approved')) закрити.push(b.id);
+        }
+        return { persons: особи.map((o) => ({ ...o, key: 'cr:' + o.id + ':' + o.lock_rev })), close: закрити };
+      """
+      timeout = 10
+    } as $heal
+    foreach ($heal.persons) {
+      each as $hp {
+        try_catch {
+          try {
+            // ТРАНЗАКЦІЯ ↓
+            db.transaction {
+              stack {
+            // ТРАНЗАКЦІЯ ↑
+                db.add change_lock {
+                  data = {created_at: "now", key: $hp.key, op: "final", request_id: $hp.id, batch_id: null, users_id: $auth.id, club_account_id: null}
+                } as $heal_lock
+                db.edit change_request {
+                  field_name = "id"
+                  field_value = $hp.id
+                  data = {status: $hp.status, updated_at: "now", decided_at: "now", decision_users_id: $auth.id, decision_comment: "Жоден рядок складу чи штабу не застосовано", open_key: null, rev: $hp.rev}
+                } as $heal_person
+            // ТРАНЗАКЦІЯ ↓
+              }
+            }
+            // ТРАНЗАКЦІЯ ↑
+          }
+          catch {
+          }
+        }
+      }
+    }
+    foreach ($heal.close) {
+      each as $hb {
         db.edit change_batch {
           field_name = "id"
-          field_value = $h.id
-          data = {closed_at: "now"}
+          field_value = $hb
+          data = {status: "closed", closed_at: "now"}
         } as $healed_batch
       }
     }

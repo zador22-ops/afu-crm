@@ -5,6 +5,8 @@ query "club/clubs/{teaminfo_id}/batches/{batch_id}/withdraw" verb=POST {
   // Відкликати пакет (задача 2.2; ТЗ 3.2.2, контракт 1.1 п. 2.3): лише поки по
   // ньому немає жодного рішення АФУ. Рядки → знову draft, batch_id і before
   // — порожні (before зніметься заново при наступній подачі); пакет → withdrawn.
+  // CAS v2: «доля пакета» batch:<id>:fate (перше рішення АФУ або відкликання —
+  // виграє перший) + cr:<id>:<rev> кожного рядка, усе в одній транзакції.
   input {
     int teaminfo_id filters=min:1
     int batch_id filters=min:1
@@ -35,7 +37,7 @@ query "club/clubs/{teaminfo_id}/batches/{batch_id}/withdraw" verb=POST {
     db.get change_batch {
       field_name = "id"
       field_value = $input.batch_id
-      output = ["id", "teaminfo_id", "status"]
+      output = ["id", "teaminfo_id", "status", "has_decision", "rev"]
     } as $batch
     precondition ($batch != null && $batch.teaminfo_id == $input.teaminfo_id) {
       error_type = "notfound"
@@ -45,45 +47,156 @@ query "club/clubs/{teaminfo_id}/batches/{batch_id}/withdraw" verb=POST {
       error_type = "badrequest"
       error = "Цей пакет уже не на погодженні"
     }
-    // CAS одним SQL (рецензія Backend 30.10): пакет стає withdrawn, лише якщо
-    // досі submitted і ЖОДЕН його рядок не має рішення — в тому самому
-    // операторі. Інакше модератор міг би погодити й застосувати рядок між
-    // перевіркою й записом, а відкликання повернуло б його в чернетку →
-    // подвійне застосування. x1_92 — change_batch, x1_93 — change_request.
-    // has_decision (контракт 4.2): погодження першим кроком ставить true на
-    // рядку пакета, тож обидві дії серіалізуються на ньому; IS NOT TRUE — щоб
-    // null (якщо десь не поставили false) не блокував відкликання.
-    db.direct_query {
-      sql = """
-        UPDATE x1_92 SET status = 'withdrawn'
-        WHERE id = ? AND teaminfo_id = ? AND status = 'submitted' AND has_decision IS NOT TRUE
-          AND NOT EXISTS (SELECT 1 FROM x1_93 r WHERE r.batch_id = x1_92.id AND r.status <> 'submitted')
-        RETURNING id;
-        """
-      response_type = "list"
-      arg = $input.batch_id
-      arg = $input.teaminfo_id
-    } as $closed
-    precondition (($closed|count) > 0) {
+    var $acted_by {
+      value = $auth.extras|get:"acted_by_users_id":null
+    }
+    db.query change_request {
+      where = $db.change_request.batch_id == $input.batch_id
+      sort = {change_request.id: "asc"}
+      return = {type: "list"}
+      output = ["id", "status", "rev"]
+    } as $rows
+    // Доля пакета — спершу читаємо: уже є рішення АФУ чи відкликано → відмова
+    api.lambda {
+      code = """
+        return 'batch:' + $input.batch_id + ':fate';
+      """
+      timeout = 5
+    } as $fate_key
+    db.get change_lock {
+      field_name = "key"
+      field_value = $fate_key
+      output = ["id", "op"]
+    } as $fate
+    api.lambda {
+      code = """
+        const f = $var.fate;
+        return {
+          fate_ok: !f,
+          // жоден рядок ще не має рішення (has_decision — лише відображення, вирішує ключ)
+          rows_ok: ($var.rows || []).length > 0 && ($var.rows || []).every((r) => r.status === 'submitted') && $var.batch.has_decision !== true,
+        };
+      """
+      timeout = 5
+    } as $check
+    precondition ($check.fate_ok && $check.rows_ok) {
+      error_type = "badrequest"
+      error = "По пакету вже є рішення АФУ — відкликати не можна"
+    }
+
+    // ——— Перехід «withdraw» — CAS v2 (AFU docs/xano/club-self-service-cas-v2.md) ———
+    // Замки change_lock (унікальний key) і записи — в одній транзакції. Конфлікт
+    // визначається за станом (чи є ключ) ПОЗА транзакцією, не за текстом помилки.
+    // ЗАПАСНИЙ ВАРІАНТ 3.3 (якщо Ж1–Ж2 не пройдуть): прибрати рядки між позначками
+    // «ТРАНЗАКЦІЯ ↓» і «ТРАНЗАКЦІЯ ↑» (обгортку db.transaction / stack і її дужки);
+    // прибирання своїх ключів у catch уже є.
+    api.lambda {
+      code = """
+        const b = $var.batch;
+        const рядки = ($var.rows || []).map((r) => ({ id: r.id, rev: (r.rev || 0) + 1 })).sort((a, c) => a.id - c.id);
+        return {
+          keys: [{ key: $var.fate_key, op: 'withdrawn', request_id: null, batch_id: b.id }]
+            .concat(рядки.map((r) => ({ key: 'cr:' + r.id + ':' + (r.rev - 1), op: 'withdraw', request_id: r.id, batch_id: b.id }))),
+          rows: рядки,
+          batch_rev: (b.rev || 0) + 1,
+        };
+      """
+      timeout = 5
+    } as $tr_withdraw
+    var $mine_withdraw {
+      value = []
+    }
+    var $ok_withdraw {
+      value = false
+    }
+    try_catch {
+      try {
+        // ТРАНЗАКЦІЯ ↓
+        db.transaction {
+          stack {
+        // ТРАНЗАКЦІЯ ↑
+            foreach ($tr_withdraw.keys) {
+              each as $lk {
+                db.add change_lock {
+                  data = {created_at: "now", key: $lk.key, op: $lk.op, request_id: $lk.request_id, batch_id: $lk.batch_id, users_id: $acted_by, club_account_id: $auth.id}
+                } as $lock_withdraw
+                var.update $mine_withdraw {
+                  value = $mine_withdraw|push:$lk.key
+                }
+              }
+            }
+            db.edit change_batch {
+              field_name = "id"
+              field_value = $input.batch_id
+              data = {status: "withdrawn", withdrawn_at: "now", rev: $tr_withdraw.batch_rev}
+            } as $withdrawn_batch
+            foreach ($tr_withdraw.rows) {
+              each as $row {
+                db.edit change_request {
+                  field_name = "id"
+                  field_value = $row.id
+                  data = {status: "draft", batch_id: null, before: null, updated_at: "now", rev: $row.rev}
+                } as $back_row
+              }
+            }
+        // ТРАНЗАКЦІЯ ↓
+          }
+        }
+        // ТРАНЗАКЦІЯ ↑
+        var.update $ok_withdraw {
+          value = true
+        }
+      }
+      catch {
+        // Запасний варіант 3.3: свої ключі геть (у транзакції їх уже відкочено — нічого не знайде)
+        foreach ($mine_withdraw) {
+          each as $mk {
+            try_catch {
+              try {
+                db.del change_lock {
+                  field_name = "key"
+                  field_value = $mk
+                }
+              }
+              catch {
+              }
+            }
+          }
+        }
+      }
+    }
+    var $held_withdraw {
+      value = []
+    }
+    conditional {
+      if ($ok_withdraw == false) {
+        foreach ($tr_withdraw.keys) {
+          each as $hk {
+            db.get change_lock {
+              field_name = "key"
+              field_value = $hk.key
+              output = ["id", "op"]
+            } as $h
+            conditional {
+              if ($h != null) {
+                var.update $held_withdraw {
+                  value = $held_withdraw|push:$hk.key
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+    precondition ($ok_withdraw || ($held_withdraw|count) == 0) {
       error_type = "badrequest"
       error = "По пакету вже є рішення АФУ або він змінився — оновіть сторінку"
     }
-
-    // Пакет уже не submitted, тож погодити його рядки модератор не зможе
-    // (CAS погодження 4.2 перевіряє й статус пакета) — повертаємо їх у чернетки
-    db.direct_query {
-      sql = """
-        UPDATE x1_93 SET status = 'draft', batch_id = NULL, "before" = NULL WHERE batch_id = ? AND status = 'submitted' RETURNING id;
-        """
-      response_type = "list"
-      arg = $input.batch_id
-    } as $back
-    db.edit change_batch {
-      field_name = "id"
-      field_value = $input.batch_id
-      data = {withdrawn_at: "now"}
-    } as $withdrawn
+    precondition ($ok_withdraw) {
+      error_type = "standard"
+      error = "Помилка бази — нічого не змінено, спробуйте ще раз"
+    }
   }
 
-  response = {batch: {id: $withdrawn.id, status: $withdrawn.status}, rows: $back|count}
+  response = {batch: {id: $input.batch_id, status: "withdrawn"}, rows: $tr_withdraw.rows|count}
 }

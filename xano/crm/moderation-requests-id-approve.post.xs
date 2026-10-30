@@ -4,16 +4,17 @@ query "moderation/requests/{request_id}/approve" verb=POST {
 
   // «Погодити» заявку клубу й одразу застосувати в основну базу (самообслуговування
   // клубів, 4.2; контракт docs/xano/club-self-service-apply.md). Право 21.
-  // 1. CAS submitted → approved через рядок пакета (has_decision), як «Повернути».
-  // 2. Читання потрібних рядків, перевірка, що файли фото існують у vault.
-  // 3. План — правила 4.2 ДОСЛІВНО з AFU docs/xano/drafts/club-self-service/
-  //    apply-rules.js (тест звіряє побайтово) + склейка CRM. Жодного запису.
-  // 4. План не пройшов → failed з текстом правила. Пройшов → записи в порядку
-  //    плану (нова особа першою; при переході — спершу новий рядок, потім
-  //    закриття старого) → applied. Транзакцій у Xano немає: якщо запис упав —
-  //    failed з переліком уже зробленого, АФУ виправляє вручну.
-  // 5. open_key → null завжди; нова особа без застосованих рядків — остаточний
-  //    статус; пакет без submitted / approved — closed.
+  // Переходи — CAS v2 (docs/xano/club-self-service-cas-v2.md), без SQL-записів:
+  // 1. Доля пакета batch:<id>:fate — спершу читаємо (відкликано → 409).
+  // 2. Читання потрібних рядків; перевірка файлів фото (HEAD) і план — у try_catch,
+  //    до транзакції. План — правила 4.2 ДОСЛІВНО з AFU docs/xano/drafts/
+  //    club-self-service/apply-rules.js (тест звіряє побайтово) + склейка CRM.
+  // 3. План пройшов → ОДНА транзакція submitted → applied: замки (доля пакета,
+  //    person:<cr_id> нової особи, cr:<id>:<rev>), нова особа, кроки в основні
+  //    таблиці, рядок applied, наслідки (нова особа, пакет). Збій — відкочено ВСЕ.
+  // 4. План не пройшов або запис упав → окрема транзакція submitted → failed
+  //    (нова особа не пройшла правила — її заявка й рядки теж failed).
+  //    Конфлікт ключів → 409; нову особу саме створює інший → 400 «спробуйте ще раз».
   input {
     int request_id filters=min:1
   }
@@ -51,32 +52,45 @@ query "moderation/requests/{request_id}/approve" verb=POST {
       error = "Нову особу окремо не погоджують — погодьте її рядок складу чи штабу"
     }
 
-    // 1. CAS: рядок пакета (has_decision = true) і сама заявка — одним
-    // оператором. x1_92 — change_batch, x1_93 — change_request.
-    db.direct_query {
-      sql = """
-        WITH b AS (
-          UPDATE x1_92 SET has_decision = true
-          WHERE id = ? AND status = 'submitted'
-          RETURNING id
-        )
-        UPDATE x1_93 SET status = 'approved'
-        WHERE id = ? AND status = 'submitted' AND batch_id IN (SELECT id FROM b)
-        RETURNING id;
-        """
-      response_type = "list"
-      arg = $row.batch_id
-      arg = $input.request_id
-    } as $taken
-    precondition (($taken|count) > 0) {
+    precondition ($row.status == "submitted") {
       error_type = "badrequest"
       error = "Заявка вже змінилась — оновіть сторінку"
     }
-    db.edit change_request {
+    // Доля пакета (CAS v2): перше рішення АФУ або відкликання клубом — виграє перший.
+    // Спершу читаємо: відкликано → відмова; «decided» — рішення йде далі без нового ключа
+    api.lambda {
+      code = """
+        return 'batch:' + $var.row.batch_id + ':fate';
+      """
+      timeout = 5
+    } as $fate_key
+    db.get change_lock {
+      field_name = "key"
+      field_value = $fate_key
+      output = ["id", "op"]
+    } as $fate
+    api.lambda {
+      code = """
+        return !$var.fate || $var.fate.op === 'decided';
+      """
+      timeout = 5
+    } as $fate_ok
+    precondition ($fate_ok) {
+      error_type = "badrequest"
+      error = "Клуб відкликав цей пакет — оновіть сторінку"
+    }
+    db.get change_batch {
       field_name = "id"
-      field_value = $input.request_id
-      data = {updated_at: "now", decided_at: "now", decision_users_id: $auth.id}
-    } as $decided
+      field_value = $row.batch_id
+      output = ["id", "status", "has_decision", "rev"]
+    } as $batch
+    // Рядки пакета — для наслідків рішення (нова особа, закриття пакета)
+    db.query change_request {
+      where = $db.change_request.batch_id == $row.batch_id
+      sort = {change_request.id: "asc"}
+      return = {type: "list"}
+      output = ["id", "entity", "action", "status", "depends_on_id", "rev"]
+    } as $batch_rows
 
     // 2. Читання (нічого не пише)
     db.query TeamInfo {
@@ -112,61 +126,19 @@ query "moderation/requests/{request_id}/approve" verb=POST {
       return = {type: "list"}
       output = ["leagues_id", "window_only"]
     } as $rules
-    // Нова особа, від якої залежить рядок: захопити її CAS-ом submitted → approved
-    // ДО плану й db.add People (рецензія Backend 4.2, п. 1) — інакше два модератори,
-    // що одночасно погоджують два рядки однієї нової особи, створили б дві People.
-    var $claimed {
-      value = false
-    }
-    conditional {
-      if ($row.depends_on_id != null) {
-        db.direct_query {
-          sql = """
-            UPDATE x1_93 SET status = 'approved' WHERE id = ? AND status = 'submitted' RETURNING id;
-            """
-          response_type = "list"
-          arg = $row.depends_on_id
-        } as $claim
-        var.update $claimed {
-          value = ($claim|count) > 0
-        }
-      }
-    }
-    // (id = null → порожньо); читаємо ПІСЛЯ захоплення
+    // Нова особа, від якої залежить рядок (id = null → порожньо). Створює її рівно
+    // один модератор — ключ person:<cr_id> у транзакції застосування
     db.query change_request {
       where = $db.change_request.id == $row.depends_on_id
       return = {type: "list"}
-      output = ["id", "entity", "action", "teaminfo_id", "after", "status", "applied_entity_id"]
+      output = ["id", "entity", "action", "teaminfo_id", "after", "status", "applied_entity_id", "rev"]
     } as $parent_list
-    // Особу саме створює інший модератор (approved, але не нами) — повернути рядок
-    // у submitted (записів ще не було) і попросити спробувати ще раз
-    api.lambda {
-      code = """
-        const б = ($var.parent_list || [])[0];
-        return !!б && б.status === 'approved' && !$var.claimed;
-      """
-      timeout = 5
-    } as $person_busy
-    conditional {
-      if ($person_busy) {
-        db.direct_query {
-          sql = """
-            UPDATE x1_93 SET status = 'submitted' WHERE id = ? AND status = 'approved' RETURNING id;
-            """
-          response_type = "list"
-          arg = $input.request_id
-        } as $released_row
-        db.edit change_request {
-          field_name = "id"
-          field_value = $input.request_id
-          data = {updated_at: "now", decided_at: null, decision_users_id: null}
-        } as $undecided
-      }
-    }
-    precondition ($person_busy == false) {
-      error_type = "badrequest"
-      error = "Нову особу саме створює інший модератор — спробуйте ще раз за хвилину"
-    }
+    // Рядки, що залежать від тієї ж нової особи (якщо вона не пройде правила — теж failed)
+    db.query change_request {
+      where = $db.change_request.depends_on_id == $row.depends_on_id
+      return = {type: "list"}
+      output = ["id", "status", "rev"]
+    } as $siblings
 
     // 2–3. Перевірка фото й план — у try_catch (рецензія Backend 4.2, п. 2): збій
     // HEAD чи лямбди плану не має лишити заявку назавжди в approved
@@ -658,307 +630,489 @@ function підсумокЗаявки(план, рішення, хто, коли
       }
     }
 
-    // 4а. План не пройшов — failed з текстом правила
+    // 3. План пройшов — застосування однією транзакцією submitted → applied
+    var $fail_reason {
+      value = null
+    }
     conditional {
       if ($plan.ok == false) {
-        db.direct_query {
-          sql = """
-            UPDATE x1_93 SET status = 'failed' WHERE id = ? AND status = 'approved' RETURNING id;
-            """
-          response_type = "list"
-          arg = $input.request_id
-        } as $failed_cas
-        db.edit change_request {
-          field_name = "id"
-          field_value = $input.request_id
-          data = {updated_at: "now", apply_error: $plan.failed, open_key: null}
-        } as $failed_row
-        // Особу ми захопили, але впала не вона — звільнити для інших рядків
-        conditional {
-          if ($claimed && $plan.person_failed == false) {
-            db.direct_query {
-              sql = """
-                UPDATE x1_93 SET status = 'submitted' WHERE id = ? AND status = 'approved' RETURNING id;
-                """
-              response_type = "list"
-              arg = $row.depends_on_id
-            } as $released_person
-          }
-        }
-        // Нова особа не пройшла правила — її заявка й інші її рядки теж failed
-        conditional {
-          if ($plan.person_failed) {
-            db.direct_query {
-              sql = """
-                UPDATE x1_93 SET status = 'failed'
-                WHERE ((id = ? AND status IN ('submitted', 'approved')) OR (depends_on_id = ? AND status = 'submitted'))
-                RETURNING id;
-                """
-              response_type = "list"
-              arg = $plan.person_request_id
-              arg = $plan.person_request_id
-            } as $failed_family
-            foreach ($failed_family) {
-              each as $f {
-                db.edit change_request {
-                  field_name = "id"
-                  field_value = $f.id
-                  data = {updated_at: "now", decided_at: "now", decision_users_id: $auth.id, apply_error: $plan.failed, open_key: null}
-                } as $failed_member
-              }
-            }
-          }
+        var.update $fail_reason {
+          value = $plan.failed
         }
       }
     }
-
-    // 4б. План пройшов — записи
+    var $new_person {
+      value = null
+    }
+    var $created {
+      value = null
+    }
     conditional {
       if ($plan.ok) {
-        var $done {
+        // ——— Перехід «apply» — CAS v2 (AFU docs/xano/club-self-service-cas-v2.md) ———
+        // Замки change_lock (унікальний key) і записи — в одній транзакції. Конфлікт
+        // визначається за станом (чи є ключ) ПОЗА транзакцією, не за текстом помилки.
+        // ЗАПАСНИЙ ВАРІАНТ 3.3 (якщо Ж1–Ж2 не пройдуть): прибрати рядки між позначками
+        // «ТРАНЗАКЦІЯ ↓» і «ТРАНЗАКЦІЯ ↑» (обгортку db.transaction / stack і її дужки);
+        // прибирання своїх ключів у catch уже є.
+        api.lambda {
+          code = """
+            const r = $var.row;
+            const b = $var.batch || {};
+            const п = $var.plan;
+            const батько = ($var.parent_list || [])[0] || null;
+            // Наслідки рішення для пакета — передбачення ДО транзакції, щоб замки були відомі наперед
+            // (два одночасні рішення в одному пакеті, які цього не бачать, долагоджує GET moderation/batches):
+            // нова особа, чиї рядки всі остаточні й жоден не застосовано, — rejected / failed;
+            // пакет без рядків submitted / approved — closed.
+            const ОСТАТОЧНІ = ['applied', 'rejected', 'failed'];
+            const наслідки = (рядки, зміниВхід) => {
+              const зміни = { ...зміниВхід };
+              const стан = (r) => (r.id in зміни ? зміни[r.id] : r.status);
+              const особи = [];
+              for (const p of рядки.filter((r) => r.entity === 'person' && r.action === 'create' && стан(r) === 'submitted')) {
+                const діти = рядки.filter((r) => r.depends_on_id === p.id);
+                if (діти.length && діти.every((r) => ОСТАТОЧНІ.includes(стан(r))) && !діти.some((r) => стан(r) === 'applied')) {
+                  const s = діти.some((r) => стан(r) === 'failed') ? 'failed' : 'rejected';
+                  особи.push({ id: p.id, lock_rev: p.rev || 0, rev: (p.rev || 0) + 1, status: s });
+                  зміни[p.id] = s;
+                }
+              }
+              return { persons: особи, close: рядки.length > 0 && !рядки.some((r) => ['submitted', 'approved'].includes(стан(r))) };
+            };
+            // Порядок замків: доля пакета, особа, далі cr: за зростанням id (однаковий у всіх — без взаємного очікування)
+            const упорядкувати = (ключі) => [...ключі].sort((a, b) => (a.rank - b.rank) || ((a.request_id || 0) - (b.request_id || 0))).map(({ rank, ...k }) => k);
+
+            const зміни = { [r.id]: 'applied' };
+            if (п.person && батько) зміни[батько.id] = 'applied';
+            const н = наслідки($var.batch_rows || [], зміни);
+            const ключі = [];
+            if (!$var.fate) ключі.push({ rank: 0, key: $var.fate_key, op: 'decided', request_id: r.id, batch_id: r.batch_id });
+            // Нову особу створює рівно один модератор (ключ без версії)
+            if (п.person && батько) ключі.push({ rank: 1, key: 'person:' + батько.id, op: 'claim', request_id: батько.id, batch_id: r.batch_id });
+            ключі.push({ rank: 2, key: 'cr:' + r.id + ':' + (r.rev || 0), op: 'apply', request_id: r.id, batch_id: r.batch_id });
+            if (п.person && батько) ключі.push({ rank: 2, key: 'cr:' + батько.id + ':' + (батько.rev || 0), op: 'apply', request_id: батько.id, batch_id: r.batch_id });
+            for (const o of н.persons) ключі.push({ rank: 2, key: 'cr:' + o.id + ':' + o.lock_rev, op: 'final', request_id: o.id, batch_id: r.batch_id });
+            return {
+              keys: упорядкувати(ключі), rev: (r.rev || 0) + 1, parent_rev: батько ? (батько.rev || 0) + 1 : null,
+              person_key: п.person && батько ? 'person:' + батько.id : null, row_key: 'cr:' + r.id + ':' + (r.rev || 0),
+              persons: н.persons, close: н.close, batch_rev: (b.rev || 0) + 1,
+            };
+          """
+          timeout = 5
+        } as $tr_apply
+        var $mine_apply {
           value = []
         }
-        var $new_person {
-          value = null
-        }
-        var $created {
-          value = null
+        var $ok_apply {
+          value = false
         }
         try_catch {
           try {
-            conditional {
-              if ($plan.person != null) {
-                db.add People {
-                  data = $plan.person.data
-                } as $person_row
-                var.update $new_person {
-                  value = $person_row.id
+            // ТРАНЗАКЦІЯ ↓
+            db.transaction {
+              stack {
+            // ТРАНЗАКЦІЯ ↑
+                foreach ($tr_apply.keys) {
+                  each as $lk {
+                    db.add change_lock {
+                      data = {created_at: "now", key: $lk.key, op: $lk.op, request_id: $lk.request_id, batch_id: $lk.batch_id, users_id: $auth.id, club_account_id: null}
+                    } as $lock_apply
+                    var.update $mine_apply {
+                      value = $mine_apply|push:$lk.key
+                    }
+                  }
                 }
-                db.direct_query {
-                  sql = """
-                    UPDATE x1_93 SET status = 'applied' WHERE id = ? AND status = 'approved' RETURNING id;
-                    """
-                  response_type = "list"
-                  arg = $plan.person.request_id
-                } as $person_cas
+                conditional {
+                  if ($plan.person != null) {
+                    db.add People {
+                      data = $plan.person.data
+                    } as $person_row
+                    var.update $new_person {
+                      value = $person_row.id
+                    }
+                    db.edit change_request {
+                      field_name = "id"
+                      field_value = $plan.person.request_id
+                      data = {status: "applied", updated_at: "now", decided_at: "now", decision_users_id: $auth.id, applied_at: "now", applied_entity_id: $person_row.id, apply_error: null, open_key: null, rev: $tr_apply.parent_rev}
+                    } as $person_applied
+                  }
+                }
+                // id нової особи — у кроки, що на неї посилаються
+                api.lambda {
+                  code = """
+                    return ($var.plan.steps || []).map((к) => (к.person && $var.new_person ? { ...к, data: { ...к.data, [к.person]: $var.new_person } } : к));
+                  """
+                  timeout = 5
+                } as $steps
+                foreach ($steps) {
+                  each as $step {
+                    conditional {
+                      if ($step.op == "add" && $step.table == "Team") {
+                        db.add Team {
+                          data = $step.data
+                        } as $added
+                        var.update $created {
+                          value = $added.id
+                        }
+                      }
+                    }
+                    conditional {
+                      if ($step.op == "add" && $step.table == "team_league") {
+                        db.add team_league {
+                          data = $step.data
+                        } as $added
+                        var.update $created {
+                          value = $added.id
+                        }
+                      }
+                    }
+                    conditional {
+                      if ($step.op == "add" && $step.table == "Administration of teams") {
+                        db.add "Administration of teams" {
+                          data = $step.data
+                        } as $added
+                        var.update $created {
+                          value = $added.id
+                        }
+                      }
+                    }
+                    conditional {
+                      if ($step.op == "patch" && $step.table == "TeamInfo") {
+                        db.patch TeamInfo {
+                          field_name = "id"
+                          field_value = $step.id
+                          data = $step.data
+                        } as $patched
+                      }
+                    }
+                    conditional {
+                      if ($step.op == "patch" && $step.table == "People") {
+                        db.patch People {
+                          field_name = "id"
+                          field_value = $step.id
+                          data = $step.data
+                        } as $patched
+                      }
+                    }
+                    conditional {
+                      if ($step.op == "patch" && $step.table == "Team") {
+                        db.patch Team {
+                          field_name = "id"
+                          field_value = $step.id
+                          data = $step.data
+                        } as $patched
+                      }
+                    }
+                    conditional {
+                      if ($step.op == "patch" && $step.table == "team_league") {
+                        db.patch team_league {
+                          field_name = "id"
+                          field_value = $step.id
+                          data = $step.data
+                        } as $patched
+                      }
+                    }
+                    conditional {
+                      if ($step.op == "patch" && $step.table == "Administration of teams") {
+                        db.patch "Administration of teams" {
+                          field_name = "id"
+                          field_value = $step.id
+                          data = $step.data
+                        } as $patched
+                      }
+                    }
+                  }
+                }
+                api.lambda {
+                  code = """
+                    return $var.created || $var.plan.applied_id || $var.new_person || null;
+                  """
+                  timeout = 5
+                } as $applied_id
                 db.edit change_request {
                   field_name = "id"
-                  field_value = $plan.person.request_id
-                  data = {updated_at: "now", decided_at: "now", decision_users_id: $auth.id, applied_at: "now", applied_entity_id: $person_row.id, apply_error: null, open_key: null}
-                } as $person_applied
-                var.update $done {
-                  value = $done|push:"нову особу створено"
+                  field_value = $input.request_id
+                  data = {status: "applied", updated_at: "now", decided_at: "now", decision_users_id: $auth.id, applied_at: "now", applied_entity_id: $applied_id, apply_error: null, open_key: null, rev: $tr_apply.rev}
+                } as $applied_row
+
+                foreach ($tr_apply.persons) {
+                  each as $fp {
+                    db.edit change_request {
+                      field_name = "id"
+                      field_value = $fp.id
+                      data = {status: $fp.status, updated_at: "now", decided_at: "now", decision_users_id: $auth.id, decision_comment: "Жоден рядок складу чи штабу не застосовано", open_key: null, rev: $fp.rev}
+                    } as $person_final
+                  }
                 }
-              }
-            }
-            // id нової особи — у кроки, що на неї посилаються
-            api.lambda {
-              code = """
-                return ($var.plan.steps || []).map((к) => (к.person && $var.new_person ? { ...к, data: { ...к.data, [к.person]: $var.new_person } } : к));
-              """
-              timeout = 5
-            } as $steps
-            foreach ($steps) {
-              each as $step {
-            conditional {
-              if ($step.op == "add" && $step.table == "Team") {
-                db.add Team {
-                  data = $step.data
-                } as $added
-                var.update $created {
-                  value = $added.id
+                // has_decision — лише відображення (долю пакета вирішує ключ batch:<id>:fate)
+                db.edit change_batch {
+                  field_name = "id"
+                  field_value = $row.batch_id
+                  data = {has_decision: true, rev: $tr_apply.batch_rev}
+                } as $batch_decided
+                conditional {
+                  if ($tr_apply.close) {
+                    db.edit change_batch {
+                      field_name = "id"
+                      field_value = $row.batch_id
+                      data = {status: "closed", closed_at: "now"}
+                    } as $batch_closed
+                  }
                 }
+            // ТРАНЗАКЦІЯ ↓
               }
             }
-            conditional {
-              if ($step.op == "add" && $step.table == "team_league") {
-                db.add team_league {
-                  data = $step.data
-                } as $added
-                var.update $created {
-                  value = $added.id
-                }
-              }
+            // ТРАНЗАКЦІЯ ↑
+            var.update $ok_apply {
+              value = true
             }
-            conditional {
-              if ($step.op == "add" && $step.table == "Administration of teams") {
-                db.add "Administration of teams" {
-                  data = $step.data
-                } as $added
-                var.update $created {
-                  value = $added.id
-                }
-              }
-            }
-            conditional {
-              if ($step.op == "patch" && $step.table == "TeamInfo") {
-                db.patch TeamInfo {
-                  field_name = "id"
-                  field_value = $step.id
-                  data = $step.data
-                } as $patched
-              }
-            }
-            conditional {
-              if ($step.op == "patch" && $step.table == "People") {
-                db.patch People {
-                  field_name = "id"
-                  field_value = $step.id
-                  data = $step.data
-                } as $patched
-              }
-            }
-            conditional {
-              if ($step.op == "patch" && $step.table == "Team") {
-                db.patch Team {
-                  field_name = "id"
-                  field_value = $step.id
-                  data = $step.data
-                } as $patched
-              }
-            }
-            conditional {
-              if ($step.op == "patch" && $step.table == "team_league") {
-                db.patch team_league {
-                  field_name = "id"
-                  field_value = $step.id
-                  data = $step.data
-                } as $patched
-              }
-            }
-            conditional {
-              if ($step.op == "patch" && $step.table == "Administration of teams") {
-                db.patch "Administration of teams" {
-                  field_name = "id"
-                  field_value = $step.id
-                  data = $step.data
-                } as $patched
-              }
-            }
-                var.update $done {
-                  value = $done|push:$step.label
-                }
-              }
-            }
-            api.lambda {
-              code = """
-                return $var.created || $var.plan.applied_id || $var.new_person || null;
-              """
-              timeout = 5
-            } as $applied_id
-            db.direct_query {
-              sql = """
-                UPDATE x1_93 SET status = 'applied' WHERE id = ? AND status = 'approved' RETURNING id;
-                """
-              response_type = "list"
-              arg = $input.request_id
-            } as $applied_cas
-            db.edit change_request {
-              field_name = "id"
-              field_value = $input.request_id
-              data = {updated_at: "now", applied_at: "now", applied_entity_id: $applied_id, apply_error: null, open_key: null}
-            } as $applied_row
           }
           catch {
+            // Запасний варіант 3.3: свої ключі геть (у транзакції їх уже відкочено — нічого не знайде)
+            foreach ($mine_apply) {
+              each as $mk {
+                try_catch {
+                  try {
+                    db.del change_lock {
+                      field_name = "key"
+                      field_value = $mk
+                    }
+                  }
+                  catch {
+                  }
+                }
+              }
+            }
+          }
+        }
+        var $held_apply {
+          value = []
+        }
+        conditional {
+          if ($ok_apply == false) {
+            foreach ($tr_apply.keys) {
+              each as $hk {
+                db.get change_lock {
+                  field_name = "key"
+                  field_value = $hk.key
+                  output = ["id", "op"]
+                } as $h
+                conditional {
+                  if ($h != null) {
+                    var.update $held_apply {
+                      value = $held_apply|push:$hk.key
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+        // Транзакція не пройшла: що саме — за станом ключів
+        conditional {
+          if ($ok_apply == false) {
             api.lambda {
               code = """
-                const зроблено = ($var.done || []).join('; ');
-                return 'Помилка запису в Xano посеред застосування. Зроблено: ' + (зроблено || 'нічого') + '. Перевірте й виправте вручну';
+                const h = $var.held_apply || [];
+                const t = $var.tr_apply;
+                const зайнятаОсоба = !!t.person_key && h.includes(t.person_key) && !h.includes(t.row_key);
+                return { busy: зайнятаОсоба, conflict: h.length > 0 && !зайнятаОсоба };
               """
               timeout = 5
-            } as $error_text
-            db.direct_query {
-              sql = """
-                UPDATE x1_93 SET status = 'failed' WHERE id = ? AND status = 'approved' RETURNING id;
-                """
-              response_type = "list"
-              arg = $input.request_id
-            } as $crashed_cas
-            db.edit change_request {
-              field_name = "id"
-              field_value = $input.request_id
-              data = {updated_at: "now", apply_error: $error_text, open_key: null}
-            } as $crashed_row
-            // Особу захопили, але не створили — звільнити для інших рядків
-            conditional {
-              if ($claimed && $new_person == null) {
-                db.direct_query {
-                  sql = """
-                    UPDATE x1_93 SET status = 'submitted' WHERE id = ? AND status = 'approved' RETURNING id;
-                    """
-                  response_type = "list"
-                  arg = $row.depends_on_id
-                } as $released_after_crash
-              }
+            } as $why
+            precondition ($why.busy == false) {
+              error_type = "badrequest"
+              error = "Нову особу саме створює інший модератор — спробуйте ще раз за хвилину"
             }
-            // Особу вже створено (People є), але збій стався до її applied — застосувати
-            // заявку особи, інакше її рядки назавжди казали б «спробуйте ще раз»
-            conditional {
-              if ($claimed && $new_person != null) {
-                db.direct_query {
-                  sql = """
-                    UPDATE x1_93 SET status = 'applied' WHERE id = ? AND status = 'approved' RETURNING id;
-                    """
-                  response_type = "list"
-                  arg = $row.depends_on_id
-                } as $person_rescued
+            precondition ($why.conflict == false) {
+              error_type = "badrequest"
+              error = "Заявка вже змінилась — оновіть сторінку"
+            }
+            // Ключі вільні — отже впав сам запис; транзакція відкотила все
+            var.update $fail_reason {
+              value = "Помилка запису в Xano під час застосування — нічого не змінено (усе відкочено). Повідомте Backend"
+            }
+          }
+        }
+      }
+    }
+
+    // 4. План не пройшов або запис упав — окремий перехід submitted → failed
+    conditional {
+      if ($fail_reason != null) {
+        // ——— Перехід «fail» — CAS v2 (AFU docs/xano/club-self-service-cas-v2.md) ———
+        // Замки change_lock (унікальний key) і записи — в одній транзакції. Конфлікт
+        // визначається за станом (чи є ключ) ПОЗА транзакцією, не за текстом помилки.
+        // ЗАПАСНИЙ ВАРІАНТ 3.3 (якщо Ж1–Ж2 не пройдуть): прибрати рядки між позначками
+        // «ТРАНЗАКЦІЯ ↓» і «ТРАНЗАКЦІЯ ↑» (обгортку db.transaction / stack і її дужки);
+        // прибирання своїх ключів у catch уже є.
+        api.lambda {
+          code = """
+            const r = $var.row;
+            const b = $var.batch || {};
+            const п = $var.plan || {};
+            const батько = ($var.parent_list || [])[0] || null;
+            // Наслідки рішення для пакета — передбачення ДО транзакції, щоб замки були відомі наперед
+            // (два одночасні рішення в одному пакеті, які цього не бачать, долагоджує GET moderation/batches):
+            // нова особа, чиї рядки всі остаточні й жоден не застосовано, — rejected / failed;
+            // пакет без рядків submitted / approved — closed.
+            const ОСТАТОЧНІ = ['applied', 'rejected', 'failed'];
+            const наслідки = (рядки, зміниВхід) => {
+              const зміни = { ...зміниВхід };
+              const стан = (r) => (r.id in зміни ? зміни[r.id] : r.status);
+              const особи = [];
+              for (const p of рядки.filter((r) => r.entity === 'person' && r.action === 'create' && стан(r) === 'submitted')) {
+                const діти = рядки.filter((r) => r.depends_on_id === p.id);
+                if (діти.length && діти.every((r) => ОСТАТОЧНІ.includes(стан(r))) && !діти.some((r) => стан(r) === 'applied')) {
+                  const s = діти.some((r) => стан(r) === 'failed') ? 'failed' : 'rejected';
+                  особи.push({ id: p.id, lock_rev: p.rev || 0, rev: (p.rev || 0) + 1, status: s });
+                  зміни[p.id] = s;
+                }
+              }
+              return { persons: особи, close: рядки.length > 0 && !рядки.some((r) => ['submitted', 'approved'].includes(стан(r))) };
+            };
+            // Порядок замків: доля пакета, особа, далі cr: за зростанням id (однаковий у всіх — без взаємного очікування)
+            const упорядкувати = (ключі) => [...ключі].sort((a, b) => (a.rank - b.rank) || ((a.request_id || 0) - (b.request_id || 0))).map(({ rank, ...k }) => k);
+
+            const зміни = { [r.id]: 'failed' };
+            // Нова особа не пройшла правила — її заявка й інші її рядки, що чекають, теж failed
+            const родина = п.person_failed && батько && батько.status === 'submitted'
+              ? [батько].concat(($var.siblings || []).filter((x) => x.id !== r.id && x.status === 'submitted'))
+              : [];
+            for (const x of родина) зміни[x.id] = 'failed';
+            const н = наслідки($var.batch_rows || [], зміни);
+            const ключі = [];
+            if (!$var.fate) ключі.push({ rank: 0, key: $var.fate_key, op: 'decided', request_id: r.id, batch_id: r.batch_id });
+            ключі.push({ rank: 2, key: 'cr:' + r.id + ':' + (r.rev || 0), op: 'fail', request_id: r.id, batch_id: r.batch_id });
+            for (const x of родина) ключі.push({ rank: 2, key: 'cr:' + x.id + ':' + (x.rev || 0), op: 'fail', request_id: x.id, batch_id: r.batch_id });
+            for (const o of н.persons) ключі.push({ rank: 2, key: 'cr:' + o.id + ':' + o.lock_rev, op: 'final', request_id: o.id, batch_id: r.batch_id });
+            return {
+              keys: упорядкувати(ключі), rev: (r.rev || 0) + 1,
+              family: родина.map((x) => ({ id: x.id, rev: (x.rev || 0) + 1 })),
+              persons: н.persons, close: н.close, batch_rev: (b.rev || 0) + 1,
+            };
+          """
+          timeout = 5
+        } as $tr_fail
+        var $mine_fail {
+          value = []
+        }
+        var $ok_fail {
+          value = false
+        }
+        try_catch {
+          try {
+            // ТРАНЗАКЦІЯ ↓
+            db.transaction {
+              stack {
+            // ТРАНЗАКЦІЯ ↑
+                foreach ($tr_fail.keys) {
+                  each as $lk {
+                    db.add change_lock {
+                      data = {created_at: "now", key: $lk.key, op: $lk.op, request_id: $lk.request_id, batch_id: $lk.batch_id, users_id: $auth.id, club_account_id: null}
+                    } as $lock_fail
+                    var.update $mine_fail {
+                      value = $mine_fail|push:$lk.key
+                    }
+                  }
+                }
                 db.edit change_request {
                   field_name = "id"
-                  field_value = $row.depends_on_id
-                  data = {updated_at: "now", decided_at: "now", decision_users_id: $auth.id, applied_at: "now", applied_entity_id: $new_person, apply_error: null, open_key: null}
-                } as $person_rescued_row
+                  field_value = $input.request_id
+                  data = {status: "failed", updated_at: "now", decided_at: "now", decision_users_id: $auth.id, apply_error: $fail_reason, open_key: null, rev: $tr_fail.rev}
+                } as $failed_row
+                foreach ($tr_fail.family) {
+                  each as $fm {
+                    db.edit change_request {
+                      field_name = "id"
+                      field_value = $fm.id
+                      data = {status: "failed", updated_at: "now", decided_at: "now", decision_users_id: $auth.id, apply_error: $fail_reason, open_key: null, rev: $fm.rev}
+                    } as $failed_member
+                  }
+                }
+
+                foreach ($tr_fail.persons) {
+                  each as $fp {
+                    db.edit change_request {
+                      field_name = "id"
+                      field_value = $fp.id
+                      data = {status: $fp.status, updated_at: "now", decided_at: "now", decision_users_id: $auth.id, decision_comment: "Жоден рядок складу чи штабу не застосовано", open_key: null, rev: $fp.rev}
+                    } as $person_final
+                  }
+                }
+                // has_decision — лише відображення (долю пакета вирішує ключ batch:<id>:fate)
+                db.edit change_batch {
+                  field_name = "id"
+                  field_value = $row.batch_id
+                  data = {has_decision: true, rev: $tr_fail.batch_rev}
+                } as $batch_decided
+                conditional {
+                  if ($tr_fail.close) {
+                    db.edit change_batch {
+                      field_name = "id"
+                      field_value = $row.batch_id
+                      data = {status: "closed", closed_at: "now"}
+                    } as $batch_closed
+                  }
+                }
+            // ТРАНЗАКЦІЯ ↓
+              }
+            }
+            // ТРАНЗАКЦІЯ ↑
+            var.update $ok_fail {
+              value = true
+            }
+          }
+          catch {
+            // Запасний варіант 3.3: свої ключі геть (у транзакції їх уже відкочено — нічого не знайде)
+            foreach ($mine_fail) {
+              each as $mk {
+                try_catch {
+                  try {
+                    db.del change_lock {
+                      field_name = "key"
+                      field_value = $mk
+                    }
+                  }
+                  catch {
+                  }
+                }
               }
             }
           }
         }
-      }
-    }
-
-    // 5. Нова особа: рядки остаточні й жоден не застосовано → її остаточний статус
-    // (повернуто всі — rejected, інакше failed)
-    conditional {
-      if ($row.depends_on_id != null) {
-        db.direct_query {
-          sql = """
-            UPDATE x1_93 p
-            SET status = CASE WHEN EXISTS (SELECT 1 FROM x1_93 r WHERE r.depends_on_id = p.id AND r.status = 'failed') THEN 'failed' ELSE 'rejected' END
-            WHERE p.id = ? AND p.status = 'submitted'
-              AND NOT EXISTS (SELECT 1 FROM x1_93 r WHERE r.depends_on_id = p.id AND r.status IN ('submitted', 'approved', 'applied'))
-            RETURNING id;
-            """
-          response_type = "list"
-          arg = $row.depends_on_id
-        } as $person_final
+        var $held_fail {
+          value = []
+        }
         conditional {
-          if (($person_final|count) > 0) {
-            db.edit change_request {
-              field_name = "id"
-              field_value = $row.depends_on_id
-              data = {updated_at: "now", decided_at: "now", decision_users_id: $auth.id, decision_comment: "Жоден рядок складу чи штабу не застосовано", open_key: null}
-            } as $person_closed
+          if ($ok_fail == false) {
+            foreach ($tr_fail.keys) {
+              each as $hk {
+                db.get change_lock {
+                  field_name = "key"
+                  field_value = $hk.key
+                  output = ["id", "op"]
+                } as $h
+                conditional {
+                  if ($h != null) {
+                    var.update $held_fail {
+                      value = $held_fail|push:$hk.key
+                    }
+                  }
+                }
+              }
+            }
           }
         }
-      }
-    }
-
-    // Пакет закривається за рядками: не лишилось submitted / approved
-    db.direct_query {
-      sql = """
-        UPDATE x1_92 SET status = 'closed'
-        WHERE id = ? AND status = 'submitted'
-          AND NOT EXISTS (SELECT 1 FROM x1_93 r WHERE r.batch_id = x1_92.id AND r.status IN ('submitted', 'approved'))
-        RETURNING id;
-        """
-      response_type = "list"
-      arg = $row.batch_id
-    } as $closed
-    conditional {
-      if (($closed|count) > 0) {
-        db.edit change_batch {
-          field_name = "id"
-          field_value = $row.batch_id
-          data = {closed_at: "now"}
-        } as $batch_closed
+        precondition ($ok_fail || ($held_fail|count) == 0) {
+          error_type = "badrequest"
+          error = "Заявка вже змінилась — оновіть сторінку"
+        }
+        precondition ($ok_fail) {
+          error_type = "standard"
+          error = "Помилка бази — нічого не змінено, спробуйте ще раз"
+        }
       }
     }
 

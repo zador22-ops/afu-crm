@@ -39,7 +39,7 @@ query "club/clubs/{teaminfo_id}/submit" verb=POST {
       where = $db.change_request.teaminfo_id == $input.teaminfo_id && $db.change_request.status == "draft"
       sort = {change_request.id: "asc"}
       return = {type: "list"}
-      output = ["id", "entity", "action", "entity_id", "leagues_id", "after"]
+      output = ["id", "entity", "action", "entity_id", "leagues_id", "after", "rev"]
     } as $drafts
     db.query change_batch {
       where = $db.change_batch.teaminfo_id == $input.teaminfo_id && $db.change_batch.status != "withdrawn"
@@ -114,53 +114,122 @@ query "club/clubs/{teaminfo_id}/submit" verb=POST {
     var $acted_by {
       value = $auth.extras|get:"acted_by_users_id":null
     }
-    db.add change_batch {
-      data = {created_at: "now", teaminfo_id: $input.teaminfo_id, club_account_id: $auth.id, acted_by_users_id: $acted_by, title: $input.title, status: "submitted", submitted_at: "now", has_decision: false, club_comment: $input.club_comment}
-    } as $batch
-
-    // Кожен рядок — CAS одним SQL (рецензія Backend 30.10): лише якщо досі
-    // draft і ще без пакета. Паралельний submit не перехопить ті самі рядки;
-    // знімок before пишемо лише в рядки, які взяв цей пакет. x1_93 — change_request.
-    foreach ($plan.rows) {
-      each as $row {
-        db.direct_query {
-          sql = """
-            UPDATE x1_93 SET status = 'submitted', batch_id = ? WHERE id = ? AND status = 'draft' AND batch_id IS NULL RETURNING id;
-            """
-          response_type = "list"
-          arg = $batch.id
-          arg = $row.id
-        } as $taken
-        conditional {
-          if (($taken|count) > 0) {
-            db.edit change_request {
-              field_name = "id"
-              field_value = $row.id
-              data = {before: $row.before, updated_at: "now"}
-            } as $snapshot
+    var $batch {
+      value = null
+    }
+    // ——— Перехід «submit» — CAS v2 (AFU docs/xano/club-self-service-cas-v2.md) ———
+    // Замки change_lock (унікальний key) і записи — в одній транзакції. Конфлікт
+    // визначається за станом (чи є ключ) ПОЗА транзакцією, не за текстом помилки.
+    // ЗАПАСНИЙ ВАРІАНТ 3.3 (якщо Ж1–Ж2 не пройдуть): прибрати рядки між позначками
+    // «ТРАНЗАКЦІЯ ↓» і «ТРАНЗАКЦІЯ ↑» (обгортку db.transaction / stack і її дужки);
+    // прибирання своїх ключів у catch уже є.
+    api.lambda {
+      code = """
+        // Замок на кожну чернетку (за зростанням id): паралельний submit тих самих рядків — 409
+        const рев = new Map(($var.drafts || []).map((d) => [d.id, d.rev || 0]));
+        const рядки = ($var.plan.rows || []).map((r) => ({ id: r.id, before: r.before, rev: (рев.get(r.id) || 0) + 1 })).sort((a, b) => a.id - b.id);
+        return {
+          keys: рядки.map((r) => ({ key: 'cr:' + r.id + ':' + (r.rev - 1), op: 'submit', request_id: r.id, batch_id: null })),
+          rows: рядки,
+        };
+      """
+      timeout = 5
+    } as $tr_submit
+    var $mine_submit {
+      value = []
+    }
+    var $ok_submit {
+      value = false
+    }
+    try_catch {
+      try {
+        // ТРАНЗАКЦІЯ ↓
+        db.transaction {
+          stack {
+        // ТРАНЗАКЦІЯ ↑
+            foreach ($tr_submit.keys) {
+              each as $lk {
+                db.add change_lock {
+                  data = {created_at: "now", key: $lk.key, op: $lk.op, request_id: $lk.request_id, batch_id: $lk.batch_id, users_id: $acted_by, club_account_id: $auth.id}
+                } as $lock_submit
+                var.update $mine_submit {
+                  value = $mine_submit|push:$lk.key
+                }
+              }
+            }
+            db.add change_batch {
+              data = {created_at: "now", teaminfo_id: $input.teaminfo_id, club_account_id: $auth.id, acted_by_users_id: $acted_by, title: $input.title, status: "submitted", submitted_at: "now", has_decision: false, club_comment: $input.club_comment, rev: 0}
+            } as $added_batch
+            var.update $batch {
+              value = $added_batch
+            }
+            foreach ($tr_submit.rows) {
+              each as $row {
+                db.edit change_request {
+                  field_name = "id"
+                  field_value = $row.id
+                  data = {status: "submitted", batch_id: $added_batch.id, before: $row.before, updated_at: "now", rev: $row.rev}
+                } as $submitted_row
+              }
+            }
+        // ТРАНЗАКЦІЯ ↓
+          }
+        }
+        // ТРАНЗАКЦІЯ ↑
+        var.update $ok_submit {
+          value = true
+        }
+      }
+      catch {
+        // Запасний варіант 3.3: свої ключі геть (у транзакції їх уже відкочено — нічого не знайде)
+        foreach ($mine_submit) {
+          each as $mk {
+            try_catch {
+              try {
+                db.del change_lock {
+                  field_name = "key"
+                  field_value = $mk
+                }
+              }
+              catch {
+              }
+            }
           }
         }
       }
     }
-
-    // Усе перехопив паралельний запит — порожнього пакета не лишаємо
-    db.query change_request {
-      where = $db.change_request.batch_id == $batch.id
-      return = {type: "count"}
-    } as $in_batch
+    var $held_submit {
+      value = []
+    }
     conditional {
-      if ($in_batch == 0) {
-        db.del change_batch {
-          field_name = "id"
-          field_value = $batch.id
+      if ($ok_submit == false) {
+        foreach ($tr_submit.keys) {
+          each as $hk {
+            db.get change_lock {
+              field_name = "key"
+              field_value = $hk.key
+              output = ["id", "op"]
+            } as $h
+            conditional {
+              if ($h != null) {
+                var.update $held_submit {
+                  value = $held_submit|push:$hk.key
+                }
+              }
+            }
+          }
         }
       }
     }
-    precondition ($in_batch > 0) {
+    precondition ($ok_submit || ($held_submit|count) == 0) {
       error_type = "badrequest"
       error = "Заявка вже змінилась — оновіть сторінку"
     }
+    precondition ($ok_submit) {
+      error_type = "standard"
+      error = "Помилка бази — нічого не змінено, спробуйте ще раз"
+    }
   }
 
-  response = {batch: {id: $batch.id, status: $batch.status, submitted_at: $batch.submitted_at}, rows: $in_batch}
+  response = {batch: {id: $batch.id, status: $batch.status, submitted_at: $batch.submitted_at}, rows: $tr_submit.rows|count}
 }

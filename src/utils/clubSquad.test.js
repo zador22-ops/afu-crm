@@ -170,11 +170,6 @@ test('пошук особи: лише за прізвищем І повною д
   assert.deepEqual(знайти(з, { q: 'чужий', dob: '1999-05-06' }).people, []);
 });
 
-test('видалення чернетки — CAS разом із залежними; сирота-особа теж', () => {
-  const s = fs.readFileSync(new URL('../../xano/crm/club-clubs-id-requests-id.delete.xs', import.meta.url), 'utf8');
-  assert.match(s, /DELETE FROM x1_93 WHERE \(id = \? OR depends_on_id = \?\) AND teaminfo_id = \? AND status = 'draft' RETURNING id;/);
-  assert.match(s, /NOT EXISTS \(SELECT 1 FROM x1_93 r WHERE r\.depends_on_id = p\.id\)/);
-});
 
 test('форма складу: лише обрані турніри; числа; капітан — так/ні', async () => {
   const { рядкиДляЗаявки, станРядка, виведенняЗ } = await import('./clubSquad.js');

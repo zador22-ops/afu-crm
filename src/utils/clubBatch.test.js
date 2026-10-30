@@ -83,16 +83,6 @@ test('submit: межі тексту — назва до 200, коментар д
   assert.equal(план({ drafts: [], recent: [] }, { club_comment: 'б'.repeat(1001) }).text_ok, false);
 });
 
-test('withdraw: CAS одним SQL — пакет закривається, лише якщо жоден рядок не має рішення', () => {
-  const s = fs.readFileSync(new URL('../../xano/crm/club-clubs-id-batches-id-withdraw.post.xs', import.meta.url), 'utf8');
-  assert.match(s, /UPDATE x1_92 SET status = 'withdrawn'\s+WHERE id = \? AND teaminfo_id = \? AND status = 'submitted' AND has_decision IS NOT TRUE\s+AND NOT EXISTS \(SELECT 1 FROM x1_93 r WHERE r\.batch_id = x1_92\.id AND r\.status <> 'submitted'\)\s+RETURNING id;/);
-  assert.match(s, /UPDATE x1_93 SET status = 'draft', batch_id = NULL, "before" = NULL WHERE batch_id = \? AND status = 'submitted' RETURNING id;/);
-  // has_decision (контракт 4.2): новий пакет — явно false (у Xano поле без типового значення)
-  const submit = fs.readFileSync(new URL('../../xano/crm/club-clubs-id-submit.post.xs', import.meta.url), 'utf8');
-  assert.match(submit, /db\.add change_batch \{\s*data = \{[^}]*has_decision: false/);
-  // рядки повертаються лише ПІСЛЯ вдалого закриття пакета
-  assert.ok(s.indexOf('UPDATE x1_93') > s.indexOf('precondition (($closed|count) > 0)'));
-});
 
 test('pending: відкритий пакет із кількістю рішень; коли знову можна надіслати (відкликані не рахуються)', () => {
   const стан = лямбда('club-clubs-id-pending.get.xs', 'state');

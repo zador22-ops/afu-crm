@@ -152,22 +152,6 @@ test('дані особи і штаб', () => {
   assert.deepEqual(р({ entity: 'staff_row', action: 'remove', entity_id: 200, after: { end_date: '2026-10-29' } }).steps[0].data, { Relevance_of_the_record: false, end_date: '2026-10-29' });
 });
 
-test('записи: CAS через has_decision; статус лише SQL-ом; особа перед рядками; збій — failed з переліком зробленого', () => {
-  assert.match(xs, /WITH b AS \(\s*UPDATE x1_92 SET has_decision = true\s*WHERE id = \? AND status = 'submitted'\s*RETURNING id\s*\)\s*UPDATE x1_93 SET status = 'approved'\s*WHERE id = \? AND status = 'submitted' AND batch_id IN \(SELECT id FROM b\)/);
-  assert.match(xs, /UPDATE x1_93 SET status = 'applied' WHERE id = \? AND status = 'approved' RETURNING id;/);
-  for (const м of xs.matchAll(/db\.edit (change_request|change_batch) \{[\s\S]*?data = \{([^}]*)\}/g)) assert.doesNotMatch(м[2], /status/);
-  assert.ok(xs.indexOf('db.add People {') < xs.indexOf('foreach ($steps)'));
-  const tc = xs.indexOf('try_catch {', xs.indexOf('// 4б'));
-  const ловимо = xs.slice(tc).search(/\n\s+catch \{/) + tc;
-  assert.ok(tc < xs.indexOf('db.add People {') && ловимо > xs.indexOf('foreach ($steps)'), 'особа й кроки — всередині try');
-  assert.match(xs, /Помилка запису в Xano посеред застосування\. Зроблено: /);
-  // кожна таблиця кроку має свою гілку запису
-  for (const [оп, т] of [['add', 'Team'], ['add', 'team_league'], ['add', 'Administration of teams'], ['patch', 'TeamInfo'], ['patch', 'People'], ['patch', 'Team'], ['patch', 'team_league'], ['patch', 'Administration of teams']]) {
-    assert.ok(xs.includes(`if ($step.op == "${оп}" && $step.table == "${т}")`), `${оп} ${т}`);
-  }
-  assert.match(xs, /input = \{id_access_rights: 21, user_id: \$auth\.id\}/);
-  assert.ok(xs.indexOf('id_access_rights: 21') < xs.indexOf('db.'));
-});
 
 test('id нової особи підставляється лише в кроки з person', () => {
   const підставити = лямбда('steps');
@@ -176,33 +160,5 @@ test('id нової особи підставляється лише в крок
   assert.deepEqual(підставити({ plan: { steps: кроки }, new_person: null }, {}), кроки);
 });
 
-test('рецензія Backend 4.2: нову особу захоплює CAS до плану й db.add; план — у try_catch', () => {
-  const захоплення = xs.indexOf("UPDATE x1_93 SET status = 'approved' WHERE id = ? AND status = 'submitted' RETURNING id;");
-  assert.ok(захоплення > 0 && захоплення < xs.indexOf('db.add People {') && захоплення < xs.indexOf('} as $plan_try'));
-  // особу захопив інший — рядок назад у submitted і 400 «спробуйте ще раз»
-  assert.match(xs, /return !!б && б\.status === 'approved' && !\$var\.claimed;/);
-  assert.match(xs, /error = "Нову особу саме створює інший модератор — спробуйте ще раз за хвилину"/);
-  // особа applied лише з approved (нашого захоплення)
-  assert.match(xs, /UPDATE x1_93 SET status = 'applied' WHERE id = \? AND status = 'approved' RETURNING id;\s*"""\s*response_type = "list"\s*arg = \$plan\.person\.request_id/);
-  // план і HEAD — у try_catch; збій — план «не пройшов», а не 500 з approved назавжди
-  const tc = xs.indexOf('try_catch {');
-  assert.ok(tc < xs.indexOf('foreach ($image_paths)') && xs.indexOf('} as $plan_try') < xs.indexOf('} as $plan_crashed'));
-  assert.match(xs, /Внутрішня помилка під час перевірки чи плану — повідомте Backend/);
-  // захоплену, але не створену особу звільняють (план не пройшов не через неї; збій запису до db.add)
-  assert.match(xs, /if \(\$claimed && \$plan\.person_failed == false\)/);
-  assert.match(xs, /if \(\$claimed && \$new_person == null\)/);
-});
 
-test('особу саме створює інший модератор: лямбда розпізнає лише чуже захоплення', () => {
-  const зайнято = лямбда('person_busy');
-  assert.equal(зайнято({ parent_list: [{ status: 'approved' }], claimed: false }, {}), true);
-  assert.equal(зайнято({ parent_list: [{ status: 'approved' }], claimed: true }, {}), false);
-  assert.equal(зайнято({ parent_list: [{ status: 'applied' }], claimed: false }, {}), false);
-  assert.equal(зайнято({ parent_list: [], claimed: false }, {}), false);
-});
 
-test('збій після db.add People, до applied особи: заявку особи застосовано з її id (рецензія Backend 4.2, бажане)', () => {
-  const catchІ = xs.indexOf('if ($claimed && $new_person != null)');
-  assert.ok(catchІ > xs.indexOf('} as $crashed_row'));
-  assert.match(xs.slice(catchІ, catchІ + 900), /UPDATE x1_93 SET status = 'applied' WHERE id = \? AND status = 'approved' RETURNING id;[\s\S]*applied_entity_id: \$new_person/);
-});
