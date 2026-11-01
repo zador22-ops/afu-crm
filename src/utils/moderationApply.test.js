@@ -135,10 +135,12 @@ test('виведення з основного, коли є додатковий
   // без додаткових — просто закрити Team
   assert.deepEqual(р({ entity: 'squad_row', action: 'remove', entity_id: 100, leagues_id: 10, after: { End_date: '2026-10-30' } }).steps[0].data, { Relevance_of_the_record: false, End_date: '2026-10-30' });
   assert.equal(р({ entity: 'squad_row', action: 'remove', entity_id: 100, leagues_id: 10, after: { End_date: '2026-11-05' } }).failed, 'Дата виведення не може бути в майбутньому');
+  // у журнал — id рядка, що змінився (Backend, пакет #5): основний Team при зміні основного турніру
+  assert.equal(р({ entity: 'squad_row', action: 'remove', entity_id: 100, leagues_id: 10, after: { End_date: '2026-10-30' } }, з).applied_id, 100);
 });
 
 test('зміна номера: основний — Team, додатковий — team_league', () => {
-  assert.deepEqual(р({ entity: 'squad_row', action: 'update', entity_id: 100, leagues_id: 10, after: { Number: 8, Captain: true } }).steps[0], { table: 'Team', op: 'patch', id: 100, data: { Number: 8, Captain: true }, label: 'рядок складу змінено' });
+  assert.deepEqual(р({ entity: 'squad_row', action: 'update', entity_id: 100, leagues_id: 10, after: { Number: 8, Captain: true } }).steps[0], { table: 'Team', op: 'patch', id: 100, data: { Number: 8, Captain: true }, label: 'рядок складу змінено', applied_id: 100 });
   const з = { extra: [{ id: 8, team_id: 100, people_id: 1, teaminfo_id: 20, leagues_id: 12, Number: 17, is_active: true }] };
   assert.deepEqual(р({ entity: 'squad_row', action: 'update', entity_id: 100, leagues_id: 12, after: { Number: 18 } }, з).steps[0].data, { Number: 18 });
 });
@@ -151,6 +153,7 @@ test('дані особи і штаб', () => {
   assert.equal(р({ entity: 'staff_row', action: 'create', people_id: 1, after: { positions_id: 4 } }).failed, 'Ця особа вже на цій посаді в цьому клубі');
   assert.deepEqual(р({ entity: 'staff_row', action: 'update', entity_id: 200, after: { positions_id: 5 } }).steps[0].data, { positions_id: 5 });
   assert.deepEqual(р({ entity: 'staff_row', action: 'remove', entity_id: 200, after: { end_date: '2026-10-29' } }).steps[0].data, { Relevance_of_the_record: false, end_date: '2026-10-29' });
+  assert.equal(р({ entity: 'staff_row', action: 'remove', entity_id: 200, after: { end_date: '2026-10-29' } }).applied_id, 200);
 });
 
 

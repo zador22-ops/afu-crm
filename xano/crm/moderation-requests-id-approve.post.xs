@@ -582,12 +582,12 @@ function підсумокЗаявки(план, рішення, хто, коли
                   }
                 } else if (з.entity === 'squad_row' && з.action === 'update') {
                   план = планЗмінитиСклад(з, рядок, ctx);
-                  if (план.ok) кроки.push({ table: план.table, op: 'patch', id: план.id, data: план.patch, label: план.table === 'Team' ? 'рядок складу змінено' : 'номер у додатковому турнірі змінено' });
+                  if (план.ok) кроки.push({ table: план.table, op: 'patch', id: план.id, data: план.patch, label: план.table === 'Team' ? 'рядок складу змінено' : 'номер у додатковому турнірі змінено', applied_id: план.id });
                 } else if (з.entity === 'squad_row' && з.action === 'remove') {
                   const ліга = з.leagues_id || (рядок && рядок.leagues_id);
                   план = планВивестиЗТурніру(з, рядок, додаткові, { ...ctx, вікно: ліга ? вікноЛіги(ліга) : null });
                   if (план.ok) {
-                    кроки.push({ table: план.table, op: 'patch', id: план.id, data: план.edit || план.patch, label: план.patch ? 'основний турнір гравця змінено' : план.table === 'Team' ? 'гравця виведено зі складу' : 'гравця виведено з додаткового турніру' });
+                    кроки.push({ table: план.table, op: 'patch', id: план.id, data: план.edit || план.patch, label: план.patch ? 'основний турнір гравця змінено' : план.table === 'Team' ? 'гравця виведено зі складу' : 'гравця виведено з додаткового турніру', applied_id: план.id });
                     if (план.також) кроки.push({ table: план.також.table, op: 'patch', id: план.також.id, data: план.також.edit, label: 'колишній додатковий турнір вимкнено' });
                   }
                 } else if (з.entity === 'staff_row' && з.action === 'create') {
@@ -595,10 +595,10 @@ function підсумокЗаявки(план, рішення, хто, коли
                   if (план.ok) кроки.push({ table: 'Administration of teams', op: 'add', data: план.add, person: 'people_id', label: 'людину додано до штабу', created: true });
                 } else if (з.entity === 'staff_row' && з.action === 'update') {
                   план = планЗмінитиШтаб(з, рядок, ctx);
-                  if (план.ok) кроки.push({ table: 'Administration of teams', op: 'patch', id: план.id, data: план.patch, label: 'посаду змінено' });
+                  if (план.ok) кроки.push({ table: 'Administration of teams', op: 'patch', id: план.id, data: план.patch, label: 'посаду змінено', applied_id: план.id });
                 } else if (з.entity === 'staff_row' && з.action === 'remove') {
                   план = планВивестиШтаб(з, рядок, ctx);
-                  if (план.ok) кроки.push({ table: 'Administration of teams', op: 'patch', id: план.id, data: план.edit, label: 'людину виведено зі штабу' });
+                  if (план.ok) кроки.push({ table: 'Administration of teams', op: 'patch', id: план.id, data: план.edit, label: 'людину виведено зі штабу', applied_id: план.id });
                 } else план = невдача('Невідомий тип заявки');
               }
             }
