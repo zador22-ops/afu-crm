@@ -8,7 +8,9 @@ query matches verb=POST {
     int team2_id filters=min:1
     int leagues_id filters=min:1
     int tours_id filters=min:1
-    int venues_id filters=min:1
+    // Арена необовʼязкова (Андрій, 01.11): немає — 0, типове значення поля
+    // (застосунок ховає рядок «Арена», сайт — venue null, CRM / ADMIN — «—»)
+    int venues_id?
     int match_status_id filters=min:1
     int referee1_id?
     int referee2_id?

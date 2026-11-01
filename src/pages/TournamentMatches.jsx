@@ -228,7 +228,9 @@ function MatchForm({ item, tid, tours, команди, onClose, onSave, onDelete
       team1_id: Number(values.team1_id),
       team2_id: Number(values.team2_id),
       tours_id: Number(values.tours_id),
-      venues_id: Number(values.venues_id),
+      // Арена необовʼязкова (Андрій, 01.11): «—» — 0, як типове значення поля Match.venues_id;
+      // застосунок ховає рядок «Арена», сайт віддає venue null, CRM і ADMIN показують «—»
+      venues_id: Number(values.venues_id) || 0,
       referee1_id: число(values.referee1_id),
       referee2_id: число(values.referee2_id),
       referee3_id: число(values.referee3_id),
@@ -300,8 +302,8 @@ function MatchForm({ item, tid, tours, команди, onClose, onSave, onDelete
           </Field>
         </div>
         <div className="row2">
-          <Field label="Арена">
-            <select value={values.venues_id} onChange={set('venues_id')} required>
+          <Field label="Арена" hint="Можна лишити порожньою">
+            <select value={values.venues_id} onChange={set('venues_id')}>
               <option value="">—</option>
               {(venues.data || []).map((v) => (
                 <option key={v.id} value={v.id}>
