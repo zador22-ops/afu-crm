@@ -728,8 +728,17 @@ function підсумокЗаявки(план, рішення, хто, коли
                 }
                 conditional {
                   if ($plan.person != null) {
+                    // db.add не приймає змінну як data (Xano: «Invalid kind for data — assign:var») —
+                    // поля явно; лямбда заповнює кожен ключ (відсутній ключ у Xano — 500)
+                    api.lambda {
+                      code = """
+                        const д = ($var.plan.person && $var.plan.person.data) || {};
+                        return Object.fromEntries(['prizvushche', 'Name', 'po_batkovi', 'Date_of_birth', 'Photo', 'City', 'Growth', 'Weight'].map((k) => [k, д[k] === undefined ? null : д[k]]));
+                      """
+                      timeout = 5
+                    } as $person_data
                     db.add People {
-                      data = $plan.person.data
+                      data = {prizvushche: $person_data.prizvushche, Name: $person_data.Name, po_batkovi: $person_data.po_batkovi, Date_of_birth: $person_data.Date_of_birth, Photo: $person_data.Photo, City: $person_data.City, Growth: $person_data.Growth, Weight: $person_data.Weight}
                     } as $person_row
                     var.update $new_person {
                       value = $person_row.id
@@ -744,16 +753,25 @@ function підсумокЗаявки(план, рішення, хто, коли
                 // id нової особи — у кроки, що на неї посилаються
                 api.lambda {
                   code = """
-                    return ($var.plan.steps || []).map((к) => (к.person && $var.new_person ? { ...к, data: { ...к.data, [к.person]: $var.new_person } } : к));
+                    // id нової особи — у кроки, що на неї посилаються; add-кроки — усі ключі таблиці (null, якщо немає)
+                    const ПОЛЯ = { Team: ['player_id', 'teaminfo_id', 'leagues_id', 'Number', 'positions_id', 'Captain', 'Date', 'Relevance_of_the_record'], team_league: ['team_id', 'people_id', 'teaminfo_id', 'leagues_id', 'Number', 'Date', 'is_active'], "Administration of teams": ['people_id', 'teaminfo_id', 'positions_id', 'leagues_id', 'Date', 'Relevance_of_the_record'] };
+                    return ($var.plan.steps || []).map((к) => {
+                      const з = к.person && $var.new_person ? { ...к, data: { ...к.data, [к.person]: $var.new_person } } : к;
+                      if (з.op !== 'add') return з;
+                      return { ...з, data: Object.fromEntries((ПОЛЯ[з.table] || Object.keys(з.data)).map((k) => [k, з.data[k] === undefined ? null : з.data[k]])) };
+                    });
                   """
                   timeout = 5
                 } as $steps
+                var $patch_data {
+                  value = null
+                }
                 foreach ($steps) {
                   each as $step {
                     conditional {
                       if ($step.op == "add" && $step.table == "Team") {
                         db.add Team {
-                          data = $step.data
+                          data = {player_id: $step.data.player_id, teaminfo_id: $step.data.teaminfo_id, leagues_id: $step.data.leagues_id, Number: $step.data.Number, positions_id: $step.data.positions_id, Captain: $step.data.Captain, Date: $step.data.Date, Relevance_of_the_record: $step.data.Relevance_of_the_record}
                         } as $added
                         var.update $created {
                           value = $added.id
@@ -763,7 +781,7 @@ function підсумокЗаявки(план, рішення, хто, коли
                     conditional {
                       if ($step.op == "add" && $step.table == "team_league") {
                         db.add team_league {
-                          data = $step.data
+                          data = {team_id: $step.data.team_id, people_id: $step.data.people_id, teaminfo_id: $step.data.teaminfo_id, leagues_id: $step.data.leagues_id, Number: $step.data.Number, Date: $step.data.Date, is_active: $step.data.is_active}
                         } as $added
                         var.update $created {
                           value = $added.id
@@ -773,7 +791,7 @@ function підсумокЗаявки(план, рішення, хто, коли
                     conditional {
                       if ($step.op == "add" && $step.table == "Administration of teams") {
                         db.add "Administration of teams" {
-                          data = $step.data
+                          data = {people_id: $step.data.people_id, teaminfo_id: $step.data.teaminfo_id, positions_id: $step.data.positions_id, leagues_id: $step.data.leagues_id, Date: $step.data.Date, Relevance_of_the_record: $step.data.Relevance_of_the_record}
                         } as $added
                         var.update $created {
                           value = $added.id
@@ -782,46 +800,61 @@ function підсумокЗаявки(план, рішення, хто, коли
                     }
                     conditional {
                       if ($step.op == "patch" && $step.table == "TeamInfo") {
+                        var.update $patch_data {
+                          value = $step.data
+                        }
                         db.patch TeamInfo {
                           field_name = "id"
                           field_value = $step.id
-                          data = $step.data
+                          data = $patch_data
                         } as $patched
                       }
                     }
                     conditional {
                       if ($step.op == "patch" && $step.table == "People") {
+                        var.update $patch_data {
+                          value = $step.data
+                        }
                         db.patch People {
                           field_name = "id"
                           field_value = $step.id
-                          data = $step.data
+                          data = $patch_data
                         } as $patched
                       }
                     }
                     conditional {
                       if ($step.op == "patch" && $step.table == "Team") {
+                        var.update $patch_data {
+                          value = $step.data
+                        }
                         db.patch Team {
                           field_name = "id"
                           field_value = $step.id
-                          data = $step.data
+                          data = $patch_data
                         } as $patched
                       }
                     }
                     conditional {
                       if ($step.op == "patch" && $step.table == "team_league") {
+                        var.update $patch_data {
+                          value = $step.data
+                        }
                         db.patch team_league {
                           field_name = "id"
                           field_value = $step.id
-                          data = $step.data
+                          data = $patch_data
                         } as $patched
                       }
                     }
                     conditional {
                       if ($step.op == "patch" && $step.table == "Administration of teams") {
+                        var.update $patch_data {
+                          value = $step.data
+                        }
                         db.patch "Administration of teams" {
                           field_name = "id"
                           field_value = $step.id
-                          data = $step.data
+                          data = $patch_data
                         } as $patched
                       }
                     }

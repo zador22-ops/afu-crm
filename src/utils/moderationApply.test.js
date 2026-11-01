@@ -156,8 +156,14 @@ test('дані особи і штаб', () => {
 test('id нової особи підставляється лише в кроки з person', () => {
   const підставити = лямбда('steps');
   const кроки = [{ table: 'Team', op: 'add', data: { player_id: -1, Number: 9 }, person: 'player_id' }, { table: 'Team', op: 'patch', id: 5, data: { x: 1 } }];
-  assert.deepEqual(підставити({ plan: { steps: кроки }, new_person: 77 }, {}), [{ table: 'Team', op: 'add', data: { player_id: 77, Number: 9 }, person: 'player_id' }, кроки[1]]);
-  assert.deepEqual(підставити({ plan: { steps: кроки }, new_person: null }, {}), кроки);
+  // add-крок — усі ключі таблиці (db.add у Xano не бере змінну як data — поля явні; відсутній ключ дав би 500)
+  const повний = (д) => ({ player_id: null, teaminfo_id: null, leagues_id: null, Number: null, positions_id: null, Captain: null, Date: null, Relevance_of_the_record: null, ...д });
+  assert.deepEqual(підставити({ plan: { steps: кроки }, new_person: 77 }, {}), [{ table: 'Team', op: 'add', data: повний({ player_id: 77, Number: 9 }), person: 'player_id' }, кроки[1]]);
+  assert.deepEqual(підставити({ plan: { steps: кроки }, new_person: null }, {}), [{ ...кроки[0], data: повний({ player_id: -1, Number: 9 }) }, кроки[1]]);
+  // явні поля в db.add; patch — через змінну верхнього рівня (як governing-bodies-id.patch)
+  assert.doesNotMatch(xs, /data = \$step\.data|data = \$plan\.person\.data/);
+  assert.match(xs, /db\.add Team \{\s*data = \{player_id: \$step\.data\.player_id, /);
+  assert.match(xs, /db\.add People \{\s*data = \{prizvushche: \$person_data\.prizvushche, /);
 });
 
 
