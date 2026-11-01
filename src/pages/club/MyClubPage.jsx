@@ -180,7 +180,7 @@ function CardForm({ teaminfoId, initial, venues, onClose, onSave }) {
         </div>
         <ErrorBox error={помилкаФайлу} />
         <Field label="Місто" hint="Як показується під назвою клубу на сайті й у застосунку, напр. «Київ»">
-          <input value={в.TeamInfo} onChange={set('TeamInfo')} maxLength={100} />
+          <input value={в.TeamInfo} onChange={set('TeamInfo')} maxLength={60} />
         </Field>
         <div className="row2">
           <Field label="Рік заснування">

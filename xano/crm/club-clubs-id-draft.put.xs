@@ -84,7 +84,7 @@ query "club/clubs/{teaminfo_id}/draft" verb=PUT {
             }
             const t = рядок(v);
             // TeamInfo — МІСТО (сайт `city`, застосунок — підзаголовок клубу), не «Про клуб» (рішення PM 2, 01.11)
-            if (k === 'TeamInfo' && t.length > 100) ok.about_ok = false;
+            if (k === 'TeamInfo' && t.length > 60) ok.about_ok = false;
             if (k !== 'TeamInfo' && t.length > 200) ok.text_ok = false;
             if (['website', 'instagram', 'facebook', 'youtube'].includes(k) && t && !/^https?:\/\/\S+$/i.test(t)) ok.urls_ok = false;
             if (['kit_color_primary', 'kit_color_secondary'].includes(k) && t && !/^#[0-9a-f]{6}$/i.test(t)) ok.colors_ok = false;
@@ -110,7 +110,7 @@ query "club/clubs/{teaminfo_id}/draft" verb=PUT {
     }
     precondition ($plan.about_ok) {
       error_type = "badrequest"
-      error = "Місто — до 100 знаків"
+      error = "Місто — до 60 знаків"
     }
     precondition ($plan.text_ok) {
       error_type = "badrequest"

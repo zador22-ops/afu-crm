@@ -144,7 +144,7 @@ null), після живих перевірок механізму Ж1–Ж5:
 - `GET crm/club/clubs/{teaminfo_id}/draft` → `{ draft }` — відкрита заявка на картку (`open_key = club:<id>`):
   `{ id, status: draft|submitted, after, club_comment, batch_id, updated_at, created_at, acted_by_users_id }` або null.
 - `PUT crm/club/clubs/{teaminfo_id}/draft` `{ after, club_comment? }` — форма цілком; сервер лишає в `after`
-  лише відмінні від чинної картки поля: `TeamLogo`, `TeamPhoto` (лише з `/vault/`), `TeamInfo` — **місто** (≤ 100; ТЗ 2.1 помилково називав його «Про клуб», рішення PM 2 01.11),
+  лише відмінні від чинної картки поля: `TeamLogo`, `TeamPhoto` (лише з `/vault/`), `TeamInfo` — **місто** (≤ 60; ТЗ 2.1 помилково називав його «Про клуб», рішення PM 2 01.11),
   `founded_year` (1850…поточний), `home_venues_id` (з `Venues`), `venue_suggestion` (текст для АФУ, у таблицю
   не пишеться), `website`/`instagram`/`facebook`/`youtube` (`https://…`), `kit_color_primary`/`secondary`
   (`#RRGGBB`), `contact_name`/`phone`/`email`. Порожнє поле — `null` (очистити); прибрати фото не можна. Будь-яке
