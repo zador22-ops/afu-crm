@@ -24,7 +24,9 @@ test('сервер: лишає в after лише змінене; ключ club:<
 test('сервер: поля лише АФУ й недопустимі значення — відмова', () => {
   assert.equal(план({ TeamName: 'Нова назва' }).fields_ok, false);
   assert.equal(план({ parent_teaminfo_id: 3 }).fields_ok, false);
-  assert.equal(план({ TeamInfo: 'а'.repeat(2001) }).about_ok, false);
+  // TeamInfo — місто, до 100 знаків
+  assert.equal(план({ TeamInfo: 'а'.repeat(101) }).about_ok, false);
+  assert.equal(план({ TeamInfo: 'а'.repeat(100) }).about_ok, true);
   assert.equal(план({ founded_year: '1700' }).year_ok, false);
   assert.equal(план({ founded_year: '2999' }).year_ok, false);
   assert.equal(план({ home_venues_id: 99 }).venue_ok, false);

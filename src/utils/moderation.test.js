@@ -132,7 +132,7 @@ test('«Погодження» — лише право 21, до будь-яко�
 test('«було / стане»: поля з білого списку в його порядку; назви посилань; create — без «було»', () => {
   const labels = { positions: { 1: 'Універсал' }, venues: { 3: 'м. Тест, СК' } };
   assert.deepEqual(порівняння({ entity: 'club', before: { home_venues_id: null, TeamInfo: 'Старе' }, after: { TeamInfo: 'Нове', home_venues_id: 3, Relevance: false } }, labels), [
-    { key: 'TeamInfo', label: 'Про клуб', kind: 'text', before: 'Старе', after: 'Нове' },
+    { key: 'TeamInfo', label: 'Місто', kind: 'text', before: 'Старе', after: 'Нове' },
     { key: 'home_venues_id', label: 'Домашня арена', kind: 'venue', before: null, after: 'м. Тест, СК' },
   ]);
   assert.deepEqual(порівняння({ entity: 'squad_row', before: null, after: { Number: 9, positions_id: 1, Captain: true } }, labels).map((x) => [x.label, x.before, x.after]), [

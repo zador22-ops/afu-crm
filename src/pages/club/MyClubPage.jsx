@@ -179,8 +179,8 @@ function CardForm({ teaminfoId, initial, venues, onClose, onSave }) {
           ))}
         </div>
         <ErrorBox error={помилкаФайлу} />
-        <Field label={`Про клуб — ${String(в.TeamInfo || '').length} / 2000`}>
-          <textarea rows={5} value={в.TeamInfo} onChange={set('TeamInfo')} maxLength={2000} />
+        <Field label="Місто" hint="Як показується під назвою клубу на сайті й у застосунку, напр. «Київ»">
+          <input value={в.TeamInfo} onChange={set('TeamInfo')} maxLength={100} />
         </Field>
         <div className="row2">
           <Field label="Рік заснування">

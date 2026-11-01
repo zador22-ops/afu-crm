@@ -6,7 +6,9 @@
 // Поля ТЗ 2.1, які клуб пропонує змінити. Назву, турнір, материнський клуб і
 // «актуальний» змінює лише АФУ — їх у формі немає.
 export const ПОЛЯ_КАРТКИ = [
-  { key: 'TeamInfo', label: 'Про клуб', kind: 'text', max: 2000 },
+  // TeamInfo — це МІСТО (CRM АФУ «Місто», сайт `city`, підзаголовок клубу в застосунку): ТЗ 2.1 помилково
+  // називав його «довідка Про клуб» (жива перевірка Г1 01.11; рішення PM 2). «Про клуб» — окремою задачею.
+  { key: 'TeamInfo', label: 'Місто', kind: 'text', max: 100 },
   { key: 'founded_year', label: 'Рік заснування', kind: 'year' },
   { key: 'home_venues_id', label: 'Домашня арена', kind: 'venue' },
   { key: 'website', label: 'Сайт', kind: 'url' },
@@ -62,7 +64,7 @@ export function статусЧернетки(чернетка) {
 export function помилкиФорми(в, рік = new Date().getFullYear()) {
   const п = [];
   const t = (k) => рядок(в[k]).trim();
-  if (t('TeamInfo').length > 2000) п.push('«Про клуб» — до 2000 знаків');
+  if (t('TeamInfo').length > 100) п.push('Місто — до 100 знаків');
   if (t('founded_year') && !(/^\d{4}$/.test(t('founded_year')) && +t('founded_year') >= 1850 && +t('founded_year') <= рік)) п.push('Рік заснування — від 1850 до поточного');
   for (const k of ['website', 'instagram', 'facebook', 'youtube']) if (t(k) && !/^https?:\/\/\S+$/i.test(t(k))) п.push('Посилання на сайт і соцмережі мають починатися з https://');
   for (const k of ['kit_color_primary', 'kit_color_secondary']) if (t(k) && !/^#[0-9a-f]{6}$/i.test(t(k))) п.push('Колір форми — у вигляді #1A2B3C');
