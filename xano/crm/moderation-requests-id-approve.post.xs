@@ -282,7 +282,8 @@ function планКлубу(заявка, клуб) {
     if (є(дані[к]) && !/^#[0-9A-Fa-f]{6}$/.test(дані[к])) return невдача('Колір форми має бути у форматі #RRGGBB');
   }
   if (є(дані.founded_year) && !(Number.isInteger(Number(дані.founded_year)) && дані.founded_year >= 1850 && дані.founded_year <= 2100)) return невдача('Рік заснування поза межами');
-  if (є(дані.TeamInfo) && String(дані.TeamInfo).length > 2000) return невдача('Довідка «Про клуб» довша за 2000 знаків');
+  // TeamInfo — МІСТО клубу (site city, пошук застосунку, CRM АФУ), не довідка: PM 2, 01.11.2026
+  if (є(дані.TeamInfo) && String(дані.TeamInfo).length > 60) return невдача('Місто довше за 60 знаків');
   return { ok: true, table: 'TeamInfo', id: клуб.id, patch: дані, venue_suggestion: пропозиціяАрени };
 }
 
@@ -528,12 +529,12 @@ function підсумокЗаявки(план, рішення, хто, коли
             if (відсутні.length) план = невдача('Файл зображення не знайдено — завантажте його знову');
             else if (з.entity === 'club') {
               план = планКлубу(з, клуб);
-              if (план.ok && Object.keys(план.patch || {}).length) кроки.push({ table: 'TeamInfo', op: 'patch', id: план.id, data: план.patch, label: 'картку клубу змінено' });
+              if (план.ok && Object.keys(план.patch || {}).length) кроки.push({ table: 'TeamInfo', op: 'patch', id: план.id, data: план.patch, label: 'картку клубу змінено', applied_id: план.id });
             } else if (з.entity === 'person') {
               const о = з.entity_id ? люди.find((p) => p.id === з.entity_id) || null : null;
               план = планОсоби(з, о, з.action === 'create' ? двійникиДля(з.after) : []);
               if (план.ok && план.add) особаКрок = { data: план.add, request_id: з.id };
-              if (план.ok && план.patch) кроки.push({ table: 'People', op: 'patch', id: план.id, data: план.patch, label: 'дані особи змінено' });
+              if (план.ok && план.patch) кроки.push({ table: 'People', op: 'patch', id: план.id, data: план.patch, label: 'дані особи змінено', applied_id: план.id });
             } else {
               // Рядок складу / штабу: особа — наявна або нова (її person.create застосовується першою)
               let особа = null;

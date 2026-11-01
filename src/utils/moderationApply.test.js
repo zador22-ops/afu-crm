@@ -58,7 +58,8 @@ const р = (row, зміни) => план(база({ row: { teaminfo_id: 20, stat
 test('картка клубу: лише білий список; лише пропозиція арени — без запису', () => {
   const п = р({ entity: 'club', action: 'update', entity_id: 20, after: { TeamInfo: 'Нове', Relevance: false } });
   assert.equal(п.ok, true);
-  assert.deepEqual(п.steps, [{ table: 'TeamInfo', op: 'patch', id: 20, data: { TeamInfo: 'Нове' }, label: 'картку клубу змінено' }]);
+  assert.deepEqual(п.steps, [{ table: 'TeamInfo', op: 'patch', id: 20, data: { TeamInfo: 'Нове' }, label: 'картку клубу змінено', applied_id: 20 }]);
+  assert.equal(п.applied_id, 20); // у журнал — id клубу (Backend, Г1)
   const а = р({ entity: 'club', action: 'update', entity_id: 20, after: { venue_suggestion: 'м. Суми' } });
   assert.equal(а.ok, true);
   assert.deepEqual(а.steps, []);
@@ -143,7 +144,7 @@ test('зміна номера: основний — Team, додатковий �
 });
 
 test('дані особи і штаб', () => {
-  assert.deepEqual(р({ entity: 'person', action: 'update', entity_id: 1, after: { City: 'Львів' } }).steps, [{ table: 'People', op: 'patch', id: 1, data: { City: 'Львів' }, label: 'дані особи змінено' }]);
+  assert.deepEqual(р({ entity: 'person', action: 'update', entity_id: 1, after: { City: 'Львів' } }).steps, [{ table: 'People', op: 'patch', id: 1, data: { City: 'Львів' }, label: 'дані особи змінено', applied_id: 1 }]);
   assert.equal(р({ entity: 'person', action: 'update', entity_id: 1, after: { prizvushche: '' } }).failed, 'Прізвище не може бути порожнім');
   const додати = р({ entity: 'staff_row', action: 'create', people_id: 2, after: { positions_id: 5 } });
   assert.deepEqual(додати.steps[0].data, { people_id: 2, teaminfo_id: 20, positions_id: 5, leagues_id: null, Date: '2026-10-30', Relevance_of_the_record: true });
