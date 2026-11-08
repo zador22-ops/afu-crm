@@ -57,6 +57,12 @@ query "matches/{match_id}/events" verb=POST {
       error_type = "badrequest"
       error = "Для гола вкажіть його тип"
     }
+    // «Не забитий» — завжди незабитий пенальті: «Пенальті» (3) або «Дабл пенальті» (4)
+    // (бриф afu-chat-dooprats-2026-11-07, п. 1); з CRM у листопаді йшло 0 — тип губився.
+    precondition ($input.types_of_match_events_id != 3 || $input.types_of_goals_id == 3 || $input.types_of_goals_id == 4) {
+      error_type = "badrequest"
+      error = "Для незабитого вкажіть: пенальті чи дабл пенальті"
+    }
     precondition ($input.types_of_match_events_id != 2 || $input.types_of_cards_id > 0) {
       error_type = "badrequest"
       error = "Для картки вкажіть її колір"

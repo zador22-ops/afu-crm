@@ -10,6 +10,7 @@ import MatchReport from './MatchReport.jsx';
 import { kyivDateTimeString } from '../utils/kyivTime.js';
 import { useAuth } from '../auth/AuthContext.jsx';
 import { чиДелегат } from '../utils/myMatches.js';
+import { НЕЗАБИТИЙ, незабитийБезТипу, типНезабитогоЗа, типиНезабитого } from '../utils/matchEvents.js';
 import {
   ОНЛАЙН,
   ПІДКАЗКИ_ПАУЗИ,
@@ -314,6 +315,7 @@ export default function MatchPage() {
                   <td data-label="Гравець">{гравець(e.team_id)}</td>
                   <td className="muted" data-label="Деталі">
                     {e._goal?.Type}
+                    {незабитийБезТипу(e) && <span className="badge warn">тип пенальті не вказано</span>}
                     {e.asustent_team_id ? ` · асист: ${гравець(e.asustent_team_id)}` : ''}
                     {e._card?.Type}
                     {e.reason ? ` · ${e.reason}` : ''}
@@ -620,6 +622,8 @@ function EventForm({ match, dicts, roster1, roster2, item, onClose, onSave }) {
     minute: item?.minute ?? '',
     types_of_goals_id: item?.types_of_goals_id || 1,
     types_of_cards_id: item?.types_of_cards_id || 2,
+    // «Не забитий» — окремий вибір: лише «Пенальті» / «Дабл пенальті», старі записи з 0 — без вибору
+    незабитий: типНезабитогоЗа(item),
     asustent_team_id: item?.asustent_team_id || '',
     reason: item?.reason || '',
   });
@@ -638,6 +642,7 @@ function EventForm({ match, dicts, roster1, roster2, item, onClose, onSave }) {
       body.types_of_goals_id = Number(values.types_of_goals_id);
       if (values.asustent_team_id) body.asustent_team_id = Number(values.asustent_team_id);
     }
+    if (тип === НЕЗАБИТИЙ) body.types_of_goals_id = Number(values.незабитий);
     if (тип === КАРТКА) {
       body.types_of_cards_id = Number(values.types_of_cards_id);
       if (values.reason.trim()) body.reason = values.reason.trim();
@@ -705,6 +710,18 @@ function EventForm({ match, dicts, roster1, roster2, item, onClose, onSave }) {
               </select>
             </Field>
           </div>
+        )}
+        {тип === НЕЗАБИТИЙ && (
+          <Field label="Який пенальті">
+            <select value={values.незабитий} onChange={set('незабитий')} required>
+              <option value="">—</option>
+              {типиНезабитого(dicts?.goals).map((x) => (
+                <option key={x.id} value={x.id}>
+                  {x.label}
+                </option>
+              ))}
+            </select>
+          </Field>
         )}
         {тип === КАРТКА && (
           <div className="row2">
