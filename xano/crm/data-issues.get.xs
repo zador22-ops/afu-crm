@@ -39,7 +39,7 @@ query "data-issues" verb=GET {
     } as $competitions
     db.query Match {
       return = {type: "list"}
-      output = ["id", "TimeOfMatch", "team1_id", "team2_id", "leagues_id", "tours_id", "venues_id", "match_status_id", "referee1_id", "users_idDelegat", "Result_team1", "Result_team2"]
+      output = ["id", "TimeOfMatch", "team1_id", "team2_id", "leagues_id", "tours_id", "venues_id", "match_status_id", "referee1_id", "users_idDelegat", "Result_team1", "Result_team2", "awarded"]
     } as $matches
     db.query Statistic {
       return = {type: "list"}
@@ -126,6 +126,9 @@ query "data-issues" verb=GET {
         const матчі = список($var.matches).filter((m) => лігиId.has(m.leagues_id));
         const майбутні = матчі.filter((m) => [1, 2].includes(m.match_status_id) && (!m.TimeOfMatch || m.TimeOfMatch >= зараз));
         const зіграні = матчі.filter((m) => m.match_status_id === 4);
+        // «Технічна поразка» (Match.awarded): матч не грали — протоколу, делегата й суддів не буде,
+        // тож у «без протоколу» і «без делегата / суддів» такі не рахуємо (бриф match-awarded-win)
+        const зіграніНаПолі = зіграні.filter((m) => m.awarded !== true);
         const лічильник = (рядки) => { const м = new Map(); for (const r of список(рядки)) м.set(r.match_id, (м.get(r.match_id) || 0) + 1); return м; };
         const подіїЗа = лічильник($var.events);
         const заявкиЗа = лічильник($var.squads);
@@ -172,7 +175,7 @@ query "data-issues" verb=GET {
         перевірка('played_no_protocol', 'critical', 'Зіграний матч без протоколу',
           'Рахунок без авторів голів, порожні склади й хронологія',
           'Внесіть заявку й події на сторінці матчу',
-          впоряд(зіграні.filter((m) => !подіїЗа.get(m.id) && !заявкиЗа.get(m.id)), вниз).map((m) => матч(m)), зіграні.length);
+          впоряд(зіграніНаПолі.filter((m) => !подіїЗа.get(m.id) && !заявкиЗа.get(m.id)), вниз).map((m) => матч(m)), зіграніНаПолі.length);
 
         перевірка('past_not_played', 'critical', 'Матч у минулому досі «Запланований» чи «Перенесений» без нової дати',
           'Висить як майбутній, без рахунку',
@@ -288,7 +291,7 @@ query "data-issues" verb=GET {
         перевірка('played_no_officials', 'advice', 'Зіграний матч без делегата чи суддів',
           'На «Інфо» матчу немає рядка «Делегат» чи арбітрів',
           'Внесіть делегата й арбітрів у картці матчу в розкладі турніру',
-          впоряд(зіграні.filter((m) => !є(m.users_idDelegat) || !є(m.referee1_id)), вниз).map((m) => ({ ...матч(m, true), sub: [(ліга.get(m.leagues_id) || {}).League, !є(m.users_idDelegat) ? 'без делегата' : '', !є(m.referee1_id) ? 'без суддів' : ''].filter(Boolean).join(' · ') })), зіграні.length);
+          впоряд(зіграніНаПолі.filter((m) => !є(m.users_idDelegat) || !є(m.referee1_id)), вниз).map((m) => ({ ...матч(m, true), sub: [(ліга.get(m.leagues_id) || {}).League, !є(m.users_idDelegat) ? 'без делегата' : '', !є(m.referee1_id) ? 'без суддів' : ''].filter(Boolean).join(' · ') })), зіграніНаПолі.length);
 
         const гравціСезону = [...new Set(картки.map((k) => k.player_id))].map((id) => людина.get(id)).filter(Boolean);
         const безПозиції = new Set(картки.filter((k) => !є(k.positions_id)).map((k) => k.player_id));

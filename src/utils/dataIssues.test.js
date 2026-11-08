@@ -105,6 +105,22 @@ test('матчі: протокол, минулі, онлайн задовго, �
   assert.match(перевірка(r, 'future_no_delegate_soon').items[0].label, /^24\.10\.2026, 18:00 · Схід — Захід$/);
 });
 
+test('«Технічна поразка» (awarded): не «без протоколу» і не «без делегата / суддів»', () => {
+  const v = база();
+  v.matches = [
+    матч(1, { match_status_id: 4, TimeOfMatch: о18(-7), users_idDelegat: null, referee1_id: null, awarded: true }), // технічна
+    матч(2, { match_status_id: 4, TimeOfMatch: о18(-7), users_idDelegat: null, awarded: false }), // зіграний без протоколу й делегата
+    матч(3, { match_status_id: 4, TimeOfMatch: о18(-7), awarded: '' }), // старий рядок із "" — як зіграний
+  ];
+  const r = виконати(v);
+  assert.deepEqual(ids(r, 'played_no_protocol'), [2, 3]);
+  assert.equal(перевірка(r, 'played_no_protocol').total, 2);
+  assert.deepEqual(ids(r, 'played_no_officials'), [2]);
+  assert.equal(перевірка(r, 'played_no_officials').total, 2);
+  // поле справді запитується з бази
+  assert.match(xs, /"Result_team1", "Result_team2", "awarded"\]/);
+});
+
 test('склади: без номера (0 = немає), дублі, неактуальні картки не рахуються', () => {
   const v = база();
   v.people = [1, 2, 3, 4].map((id) => ({ id, prizvushche: 'Гравець' + id, Name: 'Т', Photo: ФОТО, Date_of_birth: '2000-01-01' }));

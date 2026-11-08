@@ -18,6 +18,9 @@ import {
   ПОПЕРЕДЖЕННЯ_ПАУЗИ,
   ПРИЗУПИНЕНО,
   ПУБЛІЧНА,
+  ЗІГРАНИЙ,
+  ТЕХНІЧНА,
+  написСтатусу,
   зПричиною,
   можнаВідновити,
   можнаПеренести,
@@ -176,7 +179,7 @@ export default function MatchPage() {
           m.TimeOfMatch ? kyivDateTimeString(m.TimeOfMatch) : null,
           m._tour?.TourName,
           (venues.data || []).find((v) => v.id === m.venues_id)?.City,
-          m._status?.Status,
+          написСтатусу(m),
         ]
           .filter(Boolean)
           .join(' · ')}
@@ -394,7 +397,7 @@ export default function MatchPage() {
         <ReasonDialog
           title="Перенести матч"
           warning={ПОПЕРЕДЖЕННЯ}
-          hint={`Зараз матч «${m._status?.Status || '—'}». ${ПУБЛІЧНА}. Уболівальникам піде пуш «Матч перенесено»`}
+          hint={`Зараз матч «${написСтатусу(m) || '—'}». ${ПУБЛІЧНА}. Уболівальникам піде пуш «Матч перенесено»`}
           submitLabel="Перенести матч"
           danger
           onClose={() => setПричинаДля(null)}
@@ -488,6 +491,7 @@ function ResultForm({ match, onSave, подій }) {
     Result_team1: match.Result_team1 ?? 0,
     Result_team2: match.Result_team2 ?? 0,
     other_comments: match.other_comments || '',
+    awarded: match.awarded === true,
   });
   // Технічний результат (рахунок руками) — лише зіграний матч без подій:
   // неявка, знята команда. В «Онлайн» чи «Призупинено» без подій це просто
@@ -507,6 +511,10 @@ function ResultForm({ match, onSave, подій }) {
       minute_break_2_1: toInt(values.minute_break_2_1) ?? 0,
       minute_break_2_2: toInt(values.minute_break_2_2) ?? 0,
       other_comments: values.other_comments.trim(),
+      // «Технічна поразка» — лише разом із «Зіграним»; при іншому статусі скидаємо.
+      // Сервер пише її в тому самому записі, що й статус, до пуша «Кінець матчу»:
+      // інакше вболівальники отримали б звичайний пуш замість «Технічна поразка».
+      awarded: Number(values.match_status_id) === ЗІГРАНИЙ && values.awarded === true,
     };
     // Рахунок шлемо лише коли подій немає: інакше сервер усе одно порахує з
     // подій, а поле в формі створювало б враження, що його можна переписати.
@@ -535,6 +543,13 @@ function ResultForm({ match, onSave, подій }) {
           <textarea rows={2} value={values.other_comments} onChange={set('other_comments')} />
         </Field>
       </div>
+      {Number(values.match_status_id) === ЗІГРАНИЙ && (
+        // Не <Field>: той — <label>, а Toggle сам <label>; вкладені підписи ламають клік
+        <div className="field">
+          <Toggle checked={values.awarded} onChange={set('awarded')} label={ТЕХНІЧНА} />
+          <span className="field-hint">Матч не грали: неявка, знята команда. Замість «Зіграний» буде «Технічна поразка»; таблиця — як у зіграного</span>
+        </div>
+      )}
       {технічний && (
         <div className="row2">
           <Field label="Рахунок господарів" hint="Технічний результат: подій у матчі немає">

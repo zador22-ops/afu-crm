@@ -7,7 +7,7 @@ import { kyivDateTimeString, toKyivInputValue, fromKyivInputValue } from '../uti
 import TopMatchToggle from '../components/TopMatchToggle.jsx';
 import { useAuth } from '../auth/AuthContext.jsx';
 import { чиДелегат } from '../utils/myMatches.js';
-import { ПУБЛІЧНА, зПричиною, потрібнаПричина, причинаГодиться } from '../utils/postpone.js';
+import { ПУБЛІЧНА, написСтатусу, зПричиною, потрібнаПричина, причинаГодиться } from '../utils/postpone.js';
 
 /**
  * Матчі турніру: календар, створення й редагування.
@@ -144,7 +144,7 @@ export default function TournamentMatches({ tid, participants }) {
                 <td>{зафіксований(m) ? `${m.Result_team1 ?? 0} : ${m.Result_team2 ?? 0}` : '—'}</td>
                 <td className="muted">{аренаЗа[m.venues_id] || '—'}</td>
                 <td>
-                  {m._status?.Status || '—'}
+                  {написСтатусу(m) || '—'}
                   {зПричиною(m.match_status_id) && m.status_note && <div className="muted small-text">{m.status_note}</div>}
                 </td>
                 {розклад && (
@@ -259,7 +259,7 @@ function MatchForm({ item, tid, tours, команди, onClose, onSave, onDelete
       <form onSubmit={submit} className="form">
         {fixed && (
           <div className="muted small-text">
-            Матч має статус «{item._status?.Status}». Результат і статус — на{' '}
+            Матч має статус «{написСтатусу(item)}». Результат і статус — на{' '}
             <Link to={`/matches/${item.id}`}>сторінці матчу</Link>, там же «Перенести матч». Видалити такий матч не можна: від
             нього залежать рядки турнірної таблиці, а протокол не відновлюється. Решту полів тут змінювати можна.
           </div>

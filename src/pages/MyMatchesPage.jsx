@@ -6,7 +6,7 @@ import { useAuth } from '../auth/AuthContext.jsx';
 import { Empty, ErrorBox, PageHeader } from '../components/ui.jsx';
 import { kyivDateTimeString } from '../utils/kyivTime.js';
 import { мійМатч, поточнийСезон, упорядкувати, чиДелегат } from '../utils/myMatches.js';
-import { зПричиною } from '../utils/postpone.js';
+import { написСтатусу, зПричиною } from '../utils/postpone.js';
 
 /**
  * «Мої матчі» — стартова сторінка делегата (PM 2, 21.10): матчі поточного
@@ -90,7 +90,7 @@ export default function MyMatchesPage() {
                   {[m._турнір, m._tour?.TourName].filter(Boolean).join(' · ')}
                 </td>
                 <td data-label="Стан">
-                  {m._status?.Status || '—'}
+                  {написСтатусу(m) || '—'}
                   {зПричиною(m.match_status_id) && m.status_note && <div className="muted small-text">{m.status_note}</div>}
                 </td>
                 <td className="row-actions">

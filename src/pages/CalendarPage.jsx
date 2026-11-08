@@ -6,6 +6,7 @@ import TournamentMatches from './TournamentMatches.jsx';
 import { useAuth } from '../auth/AuthContext.jsx';
 import { чиДелегат } from '../utils/myMatches.js';
 import { kyivDateTimeString } from '../utils/kyivTime.js';
+import { написСтатусу } from '../utils/postpone.js';
 
 /**
  * Календар: єдиний вхід до матчів.
@@ -116,7 +117,7 @@ function TopList() {
                   {m._teaminfo1?.TeamName || '—'} — {m._teaminfo2?.TeamName || '—'}
                 </td>
                 <td className="muted">{m._league?.League}</td>
-                <td className="muted">{m._match_status?.Status}</td>
+                <td className="muted">{написСтатусу(m)}</td>
               </tr>
             ))}
           </tbody>

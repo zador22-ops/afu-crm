@@ -29,6 +29,11 @@ query "matches/{match_id}/result" verb=POST {
     int Result_team1?
     int Result_team2?
     text other_comments? filters=trim
+    // «Технічна поразка» (бриф match-awarded-win, Андрій 09.11): ознака до
+    // «Зіграного», не новий статус. Лише зі статусом 4; при іншому — false.
+    // Пишеться в тому самому db.patch, що й статус, тобто ДО пуша нижче:
+    // пуш читає матч із бази й при awarded шле «Технічна поразка».
+    bool awarded?
   }
 
   stack {
@@ -72,11 +77,30 @@ query "matches/{match_id}/result" verb=POST {
       error_type = "badrequest"
       error = "Рахунок вручну — лише для зіграного матчу без подій (технічний результат). У матчі, що йде, рахунок — це голи в протоколі"
     }
+    precondition ($input.awarded != true || $input.match_status_id == 4) {
+      error_type = "badrequest"
+      error = "«Технічна поразка» — лише для зіграного матчу"
+    }
     db.patch Match {
       field_name = "id"
       field_value = $input.match_id
       data = `$input|pick:($raw|keys)|unset:"match_id"`
     } as $match
+
+    // Не «Зіграний» — і не технічна поразка (як status_note нижче). Клієнт
+    // CRM шле awarded: false сам; це — на випадок запиту без поля.
+    conditional {
+      if ($input.match_status_id != 4 && $match.awarded == true) {
+        db.edit Match {
+          field_name = "id"
+          field_value = $input.match_id
+          data = {awarded: false}
+        } as $not_awarded
+        var.update $match {
+          value = $not_awarded
+        }
+      }
+    }
 
     // Причина для вболівальників (status_note) живе, лише поки матч
     // перенесений чи призупинений. Онлайн чи зіграний — без неї (null, як

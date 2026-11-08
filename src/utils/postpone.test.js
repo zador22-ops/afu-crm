@@ -5,6 +5,9 @@ import {
   ПІДКАЗКИ_ПАУЗИ,
   ПОПЕРЕДЖЕННЯ,
   ПРИЧИНА_МІН,
+  ТЕХНІЧНА,
+  написСтатусу,
+  технічнаПоразка,
   зПричиною,
   можнаВідновити,
   можнаПеренести,
@@ -126,4 +129,34 @@ test('result: рахунок руками — лише разом зі стат�
   const r = xs('crm/matches-id-result.post.xs');
   assert.match(r, /keys\.includes\('Result_team1'\) \|\| keys\.includes\('Result_team2'\)/);
   assert.match(r, /precondition \(!\$score_sent \|\| \$input\.match_status_id == 4\)/);
+});
+
+test('«Технічна поразка»: напис замість «Зіграний» лише для awarded === true і статусу 4', () => {
+  assert.equal(ТЕХНІЧНА, 'Технічна поразка');
+  assert.equal(написСтатусу({ match_status_id: 4, awarded: true, _status: { Status: 'Зіграний' } }), 'Технічна поразка');
+  assert.equal(написСтатусу({ match_status_id: 4, awarded: false, _status: { Status: 'Зіграний' } }), 'Зіграний');
+  assert.equal(написСтатусу({ match_status_id: 4, awarded: '', _status: { Status: 'Зіграний' } }), 'Зіграний');
+  assert.equal(написСтатусу({ match_status_id: '4', awarded: true, _status: { Status: 'Зіграний' } }), 'Технічна поразка');
+  // інший статус — назва статусу, навіть якщо ознака лишилась
+  assert.equal(написСтатусу({ match_status_id: 3, awarded: true, _status: { Status: 'Онлайн' } }), 'Онлайн');
+  // Default-відповіді (Календар → топ-матчі) мають _match_status
+  assert.equal(написСтатусу({ match_status_id: 1, _match_status: { Status: 'Запланований' } }), 'Запланований');
+  assert.equal(написСтатусу(null), '');
+  assert.equal(технічнаПоразка({ match_status_id: 4 }), false);
+});
+
+test('result: awarded — лише зі статусом 4, у тому самому записі до пуша; інакше скидається', () => {
+  const r = xs('crm/matches-id-result.post.xs');
+  assert.match(r, /bool awarded\?/);
+  assert.match(r, /precondition \(\$input\.awarded != true \|\| \$input\.match_status_id == 4\)/);
+  // awarded іде в той самий db.patch, що й статус (pick за ключами тіла), і раніше за пуш
+  const patch = r.indexOf('data = `$input|pick:($raw|keys)|unset:"match_id"`');
+  assert.ok(patch > 0 && patch < r.indexOf('Push v2 match status'));
+  assert.ok(r.indexOf('data = {awarded: false}') < r.indexOf('Push v2 match status'));
+  assert.match(r, /if \(\$input\.match_status_id != 4 && \$match\.awarded == true\)/);
+});
+
+test('новий матч і перенесення — awarded: false явно', () => {
+  assert.match(xs('crm/matches.post.xs'), /awarded\s*: false/);
+  assert.match(xs('crm/matches-id-postpone.post.xs'), /data = \{match_status_id: 2, [^}]*awarded: false\}/);
 });
