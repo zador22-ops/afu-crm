@@ -4,7 +4,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { crm } from '../api/client.js';
 import { Empty, ErrorBox, Field, Modal, PageHeader, Tabs } from '../components/ui.jsx';
 import { kyivDateTimeString } from '../utils/kyivTime.js';
-import { СТАТУСИ, назваДії, порівняння } from '../utils/moderation.js';
+import { СТАТУСИ, назваДії, підказкаНевдачі, порівняння } from '../utils/moderation.js';
 
 const ТИПИ = [
   ['', 'Усі типи'],
@@ -179,8 +179,8 @@ function RowCard({ r, labels, зайнято, onApprove, onReject }) {
       <div className="section-bar">
         <h3>
           {назваДії(r)}
-          {r.person_name && <span className="muted"> · {r.person_name}</span>}
-          {r.league_name && <span className="muted"> · {r.league_name}</span>}
+          {r.person_name && <span className="muted keep-case"> · {r.person_name}</span>}
+          {r.league_name && <span className="muted keep-case"> · {r.league_name}</span>}
         </h3>
         <span className={`request-status ${с.тон}`}>{с.текст}</span>
       </div>
@@ -228,6 +228,7 @@ function RowCard({ r, labels, зайнято, onApprove, onReject }) {
         </div>
       )}
       {r.apply_error && <div className="error-box">{r.apply_error}</div>}
+      {r.apply_error && підказкаНевдачі(r) && <div className="muted small-text">{підказкаНевдачі(r)}</div>}
       {r.decidable && (
         <div className="form-actions">
           <span className="spacer" />

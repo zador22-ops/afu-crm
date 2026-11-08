@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
-import { назваДії, порівняння } from './moderation.js';
+import { назваДії, підказкаНевдачі, порівняння } from './moderation.js';
 
 // «Погодження» (самообслуговування клубів, 4.1): лямбди з самих .xs і показ «було / стане»
 const читати = (ф) => fs.readFileSync(new URL(`../../xano/crm/${ф}`, import.meta.url), 'utf8');
@@ -142,4 +142,12 @@ test('«було / стане»: поля з білого списку в йог
   ]);
   assert.equal(порівняння({ entity: 'person', after: { Photo: { url: 'u' } } })[0].after.url, 'u');
   assert.equal(назваДії({ entity: 'squad_row', action: 'transfer' }), 'Перехід до складу');
+});
+
+test('підказка АФУ для переходу, що не застосувався за правилом', () => {
+  const r = { apply_error: 'У гравця є чинна заявка в іншому клубі з датою не раніше за сьогоднішню — АФУ має спершу її закрити', transfer_from_name: 'Яструб' };
+  assert.match(підказкаНевдачі(r), /у «Яструб» закрийте заявку гравця \(Клуби → Яструб → Склад → «Закрити»\), потім клуб подає гравця ще раз/);
+  assert.match(підказкаНевдачі({ apply_error: 'Перехід, але чинної заявки в іншому клубі вже немає — подайте як додавання' }), /звичайне додавання/);
+  assert.equal(підказкаНевдачі({ apply_error: 'Номер 16 уже має інший гравець цього клубу в турнірі' }), null);
+  assert.equal(підказкаНевдачі({}), null);
 });

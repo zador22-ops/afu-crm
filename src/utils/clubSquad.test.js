@@ -289,3 +289,9 @@ test('булеві з відкритої заявки — у лямбді (на 
   assert.equal(лямбда('club-clubs-id-players-id.put.xs', 'person_open_ok')({ open_person: null }), true);
   assert.equal(лямбда('club-clubs-id-draft.put.xs', 'open_ok')({ open: { status: 'submitted' } }), false);
 });
+
+test('капітан із форми нового гравця доходить до заявки (приймання PM 1, 05.11)', () => {
+  const r = додати({ people_id: 4 }, [{ leagues_id: 10, Number: 12, positions_id: 1, Captain: true }]);
+  assert.equal(r.rows[0].after.Captain, true);
+  assert.equal(додати({ people_id: 4 }, [{ leagues_id: 10, Number: 12, positions_id: 1 }]).rows[0].after.Captain, false);
+});

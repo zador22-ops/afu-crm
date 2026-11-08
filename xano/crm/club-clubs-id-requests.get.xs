@@ -63,6 +63,15 @@ query "club/clubs/{teaminfo_id}/requests" verb=GET {
       return = {type: "list"}
       output = ["id", "League"]
     } as $leagues
+    // Назви для полів-посилань у «було / стане» (приймання PM 1, 05.11: «Позиція: 1», «Домашня арена: 2»)
+    db.query Positions {
+      return = {type: "list"}
+      output = ["id", "Position"]
+    } as $positions
+    db.query Venues {
+      return = {type: "list"}
+      output = ["id", "City"]
+    } as $venues
 
     api.lambda {
       code = """
@@ -78,7 +87,16 @@ query "club/clubs/{teaminfo_id}/requests" verb=GET {
           league_name: r.leagues_id ? турнір.get(r.leagues_id) || null : null,
           transfer_from_name: r.transfer_from_teaminfo_id ? клуб.get(r.transfer_from_teaminfo_id) || null : null,
         }));
+        // Довідник лише для значень, що трапляються в заявках клубу
+        const довідка = { positions: {}, venues: {} };
+        const посада = new Map(($var.positions || []).map((p) => [p.id, p.Position]));
+        const арена = new Map(($var.venues || []).map((v) => [v.id, v.City]));
+        for (const r of $var.rows || []) for (const x of [r.before, r.after]) {
+          if (x && x.positions_id) довідка.positions[x.positions_id] = посада.get(Number(x.positions_id)) || null;
+          if (x && x.home_venues_id) довідка.venues[x.home_venues_id] = арена.get(Number(x.home_venues_id)) || null;
+        }
         return {
+          labels: довідка,
           // id співробітника АФУ клубу не потрібен — лише ознака «від імені клубу діяла АФУ»
           batches: ($var.batches || []).map(({ acted_by_users_id, ...b }) => ({ ...b, by_afu: acted_by_users_id != null, requests: рядки.filter((r) => r.batch_id === b.id) })),
           transfers_out: ($var.transfers_out || []).map((t) => ({

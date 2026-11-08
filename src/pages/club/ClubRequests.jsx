@@ -53,7 +53,7 @@ export default function ClubRequests({ teaminfoId }) {
                   <span className={`request-status ${с.тон}`}>{с.текст}</span>
                 </div>
                 <ul className="request-changes">
-                  {зміниЗаявки(r).map((з) => (
+                  {зміниЗаявки(r, q.data?.labels).map((з) => (
                     <li key={з.key}>
                       <span className="muted">{з.label}:</span>{' '}
                       {з.фото ? (

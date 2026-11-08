@@ -55,15 +55,23 @@ const показ = (v) => {
   return String(v);
 };
 
-/** Зміни «поле: було → стане»; зображення — окремо (для прев'ю). */
-export function зміниЗаявки(r) {
+/** Позиція й домашня арена — назвою з довідника сервера (labels), без нього — як є (приймання PM 1, 05.11). */
+const назвою = (k, v, labels) => {
+  if (v == null || v === '') return v;
+  if (k === 'positions_id') return labels?.positions?.[v] || v;
+  if (k === 'home_venues_id') return labels?.venues?.[v] || v;
+  return v;
+};
+
+/** Зміни «поле: було → стане»; зображення — окремо (для прев'ю). labels — довідник назв із GET …/requests. */
+export function зміниЗаявки(r, labels) {
   const після = r.after || {};
   const до = r.before || {};
   return Object.keys(після).map((k) => ({
     key: k,
     label: ПІДПИСИ[k] || k,
-    було: показ(до[k]),
-    стане: показ(після[k]),
+    було: показ(назвою(k, до[k], labels)),
+    стане: показ(назвою(k, після[k], labels)),
     фото: після[k] && typeof після[k] === 'object' && після[k].url ? { стане: після[k].url, було: до[k]?.url || null } : null,
   }));
 }

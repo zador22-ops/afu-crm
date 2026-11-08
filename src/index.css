@@ -1956,6 +1956,11 @@ fieldset.plain {
 .table tr.clickable {
   cursor: pointer;
 }
+/* Імена й турніри в заголовку картки — як написано, без капсу заголовка (приймання PM 1, 05.11) */
+.moderation-row h3 .keep-case {
+  text-transform: none;
+  letter-spacing: 0;
+}
 .moderation-row .warn-box {
   margin: 6px 0;
 }
