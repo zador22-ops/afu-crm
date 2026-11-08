@@ -29,6 +29,7 @@ test('«Не забитий»: старий запис із 0 — без виб�
 const xs = (f) => fs.readFileSync(new URL(`../../xano/crm/${f}`, import.meta.url), 'utf8');
 test('сервер: «Не забитий» лише з types_of_goals_id 3 або 4 — і при створенні, і при зміні', () => {
   assert.match(xs('matches-id-events.post.xs'), /precondition \(\$input\.types_of_match_events_id != 3 \|\| \$input\.types_of_goals_id == 3 \|\| \$input\.types_of_goals_id == 4\)/);
+  for (const ф of ['matches-id-events.post.xs', 'events-id.patch.xs']) assert.match(xs(ф), /error = "Оберіть тип незабитого: пенальті чи дабл-пенальті"/, ф);
   const s = xs('events-id.patch.xs');
   const кінець = s.indexOf('} as $penalty_ok');
   const код = s.slice(s.lastIndexOf('api.lambda {', кінець), кінець).match(/code = """([\s\S]*?)"""/)[1];

@@ -50,7 +50,7 @@ query "events/{statistic_id}" verb=PATCH {
     } as $penalty_ok
     precondition ($penalty_ok) {
       error_type = "badrequest"
-      error = "Для незабитого вкажіть: пенальті чи дабл пенальті"
+      error = "Оберіть тип незабитого: пенальті чи дабл-пенальті"
     }
     db.patch Statistic {
       field_name = "id"
