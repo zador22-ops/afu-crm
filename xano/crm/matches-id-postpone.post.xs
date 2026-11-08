@@ -65,11 +65,11 @@ query "matches/{match_id}/postpone" verb=POST {
       error = "Вкажіть причину перенесення (щонайменше 3 символи)"
     }
 
-    // Перенесений — уже не «Зіграний», тож і не «Технічна поразка» (awarded: false)
+    // Перенесений — уже не «Зіграний»: ні «Технічної поразки», ні екстра-таймів чи пенальті
     db.edit Match {
       field_name = "id"
       field_value = $input.match_id
-      data = {match_status_id: 2, status_note: $plan.note, other_comments: $plan.comment, awarded: false}
+      data = {match_status_id: 2, status_note: $plan.note, other_comments: $plan.comment, awarded: false, finish: "regular"}
     } as $match
 
     // Статус 2 → рядки таблиці цього матчу видаляються (should = false,

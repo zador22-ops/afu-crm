@@ -118,7 +118,36 @@ test('«Технічна поразка» (awarded): не «без проток�
   assert.deepEqual(ids(r, 'played_no_officials'), [2]);
   assert.equal(перевірка(r, 'played_no_officials').total, 2);
   // поле справді запитується з бази
-  assert.match(xs, /"Result_team1", "Result_team2", "awarded"\]/);
+  assert.match(xs, /"Result_team1", "Result_team2", "awarded"/);
+});
+
+test('екстра-тайми: «По пенальті» без серії; події 41–51 у «Основному часі»', () => {
+  const v = база();
+  v.matches = [
+    матч(1, { match_status_id: 4, TimeOfMatch: о18(-7), finish: 'pens' }), // серії немає — порада
+    матч(2, { match_status_id: 4, TimeOfMatch: о18(-7), finish: 'pens' }), // серія є
+    матч(3, { match_status_id: 4, TimeOfMatch: о18(-7), finish: 'regular' }), // події ET — порада
+    матч(4, { match_status_id: 4, TimeOfMatch: о18(-7), finish: '' }), // серія без завершення — порада (порожнє = основний)
+    матч(5, { match_status_id: 4, TimeOfMatch: о18(-7), finish: 'et' }), // ET як треба
+    матч(6, { match_status_id: 4, TimeOfMatch: о18(-7), finish: 'pens', awarded: true }), // технічна — не рахуємо
+    матч(7, { match_status_id: 3, TimeOfMatch: ЗАРАЗ - ГОД, finish: 'regular' }), // онлайн, іде ET — ще не порада
+  ];
+  v.events = [
+    { match_id: 1, minute: 20 },
+    { match_id: 2, minute: 51 },
+    { match_id: 3, minute: 43 },
+    { match_id: 3, minute: 47 },
+    { match_id: 4, minute: 51 },
+    { match_id: 5, minute: 44 },
+    { match_id: 7, minute: 42 },
+  ];
+  const r = виконати(v);
+  assert.deepEqual(ids(r, 'pens_no_shootout'), [1]);
+  assert.deepEqual(ids(r, 'extra_minutes_regular').sort(), [3, 4]);
+  assert.equal(перевірка(r, 'extra_minutes_regular').items.find((x) => x.id === 3).sub, 'Екстра-ліга · екстра-тайми: 2');
+  assert.equal(перевірка(r, 'pens_no_shootout').level, 'advice');
+  assert.match(xs, /"awarded", "finish"\]/);
+  assert.match(xs, /output = \["match_id", "minute"\]/);
 });
 
 test('склади: без номера (0 = немає), дублі, неактуальні картки не рахуються', () => {
@@ -191,7 +220,7 @@ test('рівні й порядок перевірок — як у брифі', (
   assert.deepEqual(r.checks.map((c) => c.level), [
     ...Array(4).fill('critical'),
     ...Array(9).fill('important'),
-    ...Array(7).fill('advice'),
+    ...Array(9).fill('advice'),
   ]);
   assert.deepEqual(Object.keys(РІВНІ), ['critical', 'important', 'advice']);
   const г = групи(r.checks);

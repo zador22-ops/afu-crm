@@ -34,6 +34,10 @@ query "matches/{match_id}/result" verb=POST {
     // Пишеться в тому самому db.patch, що й статус, тобто ДО пуша нижче:
     // пуш читає матч із бази й при awarded шле «Технічна поразка».
     bool awarded?
+    // Чим завершився матч (бриф match-extra-time): regular · et · pens. Лише
+    // зі статусом 4 і не для технічної поразки; при іншому статусі — regular
+    // (як awarded). Той самий db.patch, тобто до пуша.
+    text finish? filters=trim
   }
 
   stack {
@@ -81,20 +85,28 @@ query "matches/{match_id}/result" verb=POST {
       error_type = "badrequest"
       error = "«Технічна поразка» — лише для зіграного матчу"
     }
+    precondition ($input.finish == null || $input.finish == "regular" || $input.finish == "et" || $input.finish == "pens") {
+      error_type = "badrequest"
+      error = "Завершення матчу — «Основний час», «Після екстра-таймів» або «По пенальті»"
+    }
+    precondition ($input.finish == null || $input.finish == "regular" || ($input.match_status_id == 4 && $input.awarded != true)) {
+      error_type = "badrequest"
+      error = "Екстра-тайми чи пенальті — лише для зіграного матчу, не для технічної поразки"
+    }
     db.patch Match {
       field_name = "id"
       field_value = $input.match_id
       data = `$input|pick:($raw|keys)|unset:"match_id"`
     } as $match
 
-    // Не «Зіграний» — і не технічна поразка (як status_note нижче). Клієнт
-    // CRM шле awarded: false сам; це — на випадок запиту без поля.
+    // Не «Зіграний» — і не технічна поразка, і завершення «Основний час» (як
+    // status_note нижче). Клієнт CRM шле обидва поля сам; це — на випадок запиту без них.
     conditional {
-      if ($input.match_status_id != 4 && $match.awarded == true) {
+      if ($input.match_status_id != 4 && ($match.awarded == true || ($match.finish != null && $match.finish != "" && $match.finish != "regular"))) {
         db.edit Match {
           field_name = "id"
           field_value = $input.match_id
-          data = {awarded: false}
+          data = {awarded: false, finish: "regular"}
         } as $not_awarded
         var.update $match {
           value = $not_awarded

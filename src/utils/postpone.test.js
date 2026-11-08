@@ -152,11 +152,20 @@ test('result: awarded — лише зі статусом 4, у тому само
   // awarded іде в той самий db.patch, що й статус (pick за ключами тіла), і раніше за пуш
   const patch = r.indexOf('data = `$input|pick:($raw|keys)|unset:"match_id"`');
   assert.ok(patch > 0 && patch < r.indexOf('Push v2 match status'));
-  assert.ok(r.indexOf('data = {awarded: false}') < r.indexOf('Push v2 match status'));
-  assert.match(r, /if \(\$input\.match_status_id != 4 && \$match\.awarded == true\)/);
+  assert.ok(r.indexOf('data = {awarded: false') > 0 && r.indexOf('data = {awarded: false') < r.indexOf('Push v2 match status'));
+  assert.match(r, /if \(\$input\.match_status_id != 4 && \(\$match\.awarded == true \|\|/);
 });
 
 test('новий матч і перенесення — awarded: false явно', () => {
   assert.match(xs('crm/matches.post.xs'), /awarded\s*: false/);
-  assert.match(xs('crm/matches-id-postpone.post.xs'), /data = \{match_status_id: 2, [^}]*awarded: false\}/);
+  assert.match(xs('crm/matches-id-postpone.post.xs'), /data = \{match_status_id: 2, [^}]*awarded: false, finish: "regular"\}/);
+});
+
+test('result: finish — regular / et / pens, лише для зіграного й не технічної поразки; інакше скидається на regular', () => {
+  const r = xs('crm/matches-id-result.post.xs');
+  assert.match(r, /text finish\? filters=trim/);
+  assert.match(r, /precondition \(\$input\.finish == null \|\| \$input\.finish == "regular" \|\| \$input\.finish == "et" \|\| \$input\.finish == "pens"\)/);
+  assert.match(r, /precondition \(\$input\.finish == null \|\| \$input\.finish == "regular" \|\| \(\$input\.match_status_id == 4 && \$input\.awarded != true\)\)/);
+  assert.ok(r.indexOf('data = {awarded: false, finish: "regular"}') < r.indexOf('Push v2 match status'));
+  assert.match(xs('crm/matches.post.xs'), /finish\s*: "regular"/);
 });

@@ -39,11 +39,11 @@ query "data-issues" verb=GET {
     } as $competitions
     db.query Match {
       return = {type: "list"}
-      output = ["id", "TimeOfMatch", "team1_id", "team2_id", "leagues_id", "tours_id", "venues_id", "match_status_id", "referee1_id", "users_idDelegat", "Result_team1", "Result_team2", "awarded"]
+      output = ["id", "TimeOfMatch", "team1_id", "team2_id", "leagues_id", "tours_id", "venues_id", "match_status_id", "referee1_id", "users_idDelegat", "Result_team1", "Result_team2", "awarded", "finish"]
     } as $matches
     db.query Statistic {
       return = {type: "list"}
-      output = ["match_id"]
+      output = ["match_id", "minute"]
     } as $events
     db.query Zaiuavka {
       return = {type: "list"}
@@ -292,6 +292,26 @@ query "data-issues" verb=GET {
           'На «Інфо» матчу немає рядка «Делегат» чи арбітрів',
           'Внесіть делегата й арбітрів у картці матчу в розкладі турніру',
           впоряд(зіграніНаПолі.filter((m) => !є(m.users_idDelegat) || !є(m.referee1_id)), вниз).map((m) => ({ ...матч(m, true), sub: [(ліга.get(m.leagues_id) || {}).League, !є(m.users_idDelegat) ? 'без делегата' : '', !є(m.referee1_id) ? 'без суддів' : ''].filter(Boolean).join(' · ') })), зіграніНаПолі.length);
+
+        // Екстра-тайми й серія (бриф match-extra-time): хвилини 41–50 — екстра-тайми, 51 — серія пенальті.
+        // Порада, не помилка: завершення ставить делегат, а старі матчі не змінюємо (Андрій 09.11).
+        const продовженняЗа = new Map();
+        for (const e of список($var.events)) {
+          const хв = Number(e.minute);
+          if (хв >= 41 && хв <= 51) { const н = продовженняЗа.get(e.match_id) || { et: 0, pens: 0 }; if (хв === 51) н.pens++; else н.et++; продовженняЗа.set(e.match_id, н); }
+        }
+        const завершення = (m) => (m.finish === 'et' || m.finish === 'pens' ? m.finish : 'regular');
+        перевірка('pens_no_shootout', 'advice', '«По пенальті» без жодного удару серії',
+          'Матч завершився серією, але в протоколі немає подій на 51-й хвилині',
+          'Внесіть удари серії («Серія пенальті») на сторінці матчу або змініть завершення',
+          впоряд(зіграніНаПолі.filter((m) => завершення(m) === 'pens' && !(продовженняЗа.get(m.id) || {}).pens), вниз).map((m) => матч(m)));
+        перевірка('extra_minutes_regular', 'advice', 'Події екстра-таймів чи серії в матчі «Основний час»',
+          'У протоколі є події на 41–51-й хвилині, а завершення — «Основний час»',
+          'На сторінці матчу оберіть «Після екстра-таймів» чи «По пенальті» або виправте хвилини подій',
+          впоряд(зіграніНаПолі.filter((m) => завершення(m) === 'regular' && продовженняЗа.has(m.id)), вниз).map((m) => {
+            const н = продовженняЗа.get(m.id);
+            return { ...матч(m), sub: [(ліга.get(m.leagues_id) || {}).League, н.et ? 'екстра-тайми: ' + н.et : '', н.pens ? 'серія: ' + н.pens : ''].filter(Boolean).join(' · ') };
+          }));
 
         const гравціСезону = [...new Set(картки.map((k) => k.player_id))].map((id) => людина.get(id)).filter(Boolean);
         const безПозиції = new Set(картки.filter((k) => !є(k.positions_id)).map((k) => k.player_id));

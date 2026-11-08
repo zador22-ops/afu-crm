@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
-import { НЕЗАБИТИЙ, незабитийБезТипу, типНезабитогоЗа, типиНезабитого } from './matchEvents.js';
+import { НЕЗАБИТИЙ, ЗАВЕРШЕННЯ, завершенняЗа, зПеріодами, незабитийБезТипу, періодЗа, підписХвилини, типНезабитогоЗа, типиНезабитого, хвилиниПеріоду } from './matchEvents.js';
 
 const ГОЛИ = [
   { id: 1, Type: 'Звичайний' },
@@ -43,4 +43,43 @@ test('сервер: «Не забитий» лише з types_of_goals_id 3 аб
   assert.equal(ok({ types_of_match_events_id: 1, types_of_goals_id: 1 }, { types_of_match_events_id: 3 }, { types_of_match_events_id: 3 }), false);
   // інші події не чіпаються
   assert.equal(ok({ types_of_match_events_id: 2, types_of_goals_id: 0 }, { minute: 9 }, { minute: 9 }), true);
+});
+
+test('екстра-тайми: періоди за хвилиною — 1–40, 41–45, 46–50, 51', () => {
+  assert.equal(періодЗа(1).key, 'main');
+  assert.equal(періодЗа(40).key, 'main');
+  assert.equal(періодЗа(41).key, 'et1');
+  assert.equal(періодЗа(45).key, 'et1');
+  assert.equal(періодЗа(46).key, 'et2');
+  assert.equal(періодЗа('50').key, 'et2');
+  assert.equal(періодЗа(51).key, 'pens');
+  assert.equal(періодЗа('').key, 'main');
+  assert.equal(періодЗа(1001).key, 'main'); // мітка штабу, не хвилина
+  assert.deepEqual(хвилиниПеріоду('et1'), [41, 42, 43, 44, 45]);
+  assert.deepEqual(хвилиниПеріоду('et2'), [46, 47, 48, 49, 50]);
+  assert.deepEqual(хвилиниПеріоду('pens'), [51]);
+});
+
+test('екстра-тайми: підписи хвилин у протоколі', () => {
+  assert.equal(підписХвилини(12), '12');
+  assert.equal(підписХвилини(43), '43 · 1-й екстра-тайм');
+  assert.equal(підписХвилини(48), '48 · 2-й екстра-тайм');
+  assert.equal(підписХвилини(51), 'Серія пенальті');
+  assert.equal(підписХвилини(null), '—');
+});
+
+test('екстра-тайми: вибір періоду — лише де продовження можливе або подія вже на 41–51', () => {
+  assert.equal(зПеріодами({ can_extend: true }, null), true);
+  assert.equal(зПеріодами({ can_extend: false }, null), false);
+  assert.equal(зПеріодами({}, { minute: 12 }), false);
+  assert.equal(зПеріодами({ can_extend: false }, { minute: 51 }), true);
+});
+
+test('завершення матчу: відоме значення — як є, решта (старі, порожні) — «Основний час»', () => {
+  assert.deepEqual(ЗАВЕРШЕННЯ.map((f) => f.label), ['Основний час', 'Після екстра-таймів', 'По пенальті']);
+  assert.equal(завершенняЗа({ finish: 'et' }), 'et');
+  assert.equal(завершенняЗа({ finish: 'pens' }), 'pens');
+  assert.equal(завершенняЗа({ finish: '' }), 'regular');
+  assert.equal(завершенняЗа({}), 'regular');
+  assert.equal(завершенняЗа(null), 'regular');
 });

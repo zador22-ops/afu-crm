@@ -41,7 +41,39 @@ query "matches/{match_id}" verb=GET {
       error_type = "notfound"
       error = "Матч не знайдено"
     }
+
+    // can_extend (контракт Backend docs/xano/match-finish-contract.md, бриф match-extra-time):
+    // кубок (league.type) або стадія-сітка (League stage.stage_type). Чогось бракує — false.
+    db.query Leagues {
+      where = $db.Leagues.id == $match.leagues_id
+      return = {type: "list"}
+      output = ["id", "league_id"]
+    } as $ce_leagues
+    db.query league {
+      return = {type: "list"}
+      output = ["id", "type"]
+    } as $ce_competitions
+    db.query Tours {
+      where = $db.Tours.id == $match.tours_id
+      return = {type: "list"}
+      output = ["id", "league_stage_id"]
+    } as $ce_tours
+    db.query "League stage" {
+      return = {type: "list"}
+      output = ["id", "stage_type"]
+    } as $ce_stages
+    api.lambda {
+      code = """
+        const ліги = new Map(($var.ce_leagues || []).map((l) => [l.id, l.league_id]));
+        const типи = new Map(($var.ce_competitions || []).map((c) => [c.id, c.type]));
+        const тури = new Map(($var.ce_tours || []).map((t) => [t.id, t.league_stage_id]));
+        const стадії = new Map(($var.ce_stages || []).map((s) => [s.id, s.stage_type]));
+        const продовження = (m) => типи.get(ліги.get(m.leagues_id)) === 'кубок' || стадії.get(тури.get(m.tours_id)) === 'сітка';
+        return { ...$var.match, can_extend: продовження($var.match) };
+      """
+      timeout = 10
+    } as $ce_out
   }
 
-  response = $match
+  response = $ce_out
 }

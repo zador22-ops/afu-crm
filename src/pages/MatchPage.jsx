@@ -10,7 +10,7 @@ import MatchReport from './MatchReport.jsx';
 import { kyivDateTimeString } from '../utils/kyivTime.js';
 import { useAuth } from '../auth/AuthContext.jsx';
 import { чиДелегат } from '../utils/myMatches.js';
-import { НЕЗАБИТИЙ, незабитийБезТипу, типНезабитогоЗа, типиНезабитого } from '../utils/matchEvents.js';
+import { НЕЗАБИТИЙ, незабитийБезТипу, типНезабитогоЗа, типиНезабитого, ЗАВЕРШЕННЯ, ПЕРІОДИ, ХВ_СЕРІЇ, ОСНОВНИЙ_ЧАС, завершенняЗа, зПеріодами, періодЗа, підписХвилини, хвилиниПеріоду } from '../utils/matchEvents.js';
 import {
   ОНЛАЙН,
   ПІДКАЗКИ_ПАУЗИ,
@@ -310,7 +310,7 @@ export default function MatchPage() {
             <tbody>
               {events.data.map((e) => (
                 <tr key={e.id}>
-                  <td data-label="Хв">{e.minute ?? '—'}</td>
+                  <td data-label="Хв">{підписХвилини(e.minute)}</td>
                   <td className="muted" data-label="Команда">
                     {e._team?.teaminfo_id === m.team1_id ? m._team1?.TeamName : e._team?.teaminfo_id === m.team2_id ? m._team2?.TeamName : '—'}
                   </td>
@@ -492,6 +492,7 @@ function ResultForm({ match, onSave, подій }) {
     Result_team2: match.Result_team2 ?? 0,
     other_comments: match.other_comments || '',
     awarded: match.awarded === true,
+    finish: завершенняЗа(match),
   });
   // Технічний результат (рахунок руками) — лише зіграний матч без подій:
   // неявка, знята команда. В «Онлайн» чи «Призупинено» без подій це просто
@@ -515,6 +516,9 @@ function ResultForm({ match, onSave, подій }) {
       // Сервер пише її в тому самому записі, що й статус, до пуша «Кінець матчу»:
       // інакше вболівальники отримали б звичайний пуш замість «Технічна поразка».
       awarded: Number(values.match_status_id) === ЗІГРАНИЙ && values.awarded === true,
+      // Чим завершився матч (бриф match-extra-time): лише зіграний, де продовження можливе,
+      // і не технічна поразка; інакше — «Основний час», як і на сервері
+      finish: Number(values.match_status_id) === ЗІГРАНИЙ && match.can_extend === true && values.awarded !== true ? values.finish : 'regular',
     };
     // Рахунок шлемо лише коли подій немає: інакше сервер усе одно порахує з
     // подій, а поле в формі створювало б враження, що його можна переписати.
@@ -549,6 +553,17 @@ function ResultForm({ match, onSave, подій }) {
           <Toggle checked={values.awarded} onChange={set('awarded')} label={ТЕХНІЧНА} />
           <span className="field-hint">Матч не грали: неявка, знята команда. Замість «Зіграний» буде «Технічна поразка»; таблиця — як у зіграного</span>
         </div>
+      )}
+      {Number(values.match_status_id) === ЗІГРАНИЙ && match.can_extend === true && values.awarded !== true && (
+        <Field label="Чим завершився матч" hint="Кубок чи плей-оф: після основного часу могли бути екстра-тайми (2 × 5 хв) або серія пенальті">
+          <select value={values.finish} onChange={set('finish')}>
+            {ЗАВЕРШЕННЯ.map((f) => (
+              <option key={f.key} value={f.key}>
+                {f.label}
+              </option>
+            ))}
+          </select>
+        </Field>
       )}
       {технічний && (
         <div className="row2">
@@ -635,6 +650,7 @@ function EventForm({ match, dicts, roster1, roster2, item, onClose, onSave }) {
     types_of_match_events_id: item?.types_of_match_events_id ?? ГОЛ,
     team_id: item?.team_id ?? '',
     minute: item?.minute ?? '',
+    період: періодЗа(item?.minute).key,
     types_of_goals_id: item?.types_of_goals_id || 1,
     types_of_cards_id: item?.types_of_cards_id || 2,
     // «Не забитий» — окремий вибір: лише «Пенальті» / «Дабл пенальті», старі записи з 0 — без вибору
@@ -645,13 +661,14 @@ function EventForm({ match, dicts, roster1, roster2, item, onClose, onSave }) {
   const свої = String(values.сторона) === String(match.team1_id) ? roster1 : roster2;
   const активні = свої.filter((r) => r.Relevance_of_the_record);
   const тип = Number(values.types_of_match_events_id);
+  const періоди = зПеріодами(match, item);
 
   const submit = (e) => {
     e.preventDefault();
     const body = {
       types_of_match_events_id: тип,
       team_id: Number(values.team_id),
-      minute: toInt(values.minute) ?? 0,
+      minute: values.період === 'pens' ? ХВ_СЕРІЇ : (toInt(values.minute) ?? 0),
     };
     if (тип === ГОЛ) {
       body.types_of_goals_id = Number(values.types_of_goals_id);
@@ -679,9 +696,48 @@ function EventForm({ match, dicts, roster1, roster2, item, onClose, onSave }) {
             set('asustent_team_id')('');
           }}
         />
-        <Field label="Хвилина">
-          <input type="number" inputMode="numeric" value={values.minute} onChange={set('minute')} />
-        </Field>
+        {періоди ? (
+          // Кубок чи плей-оф: 41–51 — не вільне число, а період із підписом (бриф match-extra-time)
+          <div className="row2">
+            <Field label="Період">
+              <select
+                value={values.період}
+                onChange={(e) => {
+                  const к = e.target.value;
+                  set('період')(к);
+                  set('minute')(к === 'main' ? '' : String(хвилиниПеріоду(к)[0]));
+                }}
+              >
+                {ПЕРІОДИ.map((p) => (
+                  <option key={p.key} value={p.key}>
+                    {p.label}
+                  </option>
+                ))}
+              </select>
+            </Field>
+            {values.період === 'main' && (
+              <Field label="Хвилина" hint={`1–${ОСНОВНИЙ_ЧАС}`}>
+                <input type="number" inputMode="numeric" min={1} max={ОСНОВНИЙ_ЧАС} value={values.minute} onChange={set('minute')} />
+              </Field>
+            )}
+            {(values.період === 'et1' || values.період === 'et2') && (
+              <Field label="Хвилина">
+                <select value={values.minute} onChange={set('minute')}>
+                  {хвилиниПеріоду(values.період).map((х) => (
+                    <option key={х} value={х}>
+                      {х}
+                    </option>
+                  ))}
+                </select>
+              </Field>
+            )}
+            {values.період === 'pens' && <div className="muted small-text">Усі удари серії — на {ХВ_СЕРІЇ}-й хвилині, окремим блоком у протоколі</div>}
+          </div>
+        ) : (
+          <Field label="Хвилина">
+            <input type="number" inputMode="numeric" value={values.minute} onChange={set('minute')} />
+          </Field>
+        )}
         <Field label="Подія">
           <select value={values.types_of_match_events_id} onChange={set('types_of_match_events_id')}>
             {(dicts?.events || []).map((x) => (

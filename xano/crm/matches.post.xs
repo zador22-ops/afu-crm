@@ -50,7 +50,7 @@ query matches verb=POST {
       error = "Новий матч створюється лише запланованим. Перенести його можна після створення, вказавши причину"
     }
 
-    // awarded: false явно — типове значення поля в схемі збережене як "", на нього не покладаємось
+    // awarded: false і finish: "regular" явно — на типові значення полів у схемі не покладаємось
     db.add Match {
       data = {
         created_at      : "now"
@@ -71,6 +71,7 @@ query matches verb=POST {
         match_number    : $input.match_number
         num_of_spectators: $input.num_of_spectators
         awarded         : false
+        finish          : "regular"
       }
     } as $match
   }
