@@ -57,6 +57,15 @@ query "roster/add" verb=POST {
       return = {type: "list"}
       output = ["id", "teaminfo_id", "Date", "leagues_id"]
     } as $active
+    // Назви клубів і турнірів — лише для тексту відмови «Гравець заявлений за … (турнір) з …»
+    db.query TeamInfo {
+      return = {type: "list"}
+      output = ["id", "TeamName"]
+    } as $club_names
+    db.query Leagues {
+      return = {type: "list"}
+      output = ["id", "League"]
+    } as $league_names
 
     api.lambda {
       code = """
@@ -68,12 +77,19 @@ query "roster/add" verb=POST {
           // без parent у клубу where по parent == null/0 міг зачепити чужі клуби — відсікаємо
           if (r.parent_teaminfo_id === target || (parent && r.parent_teaminfo_id === parent)) family.add(r.id);
         }
-        const res = { same: false, conflict: null, close: [], kept: [] };
+        const res = { same: false, conflict: null, conflict_text: '', close: [], kept: [] };
         for (const row of $var.active) {
           if (row.teaminfo_id === target) { res.same = true; continue; }
           if (family.has(row.teaminfo_id)) { res.kept.push(row.id); continue; }
           if (String(row.Date) >= String($input.Date)) { res.conflict = row; continue; }
           res.close.push(row.id);
+        }
+        // Питання Богдана 11.11 (PM 2): назвати заявку, що заважає, — клуб, турнір, дата
+        if (res.conflict) {
+          const к = ($var.club_names || []).find((x) => x.id === res.conflict.teaminfo_id);
+          const т = ($var.league_names || []).find((x) => x.id === res.conflict.leagues_id);
+          const [р, м, д] = String(res.conflict.Date || '').slice(0, 10).split('-');
+          res.conflict_text = 'Гравець заявлений за ' + ((к && к.TeamName) || 'інший клуб') + (т && т.League ? ' (' + т.League + ')' : '') + (д ? ' з ' + д + '.' + м + '.' + р : '') + '. Нова дата має бути пізнішою, або спершу закрийте ту заявку';
         }
         return res;
       """
@@ -86,7 +102,7 @@ query "roster/add" verb=POST {
     }
     precondition ($plan.conflict == null) {
       error_type = "badrequest"
-      error = "У гравця є чинна заявка в іншому клубі з датою не раніше за нову. Спершу закрийте її."
+      error = $plan.conflict_text
     }
 
     foreach ($plan.close) {

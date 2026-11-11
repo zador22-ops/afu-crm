@@ -115,6 +115,16 @@ test('перехід: спершу новий Team, потім закрити с
   assert.equal(р({ entity: 'squad_row', action: 'create', people_id: 2, leagues_id: 10, after: { Number: 11, positions_id: 1 } }).failed, 'Гравець активний в іншому клубі — це перехід, а не нове додавання');
 });
 
+test('перехід, а в старому клубі заявка з сьогоднішньою чи пізнішою датою — клуб, турнір і дата в тексті', () => {
+  const картки = база().cards.map((к) => (к.id === 101 ? { ...к, Date: '2026-10-30' } : к));
+  const п = р(
+    { entity: 'squad_row', action: 'transfer', people_id: 2, leagues_id: 10, transfer_from_team_id: 101, after: { Number: 11, positions_id: 1 } },
+    { cards: картки, league_names: [{ id: 10, League: 'Екстра-ліга 2026/27' }] },
+  );
+  assert.equal(п.failed, 'Гравець заявлений за Яструб (Екстра-ліга 2026/27) з 30.10.2026 — не раніше за сьогодні. АФУ має спершу закрити ту заявку');
+  assert.match(xs, /турніри: \$var\.league_names \|\| \[\]/);
+});
+
 test('закрите заявкове вікно, зайнятий номер, збірна — failed текстом правила', () => {
   assert.equal(р({ entity: 'squad_row', action: 'create', people_id: 2, leagues_id: 14, after: { Number: 11, positions_id: 1 } }).failed, 'Поза заявковим періодом турніру');
   const відкрите = { windows: [{ leagues_id: 14, starts_at: ЗАРАЗ - ДЕНЬ, ends_at: ЗАРАЗ + ДЕНЬ }] };
