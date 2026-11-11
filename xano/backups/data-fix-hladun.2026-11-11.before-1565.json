@@ -1,0 +1,22 @@
+{
+  "taken_at": "2026-11-11T12:20:43.776Z",
+  "rows": [
+    {
+      "table": 7,
+      "id": 1565,
+      "row": {
+        "id": 1565,
+        "created_at": 1794398039610,
+        "player_id": 297,
+        "teaminfo_id": 39,
+        "Number": 0,
+        "leagues_id": 10,
+        "positions_id": 1,
+        "Captain": false,
+        "Date": "2026-09-26",
+        "Relevance_of_the_record": true,
+        "End_date": null
+      }
+    }
+  ]
+}
