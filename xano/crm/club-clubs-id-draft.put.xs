@@ -40,7 +40,7 @@ query "club/clubs/{teaminfo_id}/draft" verb=PUT {
     db.get TeamInfo {
       field_name = "id"
       field_value = $input.teaminfo_id
-      output = ["id", "TeamLogo", "TeamPhoto", "TeamInfo", "founded_year", "home_venues_id", "website", "instagram", "facebook", "youtube", "kit_color_primary", "kit_color_secondary", "contact_name", "contact_phone", "contact_email"]
+      output = ["id", "TeamLogo", "TeamPhoto", "TeamInfo", "about", "founded_year", "home_venues_id", "website", "instagram", "facebook", "youtube", "kit_color_primary", "kit_color_secondary", "contact_name", "contact_phone", "contact_email"]
     } as $club
     db.query Venues {
       return = {type: "list"}
@@ -49,14 +49,14 @@ query "club/clubs/{teaminfo_id}/draft" verb=PUT {
 
     api.lambda {
       code = """
-        const ПОЛЯ = ['TeamLogo', 'TeamPhoto', 'TeamInfo', 'founded_year', 'home_venues_id', 'venue_suggestion', 'website', 'instagram', 'facebook', 'youtube', 'kit_color_primary', 'kit_color_secondary', 'contact_name', 'contact_phone', 'contact_email'];
+        const ПОЛЯ = ['TeamLogo', 'TeamPhoto', 'TeamInfo', 'about', 'founded_year', 'home_venues_id', 'venue_suggestion', 'website', 'instagram', 'facebook', 'youtube', 'kit_color_primary', 'kit_color_secondary', 'contact_name', 'contact_phone', 'contact_email'];
         const ФОТО = ['TeamLogo', 'TeamPhoto'];
         const вхід = $input.after && typeof $input.after === 'object' && !Array.isArray($input.after) ? $input.after : null;
         const чинне = $var.club || {};
         const рядок = (v) => (v == null ? '' : String(v).trim());
         const шлях = (v) => (v && typeof v === 'object' ? String(v.path || '') : '');
         const після = {};
-        const ok = { shape_ok: !!вхід, fields_ok: true, about_ok: true, year_ok: true, venue_ok: true, urls_ok: true, colors_ok: true, email_ok: true, images_ok: true, text_ok: true };
+        const ok = { shape_ok: !!вхід, fields_ok: true, about_ok: true, year_ok: true, venue_ok: true, urls_ok: true, colors_ok: true, email_ok: true, images_ok: true, text_ok: true, about_len_ok: true };
         if (вхід) {
           for (const k of Object.keys(вхід)) if (!ПОЛЯ.includes(k)) ok.fields_ok = false;
           for (const k of ПОЛЯ) {
@@ -85,7 +85,9 @@ query "club/clubs/{teaminfo_id}/draft" verb=PUT {
             const t = рядок(v);
             // TeamInfo — МІСТО (сайт `city`, застосунок — підзаголовок клубу), не «Про клуб» (рішення PM 2, 01.11)
             if (k === 'TeamInfo' && t.length > 60) ok.about_ok = false;
-            if (k !== 'TeamInfo' && t.length > 200) ok.text_ok = false;
+            // about — «Про клуб» (бриф club-about-field, 11.11): окреме поле, до 2000 знаків
+            if (k === 'about' && t.length > 2000) ok.about_len_ok = false;
+            if (k !== 'TeamInfo' && k !== 'about' && t.length > 200) ok.text_ok = false;
             if (['website', 'instagram', 'facebook', 'youtube'].includes(k) && t && !/^https?:\/\/\S+$/i.test(t)) ok.urls_ok = false;
             if (['kit_color_primary', 'kit_color_secondary'].includes(k) && t && !/^#[0-9a-f]{6}$/i.test(t)) ok.colors_ok = false;
             if (k === 'contact_email' && t && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(t)) ok.email_ok = false;
@@ -115,6 +117,10 @@ query "club/clubs/{teaminfo_id}/draft" verb=PUT {
     precondition ($plan.text_ok) {
       error_type = "badrequest"
       error = "Задовгий текст у полі (до 200 знаків)"
+    }
+    precondition ($plan.about_len_ok) {
+      error_type = "badrequest"
+      error = "«Про клуб» — до 2000 знаків"
     }
     precondition ($plan.year_ok) {
       error_type = "badrequest"

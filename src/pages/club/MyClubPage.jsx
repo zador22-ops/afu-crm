@@ -4,7 +4,7 @@ import { club } from '../../api/client.js';
 import { ErrorBox, Field, Modal, PageHeader } from '../../components/ui.jsx';
 import PhotoCropper from '../../components/PhotoCropper.jsx';
 import { ФОТО, стиснутиФото } from '../../utils/compressImage.js';
-import { ПОЛЯ_КАРТКИ, ФОТО_КАРТКИ, значенняФорми, помилкиФорми, статусЧернетки, тілоЧернетки, якБуде } from '../../utils/clubDraft.js';
+import { ПОЛЯ_КАРТКИ, ПРО_КЛУБ_МАКС, ФОТО_КАРТКИ, значенняФорми, помилкиФорми, статусЧернетки, тілоЧернетки, якБуде } from '../../utils/clubDraft.js';
 
 /**
  * «Мій клуб» (самообслуговування клубів, 1.3 + 2.1): картка свого клубу «як
@@ -84,7 +84,7 @@ export default function MyClubPage({ teaminfoId }) {
                 <dt>
                   {label} {kind === 'contact' && <span className="muted">· службове</span>} {позначка(key)}
                 </dt>
-                <dd>{c[key] ? String(c[key]) : <span className="muted">не заповнено</span>}</dd>
+                <dd className={kind === 'textarea' ? 'pre-line' : undefined}>{c[key] ? String(c[key]) : <span className="muted">не заповнено</span>}</dd>
               </div>
             ))}
             <div>
@@ -181,6 +181,9 @@ function CardForm({ teaminfoId, initial, venues, onClose, onSave }) {
         <ErrorBox error={помилкаФайлу} />
         <Field label="Місто" hint="Як показується під назвою клубу на сайті й у застосунку, напр. «Київ»">
           <input value={в.TeamInfo} onChange={set('TeamInfo')} maxLength={60} />
+        </Field>
+        <Field label="Про клуб" hint={`Кілька абзаців про клуб — для сторінки клубу в застосунку. ${в.about.length} / ${ПРО_КЛУБ_МАКС}`}>
+          <textarea rows={6} value={в.about} onChange={set('about')} maxLength={ПРО_КЛУБ_МАКС} />
         </Field>
         <div className="row2">
           <Field label="Рік заснування">

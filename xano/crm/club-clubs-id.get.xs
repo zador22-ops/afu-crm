@@ -34,7 +34,7 @@ query "club/clubs/{teaminfo_id}" verb=GET {
     db.get TeamInfo {
       field_name = "id"
       field_value = $input.teaminfo_id
-      output = ["id", "TeamName", "TeamLogo", "TeamPhoto", "TeamInfo", "founded_year", "home_venues_id", "website", "instagram", "facebook", "youtube", "colors", "kit_color_primary", "kit_color_secondary", "contact_name", "contact_phone", "contact_email", "parent_teaminfo_id"]
+      output = ["id", "TeamName", "TeamLogo", "TeamPhoto", "TeamInfo", "about", "founded_year", "home_venues_id", "website", "instagram", "facebook", "youtube", "colors", "kit_color_primary", "kit_color_secondary", "contact_name", "contact_phone", "contact_email", "parent_teaminfo_id"]
     } as $club
     precondition ($club != null) {
       error_type = "notfound"

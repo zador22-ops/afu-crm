@@ -83,3 +83,50 @@ test('сервер: коментар клубу до чернетки — до 1
   assert.equal(план({ website: 'https://a.b' }, {}, undefined, 'к'.repeat(1000)).comment_ok, true);
   assert.equal(план({ website: 'https://a.b' }, {}, undefined, 'к'.repeat(1001)).comment_ok, false);
 });
+
+// «Про клуб» (бриф club-about-field, Андрій 11.11): TeamInfo.about до 2000 знаків, переноси рядків — як є
+test('«Про клуб»: у білому списку чернетки, до 2000 знаків, переноси рядків зберігаються', () => {
+  const текст = 'Клуб заснований у 2008 році.\n\nЧемпіон області.';
+  const п = план({ about: `  ${текст}  ` }, { about: null });
+  assert.equal(п.fields_ok, true);
+  assert.equal(п.about_len_ok, true);
+  assert.deepEqual(п.after, { about: текст });
+  // 2000 — можна; 2001 — ні; межа 200 «звичайних» полів на about не діє
+  assert.equal(план({ about: 'а'.repeat(2000) }).about_len_ok, true);
+  assert.equal(план({ about: 'а'.repeat(2000) }).text_ok, true);
+  assert.equal(план({ about: 'а'.repeat(2001) }).about_len_ok, false);
+  // незмінене — не в after; очищення — null
+  assert.deepEqual(план({ about: текст }, { about: текст }).after, {});
+  assert.deepEqual(план({ about: '' }, { about: текст }).after, { about: null });
+  assert.match(xs, /"TeamInfo", "about", "founded_year"/);
+  assert.match(xs, /precondition \(\$plan\.about_len_ok\)/);
+});
+
+test('«Про клуб»: форма кабінету, перевірка до відправлення, «Погодження» — було / стане', async () => {
+  const { ПОЛЯ_КАРТКИ, ПРО_КЛУБ_МАКС } = await import('./clubDraft.js');
+  assert.equal(ПРО_КЛУБ_МАКС, 2000);
+  assert.deepEqual(ПОЛЯ_КАРТКИ.find((п) => п.key === 'about'), { key: 'about', label: 'Про клуб', kind: 'textarea', max: 2000 });
+  const в = значенняФорми({ about: 'Старий опис' }, { after: { about: 'Новий\nопис' } });
+  assert.equal(в.about, 'Новий\nопис');
+  assert.equal(тілоЧернетки(в).after.about, 'Новий\nопис');
+  assert.deepEqual(помилкиФорми({ about: 'а'.repeat(2001) }, 2026), ['Про клуб — до 2000 знаків']);
+  assert.deepEqual(помилкиФорми({ about: 'а'.repeat(2000) }, 2026), []);
+  const { порівняння } = await import('./moderation.js');
+  assert.deepEqual(порівняння({ entity: 'club', before: { about: 'Старий' }, after: { about: 'Новий\nопис' } }), [
+    { key: 'about', label: 'Про клуб', kind: 'textarea', before: 'Старий', after: 'Новий\nопис' },
+  ]);
+});
+
+test('«Про клуб» у CRM АФУ: PATCH приймає about з межею 2000; кабінет читає about', () => {
+  const p = fs.readFileSync(new URL('../../xano/crm/clubs-id.patch.xs', import.meta.url), 'utf8');
+  assert.match(p, /text about\? filters=trim/);
+  const кін = p.indexOf('} as $about_len_ok');
+  const к = p.slice(p.lastIndexOf('api.lambda {', кін), кін).match(/code = """([\s\S]*?)"""/)[1];
+  const ok = (about) => new Function('ВХІД_', к.replace(/\$input\./g, 'ВХІД_.'))({ about });
+  assert.equal(ok(undefined), true);
+  assert.equal(ok('а'.repeat(2000)), true);
+  assert.equal(ok('а'.repeat(2001)), false);
+  assert.match(p, /precondition \(\$about_len_ok == true\)/);
+  const g = fs.readFileSync(new URL('../../xano/crm/club-clubs-id.get.xs', import.meta.url), 'utf8');
+  assert.match(g, /"TeamInfo", "about", "founded_year"/);
+});

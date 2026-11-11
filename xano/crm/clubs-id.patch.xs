@@ -6,6 +6,8 @@ query "clubs/{teaminfo_id}" verb=PATCH {
     int teaminfo_id filters=min:1
     text TeamName? filters=trim
     text TeamInfo? filters=trim
+    // «Про клуб» (бриф club-about-field, Андрій 11.11): до 2000 знаків, переноси рядків зберігаються
+    text about? filters=trim
     bool Relevance?
     int leagues_id?
     int parent_teaminfo_id?
@@ -64,6 +66,16 @@ query "clubs/{teaminfo_id}" verb=PATCH {
     precondition ($colors_ok == true) {
       error_type = "badrequest"
       error = "Колір форми має бути у форматі #RRGGBB, наприклад #1E4FA0"
+    }
+    api.lambda {
+      code = """
+        return $input.about == null || String($input.about).length <= 2000;
+      """
+      timeout = 10
+    } as $about_len_ok
+    precondition ($about_len_ok == true) {
+      error_type = "badrequest"
+      error = "«Про клуб» — до 2000 знаків"
     }
 
     util.get_raw_input {

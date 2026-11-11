@@ -6,6 +6,7 @@ import { Empty, ErrorBox, Field, Modal, PageHeader, Tabs, Toggle, dayBefore, fmt
 import { PersonForm, PersonPicker } from './PeoplePage.jsx';
 import PhotoCropper from '../components/PhotoCropper.jsx';
 import { описСтиснення, стиснутиФото } from '../utils/compressImage.js';
+import { ПРО_КЛУБ_МАКС } from '../utils/clubDraft.js';
 
 export default function ClubPage() {
   const { id } = useParams();
@@ -66,6 +67,7 @@ function Card({ data }) {
       crm.patch(`/clubs/${c.id}`, {
         TeamName: values.TeamName.trim(),
         TeamInfo: values.TeamInfo.trim(),
+        about: values.about.trim(),
         Relevance: values.Relevance,
         parent_teaminfo_id: toInt(values.parent_teaminfo_id) ?? 0,
         founded_year: toInt(values.founded_year) ?? 0,
@@ -119,6 +121,9 @@ function Card({ data }) {
           </Field>
           <Field label="Місто">
             <input value={values.TeamInfo} onChange={set('TeamInfo')} />
+          </Field>
+          <Field label="Про клуб" hint={`Застосунок показує на сторінці клубу, вкладка «Про клуб». ${values.about.length} / ${ПРО_КЛУБ_МАКС}`}>
+            <textarea rows={6} value={values.about} onChange={set('about')} maxLength={ПРО_КЛУБ_МАКС} />
           </Field>
           <div className="row2">
             <Field label="Рік заснування">
@@ -294,6 +299,7 @@ function KitColors({ primary, secondary, onChange }) {
 const toForm = (c) => ({
   TeamName: c.TeamName || '',
   TeamInfo: c.TeamInfo || '',
+  about: c.about || '',
   Relevance: !!c.Relevance,
   parent_teaminfo_id: c.parent_teaminfo_id || '',
   founded_year: c.founded_year || '',

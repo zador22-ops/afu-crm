@@ -9,6 +9,9 @@ export const ПОЛЯ_КАРТКИ = [
   // TeamInfo — це МІСТО (CRM АФУ «Місто», сайт `city`, підзаголовок клубу в застосунку): ТЗ 2.1 помилково
   // називав його «довідка Про клуб» (жива перевірка Г1 01.11; рішення PM 2). «Про клуб» — окремою задачею.
   { key: 'TeamInfo', label: 'Місто', kind: 'text', max: 60 },
+  // «Про клуб» — окреме поле TeamInfo.about (бриф club-about-field, Андрій 11.11): текст до 2000 знаків,
+  // переноси рядків зберігаються; застосунок показує його на сторінці клубу «Про клуб»
+  { key: 'about', label: 'Про клуб', kind: 'textarea', max: 2000 },
   { key: 'founded_year', label: 'Рік заснування', kind: 'year' },
   { key: 'home_venues_id', label: 'Домашня арена', kind: 'venue' },
   { key: 'website', label: 'Сайт', kind: 'url' },
@@ -27,6 +30,8 @@ export const ФОТО_КАРТКИ = [
 ];
 
 const рядок = (v) => (v == null ? '' : String(v));
+
+export const ПРО_КЛУБ_МАКС = 2000;
 
 /** Значення форми: чинна картка, поверх — те, що вже є в чернетці. */
 export function значенняФорми(картка, чернетка) {
@@ -65,6 +70,7 @@ export function помилкиФорми(в, рік = new Date().getFullYear()) 
   const п = [];
   const t = (k) => рядок(в[k]).trim();
   if (t('TeamInfo').length > 60) п.push('Місто — до 60 знаків');
+  if (t('about').length > ПРО_КЛУБ_МАКС) п.push(`Про клуб — до ${ПРО_КЛУБ_МАКС} знаків`);
   if (t('founded_year') && !(/^\d{4}$/.test(t('founded_year')) && +t('founded_year') >= 1850 && +t('founded_year') <= рік)) п.push('Рік заснування — від 1850 до поточного');
   for (const k of ['website', 'instagram', 'facebook', 'youtube']) if (t(k) && !/^https?:\/\/\S+$/i.test(t(k))) п.push('Посилання на сайт і соцмережі мають починатися з https://');
   for (const k of ['kit_color_primary', 'kit_color_secondary']) if (t(k) && !/^#[0-9a-f]{6}$/i.test(t(k))) п.push('Колір форми — у вигляді #1A2B3C');
