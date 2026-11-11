@@ -125,6 +125,13 @@ test('перехід, а в старому клубі заявка з сього
   assert.match(xs, /турніри: \$var\.league_names \|\| \[\]/);
 });
 
+test('«Про клуб» (about): картка клубу застосовує опис з переносами; довше за 2000 — failed', () => {
+  const п = р({ entity: 'club', action: 'update', entity_id: 20, after: { about: 'Клуб з Києва.\nЧемпіон області.' } });
+  assert.equal(п.ok, true, п.failed);
+  assert.deepEqual(п.steps, [{ table: 'TeamInfo', op: 'patch', id: 20, data: { about: 'Клуб з Києва.\nЧемпіон області.' }, label: 'картку клубу змінено', applied_id: 20 }]);
+  assert.equal(р({ entity: 'club', action: 'update', entity_id: 20, after: { about: 'а'.repeat(2001) } }).failed, '«Про клуб» довше за 2000 знаків');
+});
+
 test('закрите заявкове вікно, зайнятий номер, збірна — failed текстом правила', () => {
   assert.equal(р({ entity: 'squad_row', action: 'create', people_id: 2, leagues_id: 14, after: { Number: 11, positions_id: 1 } }).failed, 'Поза заявковим періодом турніру');
   const відкрите = { windows: [{ leagues_id: 14, starts_at: ЗАРАЗ - ДЕНЬ, ends_at: ЗАРАЗ + ДЕНЬ }] };

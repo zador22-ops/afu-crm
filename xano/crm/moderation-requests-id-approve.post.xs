@@ -212,7 +212,7 @@ query "moderation/requests/{request_id}/approve" verb=POST {
 
 // Поля, які клуб може змінювати (ТЗ 2.1, 2.2, 2.3). Решту з `after` ігноруємо.
 // Як у CRM 2.1 (club/clubs/{id}/draft): кольори — kit_color_*; старе текстове `colors` клуб не змінює.
-const ПОЛЯ_КЛУБУ = ['TeamLogo', 'TeamPhoto', 'TeamInfo', 'founded_year', 'home_venues_id', 'website', 'instagram', 'facebook', 'youtube', 'kit_color_primary', 'kit_color_secondary', 'contact_name', 'contact_phone', 'contact_email'];
+const ПОЛЯ_КЛУБУ = ['TeamLogo', 'TeamPhoto', 'TeamInfo', 'about', 'founded_year', 'home_venues_id', 'website', 'instagram', 'facebook', 'youtube', 'kit_color_primary', 'kit_color_secondary', 'contact_name', 'contact_phone', 'contact_email'];
 const ПОЛЯ_ОСОБИ = ['prizvushche', 'Name', 'po_batkovi', 'Date_of_birth', 'Photo', 'City', 'Growth', 'Weight'];
 const ПОЛЯ_СКЛАДУ = ['Number', 'positions_id', 'Captain'];
 const ПОЛЯ_ШТАБУ = ['positions_id'];
@@ -289,6 +289,8 @@ function планКлубу(заявка, клуб) {
   if (є(дані.founded_year) && !(Number.isInteger(Number(дані.founded_year)) && дані.founded_year >= 1850 && дані.founded_year <= 2100)) return невдача('Рік заснування поза межами');
   // TeamInfo — МІСТО клубу (site city, пошук застосунку, CRM АФУ), не довідка: PM 2, 01.11.2026
   if (є(дані.TeamInfo) && String(дані.TeamInfo).length > 60) return невдача('Місто довше за 60 знаків');
+  // about — опис «Про клуб» (TeamInfo.about, Андрій 11.11.2026)
+  if (є(дані.about) && String(дані.about).length > 2000) return невдача('«Про клуб» довше за 2000 знаків');
   return { ok: true, table: 'TeamInfo', id: клуб.id, patch: дані, venue_suggestion: пропозиціяАрени };
 }
 
