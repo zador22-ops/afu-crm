@@ -1,0 +1,67 @@
+{
+  "taken_at": "2026-11-11T12:17:54.561Z",
+  "rows": [
+    {
+      "table": 20,
+      "id": 14833,
+      "row": {
+        "id": 14833,
+        "created_at": 1793801892796,
+        "match_id": 697,
+        "team_id": 1522,
+        "First5": false
+      }
+    },
+    {
+      "table": 7,
+      "id": 1522,
+      "row": {
+        "id": 1522,
+        "created_at": 1793798295620,
+        "player_id": 297,
+        "teaminfo_id": 106,
+        "Number": 0,
+        "leagues_id": 12,
+        "positions_id": 1,
+        "Captain": false,
+        "Date": "2026-09-25",
+        "Relevance_of_the_record": false,
+        "End_date": "2026-09-25"
+      }
+    },
+    {
+      "table": 7,
+      "id": 666,
+      "row": {
+        "id": 666,
+        "created_at": 1787988008873,
+        "player_id": 297,
+        "teaminfo_id": 39,
+        "Number": 7,
+        "leagues_id": 10,
+        "positions_id": 1,
+        "Captain": false,
+        "Date": "2026-08-29",
+        "Relevance_of_the_record": false,
+        "End_date": "2026-09-24"
+      }
+    },
+    {
+      "table": 7,
+      "id": 1564,
+      "row": {
+        "id": 1564,
+        "created_at": 1794396541245,
+        "player_id": 1427,
+        "teaminfo_id": 106,
+        "Number": 0,
+        "leagues_id": 12,
+        "positions_id": 1,
+        "Captain": false,
+        "Date": "2026-09-25",
+        "Relevance_of_the_record": true,
+        "End_date": null
+      }
+    }
+  ]
+}
