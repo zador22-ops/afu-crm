@@ -59,7 +59,7 @@ query "data-issues" verb=GET {
     } as $people
     db.query TeamInfo {
       return = {type: "list"}
-      output = ["id", "TeamName", "TeamLogo", "TeamInfo", "home_venues_id"]
+      output = ["id", "TeamName", "TeamLogo", "TeamInfo", "home_venues_id", "about"]
     } as $clubs
     db.query Venues {
       return = {type: "list"}
@@ -340,6 +340,12 @@ query "data-issues" verb=GET {
           'Доповніть картку клубу',
           клуби.filter((k) => !фото(k.TeamLogo) || !String(k.TeamInfo || '').trim())
             .map((k) => ({ ...клубОб(k), sub: [!фото(k.TeamLogo) ? 'без логотипа' : '', !String(k.TeamInfo || '').trim() ? 'без міста' : ''].filter(Boolean).join(', ') })).sort(заНазвою), клуби.length);
+
+        // «Про клуб» (бриф club-about-field, PM 2 11.11): опис для сторінки клубу в застосунку
+        перевірка('club_no_about', 'advice', 'Клуб-учасник без опису «Про клуб»',
+          'На сторінці клубу в застосунку немає тексту «Про клуб»',
+          'Додайте опис у картці клубу (поле «Про клуб») або попросіть клуб заповнити його в кабінеті',
+          впоряд(клуби.filter((k) => !String(k.about || '').trim()).map((k) => клубОб(k)), заНазвою), клуби.length);
 
         const призначені = new Map();
         for (const m of майбутні) if (є(m.users_idDelegat)) призначені.set(m.users_idDelegat, (призначені.get(m.users_idDelegat) || 0) + 1);

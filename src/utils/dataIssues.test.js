@@ -150,6 +150,22 @@ test('екстра-тайми: «По пенальті» без серії; по
   assert.match(xs, /output = \["match_id", "minute"\]/);
 });
 
+test('«Про клуб»: клуби-учасники сезону без опису — порада з посиланням на картку', () => {
+  const v = база();
+  v.clubs = [
+    { ...v.clubs[0], about: 'Клуб з Києва.\nЗаснований 2008' },
+    { ...v.clubs[1], about: '   ' }, // лише пробіли — як порожньо
+    { id: 3, TeamName: 'Чужий', about: null }, // не учасник поточного сезону — не рахуємо
+  ];
+  const r = виконати(v);
+  const c = перевірка(r, 'club_no_about');
+  assert.equal(c.level, 'advice');
+  assert.deepEqual(ids(r, 'club_no_about'), [2]);
+  assert.equal(c.total, 2);
+  assert.equal(c.items[0].link, '/clubs/2');
+  assert.match(xs, /"home_venues_id", "about"\]/);
+});
+
 test('склади: без номера (0 = немає), дублі, неактуальні картки не рахуються', () => {
   const v = база();
   v.people = [1, 2, 3, 4].map((id) => ({ id, prizvushche: 'Гравець' + id, Name: 'Т', Photo: ФОТО, Date_of_birth: '2000-01-01' }));
@@ -220,7 +236,7 @@ test('рівні й порядок перевірок — як у брифі', (
   assert.deepEqual(r.checks.map((c) => c.level), [
     ...Array(4).fill('critical'),
     ...Array(9).fill('important'),
-    ...Array(9).fill('advice'),
+    ...Array(10).fill('advice'),
   ]);
   assert.deepEqual(Object.keys(РІВНІ), ['critical', 'important', 'advice']);
   const г = групи(r.checks);
