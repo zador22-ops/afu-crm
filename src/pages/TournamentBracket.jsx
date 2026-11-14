@@ -102,6 +102,10 @@ export default function TournamentBracket({ tid, participants }) {
   );
 }
 
+// Заміна команд пари на місці — вмикається, щойно на живому розгорнуто PATCH crm/bracket/{id}
+// (новий ендпоінт, c760534). До того кнопка «Зберегти команди» повертала б 404 (PM 2, 14.11).
+const ЗАМІНА_КОМАНД = false;
+
 /** Картка пари: обидві команди (заміна на місці), матчі пари з рахунком чи станом, «Прибрати». */
 function PairCard({ пара, раунд, команди, onClose, onRemove, onEdit }) {
   const н1 = пара._teaminfo1?.TeamName || 'Команда';
@@ -114,6 +118,7 @@ function PairCard({ пара, раунд, команди, onClose, onRemove, onE
   const варіанти = (id, назва) => (id && !команди.some((c) => String(c.id) === String(id)) ? [{ id, name: `${назва} (не учасник)` }, ...команди] : команди);
   return (
     <Modal title={`${раунд.назва}: ${н1} — ${н2}`} onClose={onClose}>
+      {ЗАМІНА_КОМАНД && (
       <form
         className="form"
         onSubmit={(e) => {
@@ -155,6 +160,7 @@ function PairCard({ пара, раунд, команди, onClose, onRemove, onE
           </div>
         )}
       </form>
+      )}
       <div className="form">
         {матчі.length === 0 && <div className="muted">Матчу між цими командами в раунді ще немає — створіть його у вкладці «Матчі»</div>}
         {матчі.length > 0 && (
