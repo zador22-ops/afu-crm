@@ -53,6 +53,16 @@ query "tournaments/{leagues_id}/bracket" verb=POST {
       error = "Обидві команди мають бути учасницями турніру"
     }
 
+    // Команда не може стояти у двох парах одного раунду (бриф crm-bracket-editor, як у PATCH пари)
+    db.query Bracket {
+      where = $db.Bracket.tours_id == $input.tours_id && ($db.Bracket.teaminfo_id1 == $input.teaminfo_id1 || $db.Bracket.teaminfo_id2 == $input.teaminfo_id1 || $db.Bracket.teaminfo_id1 == $input.teaminfo_id2 || $db.Bracket.teaminfo_id2 == $input.teaminfo_id2)
+      return = {type: "count"}
+    } as $busy
+    precondition ($busy == 0) {
+      error_type = "badrequest"
+      error = "Команда вже стоїть в іншій парі цього раунду"
+    }
+
     db.add Bracket {
       data = {
         created_at  : "now"

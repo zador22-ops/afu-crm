@@ -42,6 +42,13 @@ export default function TournamentBracket({ tid, participants }) {
       setAdding(null);
     },
   });
+  const edit = useMutation({
+    mutationFn: ({ id, body }) => crm.patch(`/bracket/${id}`, body),
+    onSuccess: () => {
+      оновити();
+      setOpened(null);
+    },
+  });
   const remove = useMutation({
     mutationFn: (id) => crm.del(`/bracket/${id}`),
     onSuccess: () => {
@@ -89,19 +96,65 @@ export default function TournamentBracket({ tid, participants }) {
           </div>
         );
       })}
-      {opened && <PairCard {...opened} onClose={() => setOpened(null)} onRemove={remove} />}
+      {opened && <PairCard {...opened} команди={команди} onClose={() => setOpened(null)} onRemove={remove} onEdit={edit} />}
       {adding && <PairForm раунди={раунди} команди={команди} початковий={adding.tours_id} onClose={() => setAdding(null)} onSave={add} />}
     </section>
   );
 }
 
-/** Картка пари: обидві команди, матчі пари з рахунком чи станом, «Прибрати». */
-function PairCard({ пара, раунд, onClose, onRemove }) {
+/** Картка пари: обидві команди (заміна на місці), матчі пари з рахунком чи станом, «Прибрати». */
+function PairCard({ пара, раунд, команди, onClose, onRemove, onEdit }) {
   const н1 = пара._teaminfo1?.TeamName || 'Команда';
   const н2 = пара._teaminfo2?.TeamName || 'Команда';
   const матчі = Array.isArray(пара.legs) ? пара.legs : [];
+  const { values, set } = useForm({ teaminfo_id1: String(пара.teaminfo_id1 || ''), teaminfo_id2: String(пара.teaminfo_id2 || '') });
+  const змінено = values.teaminfo_id1 !== String(пара.teaminfo_id1 || '') || values.teaminfo_id2 !== String(пара.teaminfo_id2 || '');
+  const однакові = values.teaminfo_id1 && values.teaminfo_id1 === values.teaminfo_id2;
+  // Команду, якої вже немає серед учасників, теж показуємо — щоб вибір не стрибнув на «—»
+  const варіанти = (id, назва) => (id && !команди.some((c) => String(c.id) === String(id)) ? [{ id, name: `${назва} (не учасник)` }, ...команди] : команди);
   return (
     <Modal title={`${раунд.назва}: ${н1} — ${н2}`} onClose={onClose}>
+      <form
+        className="form"
+        onSubmit={(e) => {
+          e.preventDefault();
+          onEdit.mutate({ id: пара.id, body: { teaminfo_id1: Number(values.teaminfo_id1), teaminfo_id2: Number(values.teaminfo_id2) } });
+        }}
+      >
+        <div className="row2">
+          <Field label="Команда 1">
+            <select value={values.teaminfo_id1} onChange={set('teaminfo_id1')} required>
+              {варіанти(пара.teaminfo_id1, н1).map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.name}
+                </option>
+              ))}
+            </select>
+          </Field>
+          <Field label="Команда 2">
+            <select value={values.teaminfo_id2} onChange={set('teaminfo_id2')} required>
+              {варіанти(пара.teaminfo_id2, н2).map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.name}
+                </option>
+              ))}
+            </select>
+          </Field>
+        </div>
+        {однакові && <div className="error-box">Команда не може грати сама з собою</div>}
+        {змінено && матчі.length > 0 && (
+          <div className="warn-box">Матчі пари лишаться між старими командами — у сітці пара покаже матчі нових команд, якщо вони є в цьому раунді.</div>
+        )}
+        <ErrorBox error={onEdit.error} />
+        {змінено && (
+          <div className="form-actions">
+            <span className="spacer" />
+            <button className="btn primary" disabled={onEdit.isPending || однакові}>
+              {onEdit.isPending ? 'Зберігаємо…' : 'Зберегти команди'}
+            </button>
+          </div>
+        )}
+      </form>
       <div className="form">
         {матчі.length === 0 && <div className="muted">Матчу між цими командами в раунді ще немає — створіть його у вкладці «Матчі»</div>}
         {матчі.length > 0 && (
