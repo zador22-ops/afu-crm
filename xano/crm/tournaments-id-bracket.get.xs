@@ -29,9 +29,9 @@ query "tournaments/{leagues_id}/bracket" verb=GET {
       }
 
       where = $db.Tours.leagues_id == $input.leagues_id
-      // Місце пари в раунді — Bracket.position (контракт Backend bracket-position-contract, 14.11);
-      // null — у кінці, далі за id
-      sort = {Bracket.position: "asc", Bracket.id: "asc"}
+      // Місце пари в раунді — Bracket.position (контракт Backend bracket-position-contract, 14.11).
+      // Спершу тур: глобальне {position, id} переплітає тури (Backend, #686). Null — у кінці туру, далі за id
+      sort = {Bracket.tours_id: "asc", Bracket.position: "asc", Bracket.id: "asc"}
       return = {type: "list"}
       addon = [
         {

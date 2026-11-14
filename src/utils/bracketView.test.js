@@ -76,7 +76,7 @@ test('пересування: місце цілі й крок — у серве�
 
 test('сервер: GET сітки — за position, далі id; нова пара — останньою в раунді', () => {
   const g = fs.readFileSync(new URL('../../xano/crm/tournaments-id-bracket.get.xs', import.meta.url), 'utf8');
-  assert.match(g, /sort = \{Bracket\.position: "asc", Bracket\.id: "asc"\}/);
+  assert.match(g, /sort = \{Bracket\.tours_id: "asc", Bracket\.position: "asc", Bracket\.id: "asc"\}/);
   const p = fs.readFileSync(new URL('../../xano/crm/tournaments-id-bracket.post.xs', import.meta.url), 'utf8');
   assert.match(p, /return Number\(\$var\.round_count \|\| 0\) \+ 1;/);
   assert.match(p, /position\s*: \$next_position/);
