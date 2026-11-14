@@ -1,6 +1,6 @@
-import { Fragment } from 'react';
+import { Fragment, useState } from 'react';
 import { двоматчева, переможецьСерії } from '../utils/bracketLayout.js';
-import { станПари } from '../utils/bracketView.js';
+import { порядокВирішує, станПари } from '../utils/bracketView.js';
 
 /**
  * Сітка плей-оф деревом — веб-копія AFU components/PlayoffBracket.js («варіант Б», слово Андрія 05.10):
@@ -12,7 +12,11 @@ import { станПари } from '../utils/bracketView.js';
  * стану матчів пари («матчу ще немає», «не зіграний», «зіграно 1 з 2»); порожній слот можна натиснути,
  * щоб створити пару в цьому раунді.
  *
- * Пропси: розкладка — результат розкластиСітку; onPair(пара, раунд); onEmpty(раундId).
+ * Пересування (бриф п. 4): картку можна перетягнути на місце іншої пари ТОГО Ж раунду — onMove(пара, ціль).
+ * Лише в колонках, де порядок справді вирішує місце: якщо в наступному раунді вже є пари, слоти цього
+ * раунду розкладка ставить за командами (хто куди пройшов), і пересування нічого б не змінило.
+ *
+ * Пропси: розкладка — результат розкластиСітку; onPair(пара, раунд); onEmpty(раундId); onMove(пара, ціль).
  */
 
 export const КАРТКА_ВИСОТА = 84;
@@ -55,7 +59,7 @@ function Команда({ пара, сторона }) {
   );
 }
 
-function Слот({ пара, раунд, onPair, onEmpty }) {
+function Слот({ пара, раунд, onPair, onEmpty, тягнути }) {
   if (!пара) {
     return (
       <button type="button" className="bracket-card empty" style={{ height: КАРТКА_ВИСОТА, width: КАРТКА_ШИРИНА }} onClick={() => onEmpty?.(раунд.id)}>
@@ -65,11 +69,32 @@ function Слот({ пара, раунд, onPair, onEmpty }) {
     );
   }
   const стан = станПари(пара);
+  const ціль = тягнути?.тягнемо && тягнути.тягнемо.пара.id !== пара.id && тягнути.тягнемо.раунд === раунд.id;
   return (
     <button
       type="button"
-      className="bracket-card"
+      className={`bracket-card${тягнути?.можна ? ' draggable' : ''}${ціль && тягнути.над === пара.id ? ' drop-target' : ''}${тягнути?.тягнемо?.пара.id === пара.id ? ' dragging' : ''}`}
       style={{ height: КАРТКА_ВИСОТА, width: КАРТКА_ШИРИНА }}
+      draggable={!!тягнути?.можна}
+      onDragStart={(e) => {
+        e.dataTransfer.effectAllowed = 'move';
+        e.dataTransfer.setData('text/plain', String(пара.id));
+        тягнути.почати({ пара, раунд: раунд.id });
+      }}
+      onDragEnd={() => тягнути?.скінчити()}
+      onDragOver={(e) => {
+        if (!ціль) return;
+        e.preventDefault();
+        e.dataTransfer.dropEffect = 'move';
+        тягнути.навести(пара.id);
+      }}
+      onDragLeave={() => ціль && тягнути.навести(null)}
+      onDrop={(e) => {
+        if (!ціль) return;
+        e.preventDefault();
+        тягнути.кинути(пара);
+      }}
+      title={тягнути?.можна ? 'Перетягніть на місце іншої пари цього раунду' : undefined}
       onClick={() => onPair?.(пара, раунд)}
       aria-label={`${раунд.назва}: ${пара._teaminfo1?.TeamName || 'Команда'} — ${пара._teaminfo2?.TeamName || 'Команда'}`}
     >
@@ -95,8 +120,28 @@ function Дужки({ кількість, слот }) {
   );
 }
 
-export default function PlayoffBracket({ розкладка, onPair, onEmpty }) {
+export default function PlayoffBracket({ розкладка, onPair, onEmpty, onMove }) {
   const { колонки = [], заТретє = null } = розкладка || {};
+  const [тягнемо, setТягнемо] = useState(null);
+  const [над, setНад] = useState(null);
+  const тягнути = (можна) =>
+    onMove && {
+      можна,
+      тягнемо,
+      над,
+      почати: setТягнемо,
+      навести: setНад,
+      скінчити: () => {
+        setТягнемо(null);
+        setНад(null);
+      },
+      кинути: (ціль) => {
+        const що = тягнемо?.пара;
+        setТягнемо(null);
+        setНад(null);
+        if (що && що.id !== ціль.id) onMove(що, ціль);
+      },
+    };
   if (!колонки.length && !заТретє) return null;
 
   const першихСлотів = Math.max(1, колонки[0]?.пари.length ?? 1);
@@ -120,7 +165,7 @@ export default function PlayoffBracket({ розкладка, onPair, onEmpty }) 
                 <div style={{ height: остання ? висотаОстанньої : висотаДерева, position: 'relative' }}>
                   {колонка.пари.map((пара, j) => (
                     <div key={пара?.id ?? `порожній-${j}`} className="bracket-slot" style={{ height: слот, top: слот * j }}>
-                      <Слот пара={пара} раунд={колонка} onPair={onPair} onEmpty={onEmpty} />
+                      <Слот пара={пара} раунд={колонка} onPair={onPair} onEmpty={onEmpty} тягнути={тягнути(порядокВирішує(колонки, к) && колонка.пари.filter(Boolean).length > 1)} />
                     </div>
                   ))}
                   {остання && заТретє && (

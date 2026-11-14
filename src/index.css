@@ -2107,3 +2107,13 @@ fieldset.plain {
   position: absolute;
   background: var(--primary);
 }
+.bracket-card.draggable {
+  cursor: grab;
+}
+.bracket-card.dragging {
+  opacity: 0.45;
+}
+.bracket-card.drop-target {
+  border: 2px dashed var(--primary);
+  background: var(--primary-soft);
+}

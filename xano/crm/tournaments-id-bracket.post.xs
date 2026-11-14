@@ -63,12 +63,25 @@ query "tournaments/{leagues_id}/bracket" verb=POST {
       error = "Команда вже стоїть в іншій парі цього раунду"
     }
 
+    // Нова пара — останньою в раунді (контракт bracket-position: position = кількість пар туру + 1)
+    db.query Bracket {
+      where = $db.Bracket.tours_id == $input.tours_id
+      return = {type: "count"}
+    } as $round_count
+    api.lambda {
+      code = """
+        return Number($var.round_count || 0) + 1;
+      """
+      timeout = 5
+    } as $next_position
+
     db.add Bracket {
       data = {
         created_at  : "now"
         tours_id    : $input.tours_id
         teaminfo_id1: $input.teaminfo_id1
         teaminfo_id2: $input.teaminfo_id2
+        position    : $next_position
       }
     } as $pair
   }

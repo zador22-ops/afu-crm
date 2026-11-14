@@ -57,6 +57,31 @@ test('дерево з живої відповіді Default (ЕЛ 2024/25): тр
   assert.equal(р.заТретє.пара.id, 8);
 });
 
+test('пересування: місце цілі й крок — у серверному порядку туру; порядок вирішує лише без зведеного наступного раунду', async () => {
+  const { місцеНаКрок, місцеЦілі, порядокВирішує } = await import('./bracketView.js');
+  const пари = [{ id: 7, tours_id: 1 }, { id: 3, tours_id: 1 }, { id: 9, tours_id: 2 }, { id: 5, tours_id: 1 }];
+  assert.equal(місцеЦілі(пари, { id: 3, tours_id: 1 }), 2);
+  assert.equal(місцеЦілі(пари, { id: 5, tours_id: 1 }), 3);
+  assert.equal(місцеЦілі(пари, { id: 9, tours_id: 2 }), 1);
+  assert.equal(місцеЦілі(пари, { id: 4, tours_id: 1 }), null);
+  assert.equal(місцеНаКрок(пари, { id: 7, tours_id: 1 }, -1), null);
+  assert.equal(місцеНаКрок(пари, { id: 7, tours_id: 1 }, 1), 2);
+  assert.equal(місцеНаКрок(пари, { id: 5, tours_id: 1 }, -1), 2);
+  assert.equal(місцеНаКрок(пари, { id: 5, tours_id: 1 }, 1), null);
+  const колонки = [{ пари: [{ id: 1 }, { id: 2 }] }, { пари: [null] }, { пари: [{ id: 3 }] }];
+  assert.equal(порядокВирішує(колонки, 0), true); // наступний раунд порожній
+  assert.equal(порядокВирішує(колонки, 1), false); // фінал уже є
+  assert.equal(порядокВирішує(колонки, 2), true); // остання колонка
+});
+
+test('сервер: GET сітки — за position, далі id; нова пара — останньою в раунді', () => {
+  const g = fs.readFileSync(new URL('../../xano/crm/tournaments-id-bracket.get.xs', import.meta.url), 'utf8');
+  assert.match(g, /sort = \{Bracket\.position: "asc", Bracket\.id: "asc"\}/);
+  const p = fs.readFileSync(new URL('../../xano/crm/tournaments-id-bracket.post.xs', import.meta.url), 'utf8');
+  assert.match(p, /return Number\(\$var\.round_count \|\| 0\) \+ 1;/);
+  assert.match(p, /position\s*: \$next_position/);
+});
+
 test('«Третій попередній етап» без пар — звичайна колонка, не «За 3 місце» (Кубок 2026/27, Android 481c78d)', () => {
   const р = розкластиСітку({
     tours: [{ id: 150, TourName: 'Перший попередній етап' }, { id: 151, TourName: 'Другий попередній етап' }, { id: 156, TourName: 'Третій попередній етап' }],

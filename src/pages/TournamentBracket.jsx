@@ -4,7 +4,7 @@ import { crm, request } from '../api/client.js';
 import { Empty, ErrorBox, Field, Modal, useForm } from '../components/ui.jsx';
 import PlayoffBracket from '../components/PlayoffBracket.jsx';
 import { розкластиСітку } from '../utils/bracketLayout.js';
-import { рахунокМатчу, стадіїСітки } from '../utils/bracketView.js';
+import { місцеНаКрок, місцеЦілі, порядокВирішує, рахунокМатчу, стадіїСітки } from '../utils/bracketView.js';
 
 /**
  * Сітка плей-оф деревом — так само, як її бачить уболівальник у застосунку (бриф crm-bracket-editor,
@@ -15,7 +15,8 @@ import { рахунокМатчу, стадіїСітки } from '../utils/brack
  * ЧОГО ТУТ НЕМАЄ І ЧОМУ. Переможець далі сіткою не «йде» сам: формат Кубка (серія з двох матчів, нічия)
  * Андрій ще не описав. Хто пройшов, видно з рахунку, а наступну пару ставить людина.
  *
- * Натиснути пару — подробиці (матчі пари, «Прибрати»); натиснути порожній слот — нова пара в цьому раунді.
+ * Натиснути пару — подробиці (команди, матчі пари, «Вище / Нижче», «Прибрати»); натиснути порожній слот —
+ * нова пара в цьому раунді; перетягнути пару на іншу пару раунду — поміняти місце (Bracket.position, move).
  */
 export default function TournamentBracket({ tid, participants }) {
   const qc = useQueryClient();
@@ -49,6 +50,11 @@ export default function TournamentBracket({ tid, participants }) {
       setOpened(null);
     },
   });
+  // Місце пари в раунді (контракт Backend bracket-position): один виклик, решта зсувається
+  const move = useMutation({
+    mutationFn: ({ id, position }) => crm.patch(`/tournaments/${tid}/bracket/${id}/move`, { position }),
+    onSuccess: оновити,
+  });
   const remove = useMutation({
     mutationFn: (id) => crm.del(`/bracket/${id}`),
     onSuccess: () => {
@@ -76,7 +82,7 @@ export default function TournamentBracket({ tid, participants }) {
           Нова пара
         </button>
       </div>
-      <ErrorBox error={bracket.error || remove.error} />
+      <ErrorBox error={bracket.error || remove.error || move.error} />
       {!раунди.length && <Empty>У турнірі немає раундів етапу «сітка» — створіть їх у вкладці «Тури»</Empty>}
       {стадії.map((с, і) => {
         const q = вигляд[і];
@@ -89,14 +95,35 @@ export default function TournamentBracket({ tid, participants }) {
             {розкладка && (
               <PlayoffBracket
                 розкладка={розкладка}
-                onPair={(пара, раунд) => setOpened({ пара, раунд })}
+                onPair={(пара, раунд) => {
+                  // «Вище / Нижче» — лише де порядок справді вирішує місце (наступний раунд ще не зведено)
+                  const к = розкладка.колонки.findIndex((x) => x.id === раунд.id);
+                  const пари = q.data.bracket;
+                  const можна = к !== -1 && порядокВирішує(розкладка.колонки, к);
+                  // «За 3 місце» (к = -1) — одна пара, переставляти нічого
+                  setOpened({ пара, раунд, крок: к === -1 ? undefined : можна ? (д) => місцеНаКрок(пари, пара, д) : null });
+                }}
                 onEmpty={команди.length >= 2 ? (раундId) => setAdding({ tours_id: раундId }) : undefined}
+                onMove={(пара, ціль) => {
+                  const position = місцеЦілі(q.data.bracket, ціль);
+                  if (position) move.mutate({ id: пара.id, position });
+                }}
               />
             )}
           </div>
         );
       })}
-      {opened && <PairCard {...opened} команди={команди} onClose={() => setOpened(null)} onRemove={remove} onEdit={edit} />}
+      {opened && (
+        <PairCard
+          {...opened}
+          команди={команди}
+          onClose={() => setOpened(null)}
+          onRemove={remove}
+          onEdit={edit}
+          onMove={(position) => move.mutate({ id: opened.пара.id, position }, { onSuccess: () => setOpened(null) })}
+          moving={move}
+        />
+      )}
       {adding && <PairForm раунди={раунди} команди={команди} початковий={adding.tours_id} onClose={() => setAdding(null)} onSave={add} />}
     </section>
   );
@@ -107,7 +134,7 @@ export default function TournamentBracket({ tid, participants }) {
 const ЗАМІНА_КОМАНД = false;
 
 /** Картка пари: обидві команди (заміна на місці), матчі пари з рахунком чи станом, «Прибрати». */
-function PairCard({ пара, раунд, команди, onClose, onRemove, onEdit }) {
+function PairCard({ пара, раунд, команди, крок, onClose, onRemove, onEdit, onMove, moving }) {
   const н1 = пара._teaminfo1?.TeamName || 'Команда';
   const н2 = пара._teaminfo2?.TeamName || 'Команда';
   const матчі = Array.isArray(пара.legs) ? пара.legs : [];
@@ -182,8 +209,21 @@ function PairCard({ пара, раунд, команди, onClose, onRemove, onE
             </tbody>
           </table>
         )}
-        <ErrorBox error={onRemove.error} />
+        <ErrorBox error={onRemove.error || moving.error} />
         <div className="form-actions">
+          {крок ? (
+            <>
+              <button type="button" className="btn small" disabled={moving.isPending || !крок(-1)} onClick={() => onMove(крок(-1))} title="Поставити вище в цьому раунді">
+                ▲ Вище
+              </button>
+              <button type="button" className="btn small" disabled={moving.isPending || !крок(1)} onClick={() => onMove(крок(1))} title="Поставити нижче в цьому раунді">
+                ▼ Нижче
+              </button>
+            </>
+          ) : (
+            крок === null && <span className="muted small-text">Місце пари задає наступний раунд</span>
+          )}
+          <span className="spacer" />
           <button
             type="button"
             className="btn danger ghost"
