@@ -1,41 +1,56 @@
 import { useMemo, useState } from 'react';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { crm } from '../api/client.js';
+import { useMutation, useQueries, useQuery, useQueryClient } from '@tanstack/react-query';
+import { crm, request } from '../api/client.js';
 import { Empty, ErrorBox, Field, Modal, useForm } from '../components/ui.jsx';
+import PlayoffBracket from '../components/PlayoffBracket.jsx';
+import { розкластиСітку } from '../utils/bracketLayout.js';
+import { рахунокМатчу, стадіїСітки } from '../utils/bracketView.js';
 
 /**
- * Сітка плей-оф: пари команд у межах раунду (раунд — це тур в етапі «сітка»).
+ * Сітка плей-оф деревом — так само, як її бачить уболівальник у застосунку (бриф crm-bracket-editor,
+ * Андрій 14.11): раунди колонками, дужки до наступного раунду, горизонтальна прокрутка. Дані дерева —
+ * той самий публічний Default `bracket/byStage/allInfo`, що читає застосунок, і та сама розкладка
+ * (src/utils/bracketLayout.js — дослівна копія з AFU). Раунд — це тур в етапі «сітка».
  *
- * ЧОГО ТУТ НЕМАЄ І ЧОМУ. Переможець пари ніде не зберігається: у таблиці
- * `Bracket` є лише дві команди й тур. Тому сітка не «веде» команду далі — хто
- * пройшов, видно з результату матчу, і поставити наступну пару має людина.
- * Автоматичне просування зробимо, коли Андрій опише формат Кубка: без нього
- * невідомо ні як рахуються серії з двох матчів, ні що робити з нічиєю.
+ * ЧОГО ТУТ НЕМАЄ І ЧОМУ. Переможець далі сіткою не «йде» сам: формат Кубка (серія з двох матчів, нічия)
+ * Андрій ще не описав. Хто пройшов, видно з рахунку, а наступну пару ставить людина.
  *
- * Поруч із парою показуємо матч між тими самими командами в тому ж раунді —
- * це єдиний спосіб побачити, чим пара скінчилась.
+ * Натиснути пару — подробиці (матчі пари, «Прибрати»); натиснути порожній слот — нова пара в цьому раунді.
  */
 export default function TournamentBracket({ tid, participants }) {
   const qc = useQueryClient();
   const bracket = useQuery({ queryKey: ['bracket', tid], queryFn: () => crm.get(`/tournaments/${tid}/bracket`) });
   const [adding, setAdding] = useState(null);
+  const [opened, setOpened] = useState(null);
 
+  const стадії = useMemo(() => стадіїСітки(bracket.data?.tours), [bracket.data]);
+  const вигляд = useQueries({
+    queries: стадії.map((с) => ({
+      queryKey: ['bracket-view', tid, с.id],
+      queryFn: () => request('base', '/bracket/byStage/allInfo', { query: { league_id: tid, league_stage_id: с.id }, auth: false }),
+    })),
+  });
+
+  const оновити = () => {
+    qc.invalidateQueries({ queryKey: ['bracket', tid] });
+    qc.invalidateQueries({ queryKey: ['bracket-view', tid] });
+  };
   const add = useMutation({
     mutationFn: (body) => crm.post(`/tournaments/${tid}/bracket`, body),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['bracket', tid] });
+      оновити();
       setAdding(null);
     },
   });
   const remove = useMutation({
     mutationFn: (id) => crm.del(`/bracket/${id}`),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['bracket', tid] }),
+    onSuccess: () => {
+      оновити();
+      setOpened(null);
+    },
   });
 
-  const раунди = useMemo(
-    () => (bracket.data?.tours || []).filter((t) => t._stage?.stage_type === 'сітка'),
-    [bracket.data]
-  );
+  const раунди = useMemo(() => стадії.flatMap((с) => с.раунди), [стадії]);
   const команди = useMemo(
     () =>
       (participants || [])
@@ -44,77 +59,94 @@ export default function TournamentBracket({ tid, participants }) {
     [participants]
   );
 
-  const матчПари = (пара) =>
-    (bracket.data?.matches || []).find(
-      (m) =>
-        m.tours_id === пара.tours_id &&
-        ((m.team1_id === пара.teaminfo_id1 && m.team2_id === пара.teaminfo_id2) ||
-          (m.team1_id === пара.teaminfo_id2 && m.team2_id === пара.teaminfo_id1))
-    );
-
   if (bracket.isPending) return <div className="muted">Завантаження…</div>;
 
   return (
     <section>
       <div className="section-bar">
-        <span className="muted">
-          Раунд — це тур в етапі «сітка». Переможець у базі не зберігається, тож наступну пару ставить людина
-        </span>
+        <span className="muted">Так сітку бачить уболівальник у застосунку. Натисніть пару — подробиці, порожню клітинку — нова пара</span>
         <button className="btn primary" onClick={() => setAdding({})} disabled={!раунди.length || команди.length < 2}>
           Нова пара
         </button>
       </div>
       <ErrorBox error={bracket.error || remove.error} />
       {!раунди.length && <Empty>У турнірі немає раундів етапу «сітка» — створіть їх у вкладці «Тури»</Empty>}
-      {раунди.map((р) => {
-        const пари = (bracket.data?.pairs || []).filter((p) => p.tours_id === р.id);
+      {стадії.map((с, і) => {
+        const q = вигляд[і];
+        const розкладка = q?.data ? розкластиСітку({ tours: q.data.tours, bracket: q.data.bracket }) : null;
         return (
-          <div key={р.id} className="stage-block">
-            <h3>
-              {р.TourName}
-              <span className="muted small-text"> · пар: {пари.length}</span>
-            </h3>
-            {пари.length === 0 && <Empty>Пар ще немає</Empty>}
-            {пари.length > 0 && (
-              <table className="table compact">
-                <tbody>
-                  {пари.map((п) => {
-                    const м = матчПари(п);
-                    return (
-                      <tr key={п.id}>
-                        <td className="strong">{п._team1?.TeamName || '—'}</td>
-                        <td className="muted">—</td>
-                        <td className="strong">{п._team2?.TeamName || '—'}</td>
-                        <td className="muted">
-                          {м
-                            ? Number(м.match_status_id) > 2
-                              ? `${м.Result_team1 ?? 0} : ${м.Result_team2 ?? 0}${
-                                  м.team1_id === п.teaminfo_id1 ? '' : ' (у зворотному порядку)'
-                                }`
-                              : 'матч призначено, не зіграний'
-                            : 'матчу ще немає'}
-                        </td>
-                        <td className="row-actions">
-                          <button className="btn small danger ghost" onClick={() => remove.mutate(п.id)} disabled={remove.isPending}>
-                            Прибрати
-                          </button>
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
+          <div key={с.id} className="stage-block">
+            {стадії.length > 1 && <h3>{с.назва}</h3>}
+            <ErrorBox error={q?.error} />
+            {q?.isPending && <div className="muted">Завантаження сітки…</div>}
+            {розкладка && (
+              <PlayoffBracket
+                розкладка={розкладка}
+                onPair={(пара, раунд) => setOpened({ пара, раунд })}
+                onEmpty={команди.length >= 2 ? (раундId) => setAdding({ tours_id: раундId }) : undefined}
+              />
             )}
           </div>
         );
       })}
-      {adding && <PairForm раунди={раунди} команди={команди} onClose={() => setAdding(null)} onSave={add} />}
+      {opened && <PairCard {...opened} onClose={() => setOpened(null)} onRemove={remove} />}
+      {adding && <PairForm раунди={раунди} команди={команди} початковий={adding.tours_id} onClose={() => setAdding(null)} onSave={add} />}
     </section>
   );
 }
 
-function PairForm({ раунди, команди, onClose, onSave }) {
-  const { values, set } = useForm({ tours_id: раунди[0]?.id || '', teaminfo_id1: '', teaminfo_id2: '' });
+/** Картка пари: обидві команди, матчі пари з рахунком чи станом, «Прибрати». */
+function PairCard({ пара, раунд, onClose, onRemove }) {
+  const н1 = пара._teaminfo1?.TeamName || 'Команда';
+  const н2 = пара._teaminfo2?.TeamName || 'Команда';
+  const матчі = Array.isArray(пара.legs) ? пара.legs : [];
+  return (
+    <Modal title={`${раунд.назва}: ${н1} — ${н2}`} onClose={onClose}>
+      <div className="form">
+        {матчі.length === 0 && <div className="muted">Матчу між цими командами в раунді ще немає — створіть його у вкладці «Матчі»</div>}
+        {матчі.length > 0 && (
+          <table className="table compact">
+            <tbody>
+              {матчі.map((м, і) => (
+                <tr key={м.match_id ?? і}>
+                  <td className="muted">{матчі.length > 1 ? `Матч ${і + 1}` : 'Матч'}</td>
+                  <td className="strong">{рахунокМатчу(м) ? `${н1} ${рахунокМатчу(м)} ${н2}` : 'не зіграний'}</td>
+                  <td>
+                    {м.match_id && (
+                      <a href={`/matches/${м.match_id}`} target="_blank" rel="noreferrer">
+                        Відкрити
+                      </a>
+                    )}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+        <ErrorBox error={onRemove.error} />
+        <div className="form-actions">
+          <button
+            type="button"
+            className="btn danger ghost"
+            disabled={onRemove.isPending}
+            onClick={() => {
+              if (window.confirm(`Прибрати пару «${н1} — ${н2}» із сітки? Матчі пари лишаться.`)) onRemove.mutate(пара.id);
+            }}
+          >
+            Прибрати пару
+          </button>
+          <span className="spacer" />
+          <button type="button" className="btn" onClick={onClose}>
+            Закрити
+          </button>
+        </div>
+      </div>
+    </Modal>
+  );
+}
+
+function PairForm({ раунди, команди, початковий, onClose, onSave }) {
+  const { values, set } = useForm({ tours_id: початковий || раунди[0]?.id || '', teaminfo_id1: '', teaminfo_id2: '' });
   return (
     <Modal title="Пара сітки" onClose={onClose}>
       <form

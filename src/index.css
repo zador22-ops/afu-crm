@@ -1985,3 +1985,125 @@ fieldset.plain {
 .sidebar nav a .count-badge {
   margin-left: 6px;
 }
+
+/* ——— Сітка плей-оф деревом (бриф crm-bracket-editor; вигляд — як AFU components/PlayoffBracket.js) ——— */
+.bracket-scroll {
+  overflow-x: auto;
+  padding: 12px 4px 16px;
+  -webkit-overflow-scrolling: touch;
+}
+.bracket-tree {
+  display: flex;
+  align-items: flex-start;
+  width: max-content;
+}
+.bracket-round-title {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.4px;
+  text-align: center;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.bracket-slot {
+  position: absolute;
+  left: 0;
+  display: flex;
+  align-items: center;
+}
+.bracket-card {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  padding: 0;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  font: inherit;
+  color: var(--text);
+  text-align: left;
+  cursor: pointer;
+}
+.bracket-card:hover {
+  border-color: var(--primary);
+  background: var(--primary-soft);
+}
+.bracket-card:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
+.bracket-card.empty {
+  align-items: center;
+  border-style: dashed;
+  color: var(--muted);
+  font-size: 12px;
+  gap: 2px;
+}
+.bracket-team {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 8px;
+  min-width: 0;
+}
+.bracket-team.lost {
+  color: var(--muted);
+}
+.bracket-team.won .bracket-name {
+  font-weight: 600;
+}
+.bracket-team.won .bracket-score {
+  font-weight: 700;
+}
+.bracket-logo {
+  width: 22px;
+  height: 22px;
+  flex: none;
+  border-radius: 50%;
+  object-fit: contain;
+}
+.bracket-name {
+  flex: 1;
+  min-width: 0;
+  font-size: 13px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.bracket-score {
+  min-width: 12px;
+  font-size: 14px;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+.bracket-score.leg {
+  min-width: 14px;
+}
+.bracket-score sup {
+  font-size: 9px;
+  margin-left: 1px;
+}
+.bracket-state {
+  padding: 0 8px;
+  color: var(--muted);
+  font-size: 11px;
+  line-height: 16px;
+  border-top: 1px solid var(--border);
+}
+.bracket-arc {
+  position: absolute;
+  left: 0;
+  border: 0 solid var(--primary);
+  border-top-style: solid;
+  border-right-style: solid;
+  border-bottom-style: solid;
+  border-left: none;
+  border-radius: 0 6px 6px 0;
+  box-sizing: border-box;
+}
+.bracket-tick {
+  position: absolute;
+  background: var(--primary);
+}
