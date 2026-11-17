@@ -1,6 +1,6 @@
 import { Fragment, useState } from 'react';
 import { двоматчева, переможецьСерії } from '../utils/bracketLayout.js';
-import { порядокВирішує, станПари } from '../utils/bracketView.js';
+import { БЕЗ_СУПЕРНИКА, порядокВирішує, станПари } from '../utils/bracketView.js';
 
 /**
  * Сітка плей-оф деревом — веб-копія AFU components/PlayoffBracket.js («варіант Б», слово Андрія 05.10):
@@ -34,6 +34,15 @@ const число = (v) => (v === null || v === undefined || v === '' || !Number.
 function Команда({ пара, сторона }) {
   const id = сторона === 1 ? пара.teaminfo_id1 : пара.teaminfo_id2;
   const інфо = сторона === 1 ? пара._teaminfo1 : пара._teaminfo2;
+  // Бай / вайлд-кард (бриф bracket-bye): другої команди немає навмисно — підпис, а не заглушка «Команда»
+  if (!(Number(id) > 0)) {
+    return (
+      <div className="bracket-team bye" style={{ height: РЯДОК }}>
+        <span className="bracket-logo bye-mark" aria-hidden="true" />
+        <span className="bracket-name">{БЕЗ_СУПЕРНИКА}</span>
+      </div>
+    );
+  }
   const переможець = переможецьСерії(пара);
   const стан = переможець == null ? '' : переможець === id ? ' won' : ' lost';
   return (
@@ -96,7 +105,7 @@ function Слот({ пара, раунд, onPair, onEmpty, тягнути }) {
       }}
       title={тягнути?.можна ? 'Перетягніть на місце іншої пари цього раунду' : undefined}
       onClick={() => onPair?.(пара, раунд)}
-      aria-label={`${раунд.назва}: ${пара._teaminfo1?.TeamName || 'Команда'} — ${пара._teaminfo2?.TeamName || 'Команда'}`}
+      aria-label={`${раунд.назва}: ${пара._teaminfo1?.TeamName || 'Команда'} — ${Number(пара.teaminfo_id2) > 0 ? пара._teaminfo2?.TeamName || 'Команда' : БЕЗ_СУПЕРНИКА}`}
     >
       <Команда пара={пара} сторона={1} />
       <Команда пара={пара} сторона={2} />

@@ -4,7 +4,7 @@ import { crm, request } from '../api/client.js';
 import { Empty, ErrorBox, Field, Modal, useForm } from '../components/ui.jsx';
 import PlayoffBracket from '../components/PlayoffBracket.jsx';
 import { розкластиСітку } from '../utils/bracketLayout.js';
-import { місцеНаКрок, місцеЦілі, порядокВирішує, рахунокМатчу, стадіїСітки } from '../utils/bracketView.js';
+import { БЕЗ_СУПЕРНИКА, єСуперник, місцеНаКрок, місцеЦілі, порядокВирішує, рахунокМатчу, стадіїСітки, тілоЗмінПари, тілоНовоїПари } from '../utils/bracketView.js';
 
 /**
  * Сітка плей-оф деревом — так само, як її бачить уболівальник у застосунку (бриф crm-bracket-editor,
@@ -136,7 +136,7 @@ const ЗАМІНА_КОМАНД = true;
 /** Картка пари: обидві команди (заміна на місці), матчі пари з рахунком чи станом, «Прибрати». */
 function PairCard({ пара, раунд, команди, крок, onClose, onRemove, onEdit, onMove, moving }) {
   const н1 = пара._teaminfo1?.TeamName || 'Команда';
-  const н2 = пара._teaminfo2?.TeamName || 'Команда';
+  const н2 = єСуперник(пара) ? пара._teaminfo2?.TeamName || 'Команда' : БЕЗ_СУПЕРНИКА;
   const матчі = Array.isArray(пара.legs) ? пара.legs : [];
   const { values, set } = useForm({ teaminfo_id1: String(пара.teaminfo_id1 || ''), teaminfo_id2: String(пара.teaminfo_id2 || '') });
   const змінено = values.teaminfo_id1 !== String(пара.teaminfo_id1 || '') || values.teaminfo_id2 !== String(пара.teaminfo_id2 || '');
@@ -150,7 +150,7 @@ function PairCard({ пара, раунд, команди, крок, onClose, onR
         className="form"
         onSubmit={(e) => {
           e.preventDefault();
-          onEdit.mutate({ id: пара.id, body: { teaminfo_id1: Number(values.teaminfo_id1), teaminfo_id2: Number(values.teaminfo_id2) } });
+          onEdit.mutate({ id: пара.id, body: тілоЗмінПари(пара, values) });
         }}
       >
         <div className="row2">
@@ -163,8 +163,9 @@ function PairCard({ пара, раунд, команди, крок, onClose, onR
               ))}
             </select>
           </Field>
-          <Field label="Команда 2">
-            <select value={values.teaminfo_id2} onChange={set('teaminfo_id2')} required>
+          <Field label="Команда 2" hint="Порожньо — команда проходить без суперника (бай)">
+            <select value={values.teaminfo_id2} onChange={set('teaminfo_id2')}>
+              <option value="">— {БЕЗ_СУПЕРНИКА}</option>
               {варіанти(пара.teaminfo_id2, н2).map((c) => (
                 <option key={c.id} value={c.id}>
                   {c.name}
@@ -189,7 +190,12 @@ function PairCard({ пара, раунд, команди, крок, onClose, onR
       </form>
       )}
       <div className="form">
-        {матчі.length === 0 && <div className="muted">Матчу між цими командами в раунді ще немає — створіть його у вкладці «Матчі»</div>}
+        {матчі.length === 0 &&
+          (єСуперник(пара) ? (
+            <div className="muted">Матчу між цими командами в раунді ще немає — створіть його у вкладці «Матчі»</div>
+          ) : (
+            <div className="muted">Команда проходить цей раунд без суперника — матчу не буде</div>
+          ))}
         {матчі.length > 0 && (
           <table className="table compact">
             <tbody>
@@ -252,11 +258,7 @@ function PairForm({ раунди, команди, початковий, onClose,
         className="form"
         onSubmit={(e) => {
           e.preventDefault();
-          onSave.mutate({
-            tours_id: Number(values.tours_id),
-            teaminfo_id1: Number(values.teaminfo_id1),
-            teaminfo_id2: Number(values.teaminfo_id2),
-          });
+          onSave.mutate(тілоНовоїПари(values));
         }}
       >
         <Field label="Раунд">
@@ -279,9 +281,9 @@ function PairForm({ раунди, команди, початковий, onClose,
               ))}
             </select>
           </Field>
-          <Field label="Команда 2">
-            <select value={values.teaminfo_id2} onChange={set('teaminfo_id2')} required>
-              <option value="">—</option>
+          <Field label="Команда 2" hint="Порожньо — команда проходить без суперника (бай)">
+            <select value={values.teaminfo_id2} onChange={set('teaminfo_id2')}>
+              <option value="">— {БЕЗ_СУПЕРНИКА}</option>
               {команди.map((c) => (
                 <option key={c.id} value={c.id}>
                   {c.name}

@@ -2117,3 +2117,12 @@ fieldset.plain {
   border: 2px dashed var(--primary);
   background: var(--primary-soft);
 }
+/* Бай / вайлд-кард: другої команди немає навмисно (бриф bracket-bye) */
+.bracket-team.bye .bracket-name {
+  color: var(--muted);
+  font-style: italic;
+}
+.bracket-logo.bye-mark {
+  border: 1px dashed var(--border);
+  border-radius: 50%;
+}

@@ -29,11 +29,12 @@ test('етапи «сітка»: раунди групуються за етап
 });
 
 test('стан пари: матчів немає / не зіграний / частково / усе зіграно', () => {
-  assert.equal(станПари({}), 'матчу ще немає');
-  assert.equal(станПари({ legs: [{ match_status_id: 1 }] }), 'матч призначено, не зіграний');
-  assert.equal(станПари({ legs: [{ match_status_id: 4 }, { match_status_id: 1 }] }), 'зіграно 1 з 2');
-  assert.equal(станПари({ legs: [{ match_status_id: 4 }, { match_status_id: 5 }] }), 'зіграно 1 з 2'); // призупинений — ще не зіграний
-  assert.equal(станПари({ legs: [{ match_status_id: 4 }, { match_status_id: '4' }] }), null);
+  assert.equal(станПари({ teaminfo_id2: 2 }), 'матчу ще немає');
+  assert.equal(станПари({ teaminfo_id1: 1, teaminfo_id2: null }), 'без матчу (бай)');
+  assert.equal(станПари({ teaminfo_id2: 2, legs: [{ match_status_id: 1 }] }), 'матч призначено, не зіграний');
+  assert.equal(станПари({ teaminfo_id2: 2, legs: [{ match_status_id: 4 }, { match_status_id: 1 }] }), 'зіграно 1 з 2');
+  assert.equal(станПари({ teaminfo_id2: 2, legs: [{ match_status_id: 4 }, { match_status_id: 5 }] }), 'зіграно 1 з 2'); // призупинений — ще не зіграний
+  assert.equal(станПари({ teaminfo_id2: 2, legs: [{ match_status_id: 4 }, { match_status_id: '4' }] }), null);
 });
 
 test('рахунок матчу пари — в орієнтації пари, серія пенальті окремо', () => {
@@ -91,4 +92,32 @@ test('«Третій попередній етап» без пар — звич�
   assert.deepEqual(р.колонки.map((к) => к.назва), ['Перший попередній етап', 'Другий попередній етап', 'Третій попередній етап']);
   // справжній матч за третє без пар — як і раніше, окремим блоком
   assert.equal(розкластиСітку({ tours: [{ id: 1, TourName: 'Фінал' }, { id: 2, TourName: 'За 3 місце' }], bracket: [] }).заТретє?.id, 2);
+});
+
+test('бай: пара з однією командою — тіла POST/PATCH і «є суперник» (бриф bracket-bye)', async () => {
+  const { БЕЗ_СУПЕРНИКА, єСуперник, тілоЗмінПари, тілоНовоїПари } = await import('./bracketView.js');
+  assert.equal(БЕЗ_СУПЕРНИКА, 'Очікує суперника');
+  assert.equal(єСуперник({ teaminfo_id2: 5 }), true);
+  for (const порожньо of [null, 0, undefined, '']) assert.equal(єСуперник({ teaminfo_id2: порожньо }), false);
+  // POST: без суперника — ключа teaminfo_id2 немає
+  assert.deepEqual(тілоНовоїПари({ tours_id: '150', teaminfo_id1: '7', teaminfo_id2: '' }), { tours_id: 150, teaminfo_id1: 7 });
+  assert.deepEqual(тілоНовоїПари({ tours_id: '150', teaminfo_id1: '7', teaminfo_id2: '9' }), { tours_id: 150, teaminfo_id1: 7, teaminfo_id2: 9 });
+  // PATCH: прибрати наявного суперника — явне очищення; не було — нічого; новий — його id
+  assert.deepEqual(тілоЗмінПари({ teaminfo_id2: 9 }, { teaminfo_id1: '7', teaminfo_id2: '' }), { teaminfo_id1: 7, clear_teaminfo_id2: true });
+  assert.deepEqual(тілоЗмінПари({ teaminfo_id2: null }, { teaminfo_id1: '7', teaminfo_id2: '' }), { teaminfo_id1: 7 });
+  assert.deepEqual(тілоЗмінПари({ teaminfo_id2: null }, { teaminfo_id1: '7', teaminfo_id2: '12' }), { teaminfo_id1: 7, teaminfo_id2: 12 });
+});
+
+test('бай у дереві: пара без суперника стає у слот і не ламає розкладку', () => {
+  const р = розкластиСітку({
+    tours: [{ id: 150, TourName: 'Перший' }, { id: 151, TourName: 'Другий' }],
+    bracket: [
+      { id: 1, tours_id: 150, teaminfo_id1: 1, teaminfo_id2: 2 },
+      { id: 2, tours_id: 151, teaminfo_id1: 3, teaminfo_id2: null, _teaminfo1: { TeamName: 'Сармати' }, _teaminfo2: null },
+    ],
+  });
+  // другий раунд: одна пара-бай; перший: два слоти, пара 1 — в одному з них
+  assert.deepEqual(р.колонки[1].пари.map((п) => п?.id), [2]);
+  assert.equal(р.колонки[0].пари.length, 2);
+  assert.deepEqual(р.колонки[0].пари.filter(Boolean).map((п) => п.id), [1]);
 });

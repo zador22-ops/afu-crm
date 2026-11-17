@@ -24,6 +24,8 @@ const зіграний = (м) => Number(м?.match_status_id) === 4;
  * тож тут — лише те, чого з рахунку не видно. null — усе зіграно, підпис не потрібен.
  */
 export function станПари(пара) {
+  // Бай: суперника немає навмисно, матчу в цьому раунді не буде (бриф bracket-bye)
+  if (пара && !(Number(пара.teaminfo_id2) > 0)) return 'без матчу (бай)';
   const матчі = Array.isArray(пара?.legs) ? пара.legs : [];
   if (!матчі.length) return 'матчу ще немає';
   const зіграно = матчі.filter(зіграний).length;
@@ -60,4 +62,29 @@ export function місцеНаКрок(пари, пара, крок) {
   const і = тур.findIndex((п) => п.id === пара?.id);
   const нове = і + крок;
   return і === -1 || нове < 0 || нове >= тур.length ? null : нове + 1;
+}
+
+// ——— Пара з однією командою: бай / вайлд-кард (бриф bracket-bye, Андрій 17.11) ———
+// Команда заходить у раунд без матчу в попередньому: у парі лише teaminfo_id1, другої немає.
+export const БЕЗ_СУПЕРНИКА = 'Очікує суперника';
+
+/** Чи є в пари друга команда: id > 0 (сервер для порожньої віддає null чи 0). */
+export const єСуперник = (пара) => Number(пара?.teaminfo_id2) > 0;
+
+/** Тіло POST нової пари: без суперника — поля teaminfo_id2 немає взагалі. */
+export function тілоНовоїПари(v) {
+  const тіло = { tours_id: Number(v.tours_id), teaminfo_id1: Number(v.teaminfo_id1) };
+  if (Number(v.teaminfo_id2) > 0) тіло.teaminfo_id2 = Number(v.teaminfo_id2);
+  return тіло;
+}
+
+/**
+ * Тіло PATCH пари. Друга команда: вибрана — її id; порожньо, а була — явне очищення (формат Backend,
+ * бриф bracket-bye п. 2: окреме поле, щоб «не прислав» і далі означало «не чіпати»); порожньо й не було — нічого.
+ */
+export function тілоЗмінПари(пара, v) {
+  const тіло = { teaminfo_id1: Number(v.teaminfo_id1) };
+  if (Number(v.teaminfo_id2) > 0) тіло.teaminfo_id2 = Number(v.teaminfo_id2);
+  else if (єСуперник(пара)) тіло.clear_teaminfo_id2 = true;
+  return тіло;
 }
