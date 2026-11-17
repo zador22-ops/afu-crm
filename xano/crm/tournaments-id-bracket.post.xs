@@ -6,81 +6,96 @@ query "tournaments/{leagues_id}/bracket" verb=POST {
     int leagues_id filters=min:1
     int tours_id filters=min:1
     int teaminfo_id1 filters=min:1
-    int teaminfo_id2 filters=min:1
+    int teaminfo_id2?
   }
 
   stack {
     function.run "Check access rights" {
       input = {id_access_rights: 9, user_id: $auth.id}
     } as $ok
+  
     precondition ($ok) {
       error_type = "accessdenied"
       error = "Доступ заборонено"
     }
-    precondition ($input.teaminfo_id1 != $input.teaminfo_id2) {
+  
+    // Пара може бути з однією командою — бай / вайлд-кард (бриф bracket-bye, 17.11): teaminfo_id2 не прислано
+    // або ≤ 0 → null. q2 = -1 — для пошуку замість null: null збігся б з іншими баями раунду.
+    api.lambda {
+      code = """
+          const t2 = $input.teaminfo_id2 != null && Number($input.teaminfo_id2) > 0 ? Number($input.teaminfo_id2) : null;
+          return { t2: t2, q2: t2 == null ? -1 : t2, need: t2 == null ? 1 : 2 };
+        """
+      timeout = 5
+    } as $side2
+  
+    precondition ($input.teaminfo_id1 != $side2.t2) {
       error_type = "badrequest"
       error = "Команда не може грати сама з собою"
     }
-
+  
     db.get Tours {
       field_name = "id"
       field_value = $input.tours_id
       output = ["id", "leagues_id", "league_stage_id"]
     } as $tour
+  
     precondition ($tour != null && $tour.leagues_id == $input.leagues_id) {
       error_type = "badrequest"
       error = "Раунд не належить цьому турніру"
     }
-
+  
     db.get "League stage" {
       field_name = "id"
       field_value = $tour.league_stage_id
       output = ["id", "stage_type"]
     } as $stage
+  
     precondition ($stage.stage_type == "сітка") {
       error_type = "badrequest"
       error = "Пари створюються лише в раундах етапу «сітка»"
     }
-
-    // Обидві команди мають бути учасницями турніру: інакше в сітці зʼявиться
+  
+    // Команди пари мають бути учасницями турніру: інакше в сітці зʼявиться
     // клуб, якого в турнірі немає, і це помітять аж на друку.
     db.query "Tournament participants" {
-      where = $db.Tournament_participants.leagues_id == $input.leagues_id && ($db.Tournament_participants.teaminfo_id == $input.teaminfo_id1 || $db.Tournament_participants.teaminfo_id == $input.teaminfo_id2)
+      where = $db.Tournament_participants.leagues_id == $input.leagues_id && ($db.Tournament_participants.teaminfo_id == $input.teaminfo_id1 || $db.Tournament_participants.teaminfo_id == $side2.q2)
       return = {type: "count"}
     } as $participants
-    precondition ($participants == 2) {
+  
+    precondition ($participants == $side2.need) {
       error_type = "badrequest"
-      error = "Обидві команди мають бути учасницями турніру"
+      error = "Команди пари мають бути учасницями турніру"
     }
-
+  
     // Команда не може стояти у двох парах одного раунду (бриф crm-bracket-editor, як у PATCH пари)
     db.query Bracket {
-      where = $db.Bracket.tours_id == $input.tours_id && ($db.Bracket.teaminfo_id1 == $input.teaminfo_id1 || $db.Bracket.teaminfo_id2 == $input.teaminfo_id1 || $db.Bracket.teaminfo_id1 == $input.teaminfo_id2 || $db.Bracket.teaminfo_id2 == $input.teaminfo_id2)
+      where = $db.Bracket.tours_id == $input.tours_id && ($db.Bracket.teaminfo_id1 == $input.teaminfo_id1 || $db.Bracket.teaminfo_id2 == $input.teaminfo_id1 || $db.Bracket.teaminfo_id1 == $side2.q2 || $db.Bracket.teaminfo_id2 == $side2.q2)
       return = {type: "count"}
     } as $busy
+  
     precondition ($busy == 0) {
       error_type = "badrequest"
       error = "Команда вже стоїть в іншій парі цього раунду"
     }
-
+  
     // Нова пара — останньою в раунді (контракт bracket-position: position = кількість пар туру + 1)
     db.query Bracket {
       where = $db.Bracket.tours_id == $input.tours_id
       return = {type: "count"}
     } as $round_count
+  
     api.lambda {
-      code = """
-        return Number($var.round_count || 0) + 1;
-      """
+      code = "  return Number($var.round_count || 0) + 1;"
       timeout = 5
     } as $next_position
-
+  
     db.add Bracket {
       data = {
         created_at  : "now"
         tours_id    : $input.tours_id
         teaminfo_id1: $input.teaminfo_id1
-        teaminfo_id2: $input.teaminfo_id2
+        teaminfo_id2: $side2.t2
         position    : $next_position
       }
     } as $pair
