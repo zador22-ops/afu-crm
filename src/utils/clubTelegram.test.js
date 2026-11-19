@@ -8,11 +8,13 @@ const сторінка = fs.readFileSync(new URL('../pages/ClubPage.jsx', import
 const patch = fs.readFileSync(new URL('../../xano/crm/clubs-id.patch.xs', import.meta.url), 'utf8');
 
 test('Telegram: форма, тіло збереження й стан — так само, як YouTube', () => {
-  assert.match(сторінка, /<Field label="Telegram">\s*<input value=\{values\.telegram\} onChange=\{set\('telegram'\)\}/);
-  assert.match(сторінка, /telegram: values\.telegram\.trim\(\),/);
+  assert.match(сторінка, /<Field label="Telegram \(посилання на канал\)"[^>]*>\s*<input value=\{values\.telegram\} onChange=\{set\('telegram'\)\} placeholder="https:\/\/t\.me\/назва_каналу"/);
+  // зберігається нормалізоване посилання (або null), а не сирий текст; з помилкою — «Зберегти» вимкнено
+  assert.match(сторінка, /telegram: посиланняTelegram\(values\.telegram\)\.url,/);
+  assert.match(сторінка, /!посиланняTelegram\(values\.telegram\)\.ok/);
   assert.match(сторінка, /telegram: c\.telegram \|\| '',/);
   // поруч із YouTube, у секції «Контакти й мережі»
-  assert.ok(сторінка.indexOf('label="Telegram"') > сторінка.indexOf('label="YouTube"'));
+  assert.ok(сторінка.indexOf('label="Telegram (посилання на канал)"') > сторінка.indexOf('label="YouTube"'));
 });
 
 test('Telegram: PATCH clubs/{id} приймає telegram (trim), як інші соцмережі', () => {

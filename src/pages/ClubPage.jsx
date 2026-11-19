@@ -7,6 +7,7 @@ import { PersonForm, PersonPicker } from './PeoplePage.jsx';
 import PhotoCropper from '../components/PhotoCropper.jsx';
 import { описСтиснення, стиснутиФото } from '../utils/compressImage.js';
 import { ПРО_КЛУБ_МАКС } from '../utils/clubDraft.js';
+import { посиланняTelegram } from '../utils/telegramLink.js';
 
 export default function ClubPage() {
   const { id } = useParams();
@@ -76,7 +77,8 @@ function Card({ data }) {
         instagram: values.instagram.trim(),
         facebook: values.facebook.trim(),
         youtube: values.youtube.trim(),
-        telegram: values.telegram.trim(),
+        // Посилання на канал, а не нік: «@name» / «t.me/name» → https://t.me/name, порожнє — null (Андрій 19.11)
+        telegram: посиланняTelegram(values.telegram).url,
         colors: values.colors.trim(),
         kit_color_primary: hex(values.kit_color_primary),
         kit_color_secondary: hex(values.kit_color_secondary),
@@ -201,10 +203,11 @@ function Card({ data }) {
           <Field label="YouTube">
             <input value={values.youtube} onChange={set('youtube')} />
           </Field>
-          {/* Telegram (Богдан, чат АФУ 19.11): застосунок уже показує club.telegram іконкою поруч із соцмережами */}
-          <Field label="Telegram">
-            <input value={values.telegram} onChange={set('telegram')} placeholder="https://t.me/…" />
+          {/* Telegram (Богдан, чат АФУ 19.11): застосунок показує іконку лише для адреси з http(s):// */}
+          <Field label="Telegram (посилання на канал)" hint="Напр. https://t.me/назва_каналу; «@назва_каналу» і «t.me/назва_каналу» перетворяться самі">
+            <input value={values.telegram} onChange={set('telegram')} placeholder="https://t.me/назва_каналу" />
           </Field>
+          {посиланняTelegram(values.telegram).error && <div className="error-box">{посиланняTelegram(values.telegram).error}</div>}
         </section>
 
         <section className="card-col">
@@ -223,7 +226,10 @@ function Card({ data }) {
       <ErrorBox error={save.error} />
       <div className="form-actions sticky">
         {saved && <span className="ok">Збережено</span>}
-        <button className="btn primary" disabled={save.isPending || [values.kit_color_primary, values.kit_color_secondary].some((v) => v && !HEX.test(hex(v)))}>
+        <button
+          className="btn primary"
+          disabled={save.isPending || !посиланняTelegram(values.telegram).ok || [values.kit_color_primary, values.kit_color_secondary].some((v) => v && !HEX.test(hex(v)))}
+        >
           Зберегти картку
         </button>
       </div>
