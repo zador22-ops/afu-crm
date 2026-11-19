@@ -17,6 +17,8 @@ query "clubs/{teaminfo_id}" verb=PATCH {
     text instagram? filters=trim
     text facebook? filters=trim
     text youtube? filters=trim
+    // Telegram клубу (Богдан, чат АФУ 19.11): застосунок читає club.telegram; колонка TeamInfo.telegram — Backend
+    text telegram? filters=trim
     text colors? filters=trim
     text contact_name? filters=trim
     text contact_phone? filters=trim

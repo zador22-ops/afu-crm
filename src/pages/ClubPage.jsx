@@ -76,6 +76,7 @@ function Card({ data }) {
         instagram: values.instagram.trim(),
         facebook: values.facebook.trim(),
         youtube: values.youtube.trim(),
+        telegram: values.telegram.trim(),
         colors: values.colors.trim(),
         kit_color_primary: hex(values.kit_color_primary),
         kit_color_secondary: hex(values.kit_color_secondary),
@@ -200,6 +201,10 @@ function Card({ data }) {
           <Field label="YouTube">
             <input value={values.youtube} onChange={set('youtube')} />
           </Field>
+          {/* Telegram (Богдан, чат АФУ 19.11): застосунок уже показує club.telegram іконкою поруч із соцмережами */}
+          <Field label="Telegram">
+            <input value={values.telegram} onChange={set('telegram')} placeholder="https://t.me/…" />
+          </Field>
         </section>
 
         <section className="card-col">
@@ -308,6 +313,7 @@ const toForm = (c) => ({
   instagram: c.instagram || '',
   facebook: c.facebook || '',
   youtube: c.youtube || '',
+  telegram: c.telegram || '',
   colors: c.colors || '',
   kit_color_primary: c.kit_color_primary || '',
   kit_color_secondary: c.kit_color_secondary || '',
