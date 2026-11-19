@@ -13,6 +13,9 @@ query "bracket/{bracket_id}" verb=PATCH {
   
     // true — прибрати другу команду (бай, бриф bracket-bye 17.11); не прислано / 0 / null у teaminfo_id2 — «не чіпати»
     bool clear_teaminfo_id2?
+  
+    // true — прибрати першу команду (бриф bracket-bye-team1, 19.11); обидві разом прибрати не можна
+    bool clear_teaminfo_id1?
   }
 
   stack {
@@ -51,31 +54,36 @@ query "bracket/{bracket_id}" verb=PATCH {
     api.lambda {
       code = """
           const нова = (v, була) => (v != null && Number(v) > 0 ? Number(v) : (була != null && Number(була) > 0 ? Number(була) : null));
-          const t1 = нова($input.teaminfo_id1, $var.pair.teaminfo_id1);
+          const t1 = $input.clear_teaminfo_id1 === true ? null : нова($input.teaminfo_id1, $var.pair.teaminfo_id1);
           const t2 = $input.clear_teaminfo_id2 === true ? null : нова($input.teaminfo_id2, $var.pair.teaminfo_id2);
-          return { t1: t1, t2: t2, q2: t2 == null ? -1 : t2, need: t2 == null ? 1 : 2 };
+          return { t1: t1, t2: t2, q1: t1 == null ? -1 : t1, q2: t2 == null ? -1 : t2, need: (t1 == null ? 0 : 1) + (t2 == null ? 0 : 1) };
         """
       timeout = 10
     } as $teams
   
-    precondition ($teams.t1 != $teams.t2) {
+    precondition ($teams.need >= 1) {
+      error_type = "badrequest"
+      error = "У парі має лишитися хоча б одна команда"
+    }
+  
+    precondition ($teams.need < 2 || $teams.t1 != $teams.t2) {
       error_type = "badrequest"
       error = "Команда не може грати сама з собою"
     }
   
     db.query "Tournament participants" {
-      where = $db.Tournament_participants.leagues_id == $tour.leagues_id && ($db.Tournament_participants.teaminfo_id == $teams.t1 || $db.Tournament_participants.teaminfo_id == $teams.q2)
+      where = $db.Tournament_participants.leagues_id == $tour.leagues_id && ($db.Tournament_participants.teaminfo_id == $teams.q1 || $db.Tournament_participants.teaminfo_id == $teams.q2)
       return = {type: "count"}
     } as $participants
   
-    precondition ($teams.t1 != null && $participants == $teams.need) {
+    precondition ($participants == $teams.need) {
       error_type = "badrequest"
       error = "Команди пари мають бути учасницями турніру"
     }
   
     // Команда не може стояти у двох парах одного раунду
     db.query Bracket {
-      where = $db.Bracket.tours_id == $pair.tours_id && $db.Bracket.id != $input.bracket_id && ($db.Bracket.teaminfo_id1 == $teams.t1 || $db.Bracket.teaminfo_id2 == $teams.t1 || $db.Bracket.teaminfo_id1 == $teams.q2 || $db.Bracket.teaminfo_id2 == $teams.q2)
+      where = $db.Bracket.tours_id == $pair.tours_id && $db.Bracket.id != $input.bracket_id && ($db.Bracket.teaminfo_id1 == $teams.q1 || $db.Bracket.teaminfo_id2 == $teams.q1 || $db.Bracket.teaminfo_id1 == $teams.q2 || $db.Bracket.teaminfo_id2 == $teams.q2)
       return = {type: "count"}
     } as $busy
   
