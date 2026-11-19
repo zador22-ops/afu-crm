@@ -4,7 +4,7 @@ import { crm, request } from '../api/client.js';
 import { Empty, ErrorBox, Field, Modal, useForm } from '../components/ui.jsx';
 import PlayoffBracket from '../components/PlayoffBracket.jsx';
 import { розкластиСітку } from '../utils/bracketLayout.js';
-import { БЕЗ_СУПЕРНИКА, єСуперник, назваКоманди, обидвіПорожні, місцеНаКрок, місцеЦілі, порядокВирішує, рахунокМатчу, стадіїСітки, тілоЗмінПари, тілоНовоїПари } from '../utils/bracketView.js';
+import { БЕЗ_СУПЕРНИКА, єСуперник, назваКоманди, обидвіПорожні, місцеНаКрок, місцеЦілі, позиціяДляСлоту, порядокВирішує, рахунокМатчу, стадіїСітки, тілоЗмінПари, тілоНовоїПари } from '../utils/bracketView.js';
 
 /**
  * Сітка плей-оф деревом — так само, як її бачить уболівальник у застосунку (бриф crm-bracket-editor,
@@ -23,6 +23,7 @@ export default function TournamentBracket({ tid, participants }) {
   const bracket = useQuery({ queryKey: ['bracket', tid], queryFn: () => crm.get(`/tournaments/${tid}/bracket`) });
   const [adding, setAdding] = useState(null);
   const [opened, setOpened] = useState(null);
+  const [примітка, setПримітка] = useState('');
 
   const стадії = useMemo(() => стадіїСітки(bracket.data?.tours), [bracket.data]);
   const вигляд = useQueries({
@@ -36,11 +37,31 @@ export default function TournamentBracket({ tid, participants }) {
     qc.invalidateQueries({ queryKey: ['bracket', tid] });
     qc.invalidateQueries({ queryKey: ['bracket-view', tid] });
   };
+  // Нова пара сервер ставить останньою в раунді. Якщо її створено з порожньої клітинки — одразу
+  // переставляємо (move) так, щоб розкладка поставила її саме в ту клітинку (бриф bracket-slot-position).
+  // Кнопка «Нова пара» без клітинки — як і було, останньою.
   const add = useMutation({
-    mutationFn: (body) => crm.post(`/tournaments/${tid}/bracket`, body),
-    onSuccess: () => {
+    mutationFn: async ({ body, ціль }) => {
+      const пара = await crm.post(`/tournaments/${tid}/bracket`, body);
+      if (ціль?.слот != null && ціль.tours_id === body.tours_id && пара?.id) {
+        const дані = await request('base', '/bracket/byStage/allInfo', { query: { league_id: tid, league_stage_id: ціль.стадія }, auth: false });
+        const тур = (дані?.bracket || []).filter((п) => п?.tours_id === body.tours_id);
+        const тепер = тур.findIndex((п) => п.id === пара.id) + 1;
+        const position = позиціяДляСлоту(дані, розкластиСітку, пара.id, body.tours_id, ціль.слот);
+        if (position && position !== тепер) await crm.patch(`/tournaments/${tid}/bracket/${пара.id}/move`, { position });
+        if (!position)
+          return {
+            пара,
+            примітка:
+              'Пару додано, але не в ту клітинку: місця в цьому раунді задають пари наступного раунду (за командами), а вільні пари стають у вільні клітинки зверху підряд. Перетягніть пару або змініть порядок кнопками «Вище / Нижче».',
+          };
+      }
+      return { пара, примітка: '' };
+    },
+    onSuccess: (r) => {
       оновити();
       setAdding(null);
+      setПримітка(r?.примітка || '');
     },
   });
   const edit = useMutation({
@@ -78,11 +99,19 @@ export default function TournamentBracket({ tid, participants }) {
     <section>
       <div className="section-bar">
         <span className="muted">Так сітку бачить уболівальник у застосунку. Натисніть пару — подробиці, порожню клітинку — нова пара</span>
-        <button className="btn primary" onClick={() => setAdding({})} disabled={!раунди.length || команди.length < 2}>
+        <button className="btn primary" onClick={() => setAdding({})} disabled={!раунди.length || команди.length < 1}>
           Нова пара
         </button>
       </div>
       <ErrorBox error={bracket.error || remove.error || move.error} />
+      {примітка && (
+        <div className="warn-box">
+          {примітка}{' '}
+          <button type="button" className="btn small" onClick={() => setПримітка('')}>
+            Зрозуміло
+          </button>
+        </div>
+      )}
       {!раунди.length && <Empty>У турнірі немає раундів етапу «сітка» — створіть їх у вкладці «Тури»</Empty>}
       {стадії.map((с, і) => {
         const q = вигляд[і];
@@ -103,7 +132,7 @@ export default function TournamentBracket({ tid, participants }) {
                   // «За 3 місце» (к = -1) — одна пара, переставляти нічого
                   setOpened({ пара, раунд, крок: к === -1 ? undefined : можна ? (д) => місцеНаКрок(пари, пара, д) : null });
                 }}
-                onEmpty={команди.length >= 2 ? (раундId) => setAdding({ tours_id: раундId }) : undefined}
+                onEmpty={команди.length >= 1 ? (раундId, слот) => setAdding({ tours_id: раундId, слот, стадія: с.id }) : undefined}
                 onMove={(пара, ціль) => {
                   const position = місцеЦілі(q.data.bracket, ціль);
                   if (position) move.mutate({ id: пара.id, position });
@@ -124,7 +153,15 @@ export default function TournamentBracket({ tid, participants }) {
           moving={move}
         />
       )}
-      {adding && <PairForm раунди={раунди} команди={команди} початковий={adding.tours_id} onClose={() => setAdding(null)} onSave={add} />}
+      {adding && (
+        <PairForm
+          раунди={раунди}
+          команди={команди}
+          початковий={adding.tours_id}
+          onClose={() => setAdding(null)}
+          onSave={{ ...add, mutate: (body) => add.mutate({ body, ціль: adding }) }}
+        />
+      )}
     </section>
   );
 }

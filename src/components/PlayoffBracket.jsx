@@ -16,7 +16,7 @@ import { БЕЗ_СУПЕРНИКА, назваКоманди, порядокВи
  * Лише в колонках, де порядок справді вирішує місце: якщо в наступному раунді вже є пари, слоти цього
  * раунду розкладка ставить за командами (хто куди пройшов), і пересування нічого б не змінило.
  *
- * Пропси: розкладка — результат розкластиСітку; onPair(пара, раунд); onEmpty(раундId); onMove(пара, ціль).
+ * Пропси: розкладка — результат розкластиСітку; onPair(пара, раунд); onEmpty(раундId, слот); onMove(пара, ціль).
  */
 
 export const КАРТКА_ВИСОТА = 84;
@@ -68,10 +68,10 @@ function Команда({ пара, сторона }) {
   );
 }
 
-function Слот({ пара, раунд, onPair, onEmpty, тягнути }) {
+function Слот({ пара, раунд, слот = 0, onPair, onEmpty, тягнути }) {
   if (!пара) {
     return (
-      <button type="button" className="bracket-card empty" style={{ height: КАРТКА_ВИСОТА, width: КАРТКА_ШИРИНА }} onClick={() => onEmpty?.(раунд.id)}>
+      <button type="button" className="bracket-card empty" style={{ height: КАРТКА_ВИСОТА, width: КАРТКА_ШИРИНА }} onClick={() => onEmpty?.(раунд.id, слот)}>
         Пару ще не визначено
         {onEmpty && <span className="muted small-text">натисніть, щоб додати</span>}
       </button>
@@ -174,7 +174,7 @@ export default function PlayoffBracket({ розкладка, onPair, onEmpty, on
                 <div style={{ height: остання ? висотаОстанньої : висотаДерева, position: 'relative' }}>
                   {колонка.пари.map((пара, j) => (
                     <div key={пара?.id ?? `порожній-${j}`} className="bracket-slot" style={{ height: слот, top: слот * j }}>
-                      <Слот пара={пара} раунд={колонка} onPair={onPair} onEmpty={onEmpty} тягнути={тягнути(порядокВирішує(колонки, к) && колонка.пари.filter(Boolean).length > 1)} />
+                      <Слот пара={пара} раунд={колонка} слот={j} onPair={onPair} onEmpty={onEmpty} тягнути={тягнути(порядокВирішує(колонки, к) && колонка.пари.filter(Boolean).length > 1)} />
                     </div>
                   ))}
                   {остання && заТретє && (
