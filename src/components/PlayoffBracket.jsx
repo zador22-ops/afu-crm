@@ -1,6 +1,6 @@
 import { Fragment, useState } from 'react';
 import { двоматчева, переможецьСерії } from '../utils/bracketLayout.js';
-import { БЕЗ_СУПЕРНИКА, порядокВирішує, станПари } from '../utils/bracketView.js';
+import { БЕЗ_СУПЕРНИКА, назваКоманди, порядокВирішує, станПари } from '../utils/bracketView.js';
 
 /**
  * Сітка плей-оф деревом — веб-копія AFU components/PlayoffBracket.js («варіант Б», слово Андрія 05.10):
@@ -105,7 +105,7 @@ function Слот({ пара, раунд, onPair, onEmpty, тягнути }) {
       }}
       title={тягнути?.можна ? 'Перетягніть на місце іншої пари цього раунду' : undefined}
       onClick={() => onPair?.(пара, раунд)}
-      aria-label={`${раунд.назва}: ${пара._teaminfo1?.TeamName || 'Команда'} — ${Number(пара.teaminfo_id2) > 0 ? пара._teaminfo2?.TeamName || 'Команда' : БЕЗ_СУПЕРНИКА}`}
+      aria-label={`${раунд.назва}: ${назваКоманди(пара, 1)} — ${назваКоманди(пара, 2)}`}
     >
       <Команда пара={пара} сторона={1} />
       <Команда пара={пара} сторона={2} />

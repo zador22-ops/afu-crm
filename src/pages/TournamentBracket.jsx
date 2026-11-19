@@ -4,7 +4,7 @@ import { crm, request } from '../api/client.js';
 import { Empty, ErrorBox, Field, Modal, useForm } from '../components/ui.jsx';
 import PlayoffBracket from '../components/PlayoffBracket.jsx';
 import { розкластиСітку } from '../utils/bracketLayout.js';
-import { БЕЗ_СУПЕРНИКА, єСуперник, місцеНаКрок, місцеЦілі, порядокВирішує, рахунокМатчу, стадіїСітки, тілоЗмінПари, тілоНовоїПари } from '../utils/bracketView.js';
+import { БЕЗ_СУПЕРНИКА, єСуперник, назваКоманди, обидвіПорожні, місцеНаКрок, місцеЦілі, порядокВирішує, рахунокМатчу, стадіїСітки, тілоЗмінПари, тілоНовоїПари } from '../utils/bracketView.js';
 
 /**
  * Сітка плей-оф деревом — так само, як її бачить уболівальник у застосунку (бриф crm-bracket-editor,
@@ -135,12 +135,13 @@ const ЗАМІНА_КОМАНД = true;
 
 /** Картка пари: обидві команди (заміна на місці), матчі пари з рахунком чи станом, «Прибрати». */
 function PairCard({ пара, раунд, команди, крок, onClose, onRemove, onEdit, onMove, moving }) {
-  const н1 = пара._teaminfo1?.TeamName || 'Команда';
-  const н2 = єСуперник(пара) ? пара._teaminfo2?.TeamName || 'Команда' : БЕЗ_СУПЕРНИКА;
+  const н1 = назваКоманди(пара, 1);
+  const н2 = назваКоманди(пара, 2);
   const матчі = Array.isArray(пара.legs) ? пара.legs : [];
   const { values, set } = useForm({ teaminfo_id1: String(пара.teaminfo_id1 || ''), teaminfo_id2: String(пара.teaminfo_id2 || '') });
   const змінено = values.teaminfo_id1 !== String(пара.teaminfo_id1 || '') || values.teaminfo_id2 !== String(пара.teaminfo_id2 || '');
   const однакові = values.teaminfo_id1 && values.teaminfo_id1 === values.teaminfo_id2;
+  const порожня = обидвіПорожні(values);
   // Команду, якої вже немає серед учасників, теж показуємо — щоб вибір не стрибнув на «—»
   const варіанти = (id, назва) => (id && !команди.some((c) => String(c.id) === String(id)) ? [{ id, name: `${назва} (не учасник)` }, ...команди] : команди);
   return (
@@ -155,7 +156,8 @@ function PairCard({ пара, раунд, команди, крок, onClose, onR
       >
         <div className="row2">
           <Field label="Команда 1">
-            <select value={values.teaminfo_id1} onChange={set('teaminfo_id1')} required>
+            <select value={values.teaminfo_id1} onChange={set('teaminfo_id1')}>
+              <option value="">— {БЕЗ_СУПЕРНИКА}</option>
               {варіанти(пара.teaminfo_id1, н1).map((c) => (
                 <option key={c.id} value={c.id}>
                   {c.name}
@@ -175,6 +177,7 @@ function PairCard({ пара, раунд, команди, крок, onClose, onR
           </Field>
         </div>
         {однакові && <div className="error-box">Команда не може грати сама з собою</div>}
+        {порожня && <div className="error-box">Оберіть хоча б одну команду — порожньою може бути лише одна сторона (бай)</div>}
         {змінено && матчі.length > 0 && (
           <div className="warn-box">Матчі пари лишаться між старими командами — у сітці пара покаже матчі нових команд, якщо вони є в цьому раунді.</div>
         )}
@@ -182,7 +185,7 @@ function PairCard({ пара, раунд, команди, крок, onClose, onR
         {змінено && (
           <div className="form-actions">
             <span className="spacer" />
-            <button className="btn primary" disabled={onEdit.isPending || однакові}>
+            <button className="btn primary" disabled={onEdit.isPending || однакові || порожня}>
               {onEdit.isPending ? 'Зберігаємо…' : 'Зберегти команди'}
             </button>
           </div>
@@ -252,12 +255,17 @@ function PairCard({ пара, раунд, команди, крок, onClose, onR
 
 function PairForm({ раунди, команди, початковий, onClose, onSave }) {
   const { values, set } = useForm({ tours_id: початковий || раунди[0]?.id || '', teaminfo_id1: '', teaminfo_id2: '' });
+  const [спроба, setСпроба] = useState(false);
+  const порожня = обидвіПорожні(values);
+  const однакові = values.teaminfo_id1 && values.teaminfo_id1 === values.teaminfo_id2;
   return (
     <Modal title="Пара сітки" onClose={onClose}>
       <form
         className="form"
         onSubmit={(e) => {
           e.preventDefault();
+          setСпроба(true);
+          if (порожня || однакові) return;
           onSave.mutate(тілоНовоїПари(values));
         }}
       >
@@ -271,9 +279,9 @@ function PairForm({ раунди, команди, початковий, onClose,
           </select>
         </Field>
         <div className="row2">
-          <Field label="Команда 1">
-            <select value={values.teaminfo_id1} onChange={set('teaminfo_id1')} required>
-              <option value="">—</option>
+          <Field label="Команда 1" hint="Порожньо — команда проходить без суперника (бай)">
+            <select value={values.teaminfo_id1} onChange={set('teaminfo_id1')}>
+              <option value="">— {БЕЗ_СУПЕРНИКА}</option>
               {команди.map((c) => (
                 <option key={c.id} value={c.id}>
                   {c.name}
@@ -292,6 +300,8 @@ function PairForm({ раунди, команди, початковий, onClose,
             </select>
           </Field>
         </div>
+        {спроба && порожня && <div className="error-box">Оберіть хоча б одну команду — порожньою може бути лише одна сторона (бай)</div>}
+        {однакові && <div className="error-box">Команда не може грати сама з собою</div>}
         <ErrorBox error={onSave.error} />
         <div className="form-actions">
           <button type="button" className="btn" onClick={onClose}>

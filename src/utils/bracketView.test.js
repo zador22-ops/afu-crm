@@ -29,12 +29,12 @@ test('етапи «сітка»: раунди групуються за етап
 });
 
 test('стан пари: матчів немає / не зіграний / частково / усе зіграно', () => {
-  assert.equal(станПари({ teaminfo_id2: 2 }), 'матчу ще немає');
+  assert.equal(станПари({ teaminfo_id1: 1, teaminfo_id2: 2 }), 'матчу ще немає');
   assert.equal(станПари({ teaminfo_id1: 1, teaminfo_id2: null }), 'без матчу (бай)');
-  assert.equal(станПари({ teaminfo_id2: 2, legs: [{ match_status_id: 1 }] }), 'матч призначено, не зіграний');
-  assert.equal(станПари({ teaminfo_id2: 2, legs: [{ match_status_id: 4 }, { match_status_id: 1 }] }), 'зіграно 1 з 2');
-  assert.equal(станПари({ teaminfo_id2: 2, legs: [{ match_status_id: 4 }, { match_status_id: 5 }] }), 'зіграно 1 з 2'); // призупинений — ще не зіграний
-  assert.equal(станПари({ teaminfo_id2: 2, legs: [{ match_status_id: 4 }, { match_status_id: '4' }] }), null);
+  assert.equal(станПари({ teaminfo_id1: 1, teaminfo_id2: 2, legs: [{ match_status_id: 1 }] }), 'матч призначено, не зіграний');
+  assert.equal(станПари({ teaminfo_id1: 1, teaminfo_id2: 2, legs: [{ match_status_id: 4 }, { match_status_id: 1 }] }), 'зіграно 1 з 2');
+  assert.equal(станПари({ teaminfo_id1: 1, teaminfo_id2: 2, legs: [{ match_status_id: 4 }, { match_status_id: 5 }] }), 'зіграно 1 з 2'); // призупинений — ще не зіграний
+  assert.equal(станПари({ teaminfo_id1: 1, teaminfo_id2: 2, legs: [{ match_status_id: 4 }, { match_status_id: '4' }] }), null);
 });
 
 test('рахунок матчу пари — в орієнтації пари, серія пенальті окремо', () => {
@@ -97,8 +97,11 @@ test('«Третій попередній етап» без пар — звич�
 test('бай: пара з однією командою — тіла POST/PATCH і «є суперник» (бриф bracket-bye)', async () => {
   const { БЕЗ_СУПЕРНИКА, єСуперник, тілоЗмінПари, тілоНовоїПари } = await import('./bracketView.js');
   assert.equal(БЕЗ_СУПЕРНИКА, 'Очікує суперника');
-  assert.equal(єСуперник({ teaminfo_id2: 5 }), true);
-  for (const порожньо of [null, 0, undefined, '']) assert.equal(єСуперник({ teaminfo_id2: порожньо }), false);
+  assert.equal(єСуперник({ teaminfo_id1: 3, teaminfo_id2: 5 }), true);
+  for (const порожньо of [null, 0, undefined, '']) {
+    assert.equal(єСуперник({ teaminfo_id1: 3, teaminfo_id2: порожньо }), false);
+    assert.equal(єСуперник({ teaminfo_id1: порожньо, teaminfo_id2: 5 }), false);
+  }
   // POST: без суперника — ключа teaminfo_id2 немає
   assert.deepEqual(тілоНовоїПари({ tours_id: '150', teaminfo_id1: '7', teaminfo_id2: '' }), { tours_id: 150, teaminfo_id1: 7 });
   assert.deepEqual(тілоНовоїПари({ tours_id: '150', teaminfo_id1: '7', teaminfo_id2: '9' }), { tours_id: 150, teaminfo_id1: 7, teaminfo_id2: 9 });
@@ -120,4 +123,24 @@ test('бай у дереві: пара без суперника стає у с�
   assert.deepEqual(р.колонки[1].пари.map((п) => п?.id), [2]);
   assert.equal(р.колонки[0].пари.length, 2);
   assert.deepEqual(р.колонки[0].пари.filter(Boolean).map((п) => п.id), [1]);
+});
+
+test('бай з боку команди 1 — симетрично (бриф bracket-bye-team1)', async () => {
+  const { назваКоманди, обидвіПорожні, тілоЗмінПари, тілоНовоїПари } = await import('./bracketView.js');
+  // POST: порожньої команди немає в тілі з будь-якого боку
+  assert.deepEqual(тілоНовоїПари({ tours_id: '151', teaminfo_id1: '', teaminfo_id2: '9' }), { tours_id: 151, teaminfo_id2: 9 });
+  // PATCH: прибрати першу — clear_teaminfo_id1; друга не змінена й не надсилається, якщо порожня й не була
+  assert.deepEqual(тілоЗмінПари({ teaminfo_id1: 7, teaminfo_id2: 9 }, { teaminfo_id1: '', teaminfo_id2: '9' }), { clear_teaminfo_id1: true, teaminfo_id2: 9 });
+  assert.deepEqual(тілоЗмінПари({ teaminfo_id1: null, teaminfo_id2: 9 }, { teaminfo_id1: '', teaminfo_id2: '9' }), { teaminfo_id2: 9 });
+  assert.deepEqual(тілоЗмінПари({ teaminfo_id1: null, teaminfo_id2: 9 }, { teaminfo_id1: '4', teaminfo_id2: '9' }), { teaminfo_id1: 4, teaminfo_id2: 9 });
+  // обидві порожні — форма не відправляє
+  assert.equal(обидвіПорожні({ teaminfo_id1: '', teaminfo_id2: '' }), true);
+  assert.equal(обидвіПорожні({ teaminfo_id1: '0', teaminfo_id2: null }), true);
+  assert.equal(обидвіПорожні({ teaminfo_id1: '', teaminfo_id2: '9' }), false);
+  // назви: порожній бік — «Очікує суперника», з будь-якого боку
+  assert.equal(назваКоманди({ teaminfo_id1: null, teaminfo_id2: 9, _teaminfo2: { TeamName: 'Ютландія' } }, 1), 'Очікує суперника');
+  assert.equal(назваКоманди({ teaminfo_id1: null, teaminfo_id2: 9, _teaminfo2: { TeamName: 'Ютландія' } }, 2), 'Ютландія');
+  // стан: бай з будь-якого боку
+  const { станПари } = await import('./bracketView.js');
+  assert.equal(станПари({ teaminfo_id1: null, teaminfo_id2: 9 }), 'без матчу (бай)');
 });
